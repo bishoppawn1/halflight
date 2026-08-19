@@ -1382,6 +1382,7 @@ export default function Game() {
       drawWorld(context, canvas, game);
       if (now - lastHud > 120) {
         lastHud = now;
+        if (game.messageUntil > 0 && now >= game.messageUntil) game.messageUntil = 0;
         refresh();
       }
       frame = requestAnimationFrame(loop);
@@ -1523,7 +1524,7 @@ export default function Game() {
               ? BUILD_DATA[game.buildMode].name
               : "Build";
   const prompt = nearbyPrompt(game);
-  const messageVisible = performance.now() < game.messageUntil;
+  const messageVisible = game.messageUntil > 0;
   const phase = isNight(game) ? "NIGHT" : "DAY";
 
   return (
