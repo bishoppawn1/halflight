@@ -13,7 +13,7 @@ The GitHub Pages deployment is available at:
 
 - WASD or arrow keys — move
 - Hold left mouse — continuously chop, mine, attack, fire, or place
-- E — interact, tame, eat, enter caves, open gates, or confirm grid placement
+- E — gather once, interact, tame, eat, enter caves, open gates, or confirm grid placement
 - Space or F — attack
 - 1–9 or 0 — select one of 10 hotbar slots
 - Q — build menu

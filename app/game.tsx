@@ -2044,14 +2044,14 @@ function nearbyPrompt(game: GameState) {
   }
   const node = nearestNode(game, 92);
   if (node) {
-    if (isTree(node.kind)) return "MOUSE · Hold to chop " + node.kind + " with Axe";
-    if (node.kind === "rock") return "MOUSE · Hold to mine stone with Pickaxe";
-    if (node.kind === "granite") return "MOUSE · Hold to mine granite with Pickaxe";
-    if (node.kind === "ironOre") return "MOUSE · Hold to mine iron ore with Pickaxe";
-    if (node.kind === "copperOre") return "MOUSE · Hold to mine copper ore with Pickaxe";
-    if (node.kind === "coal") return "MOUSE · Hold to mine coal with Pickaxe";
-    if (node.kind === "sulfur") return "MOUSE · Hold to mine sulfur with Pickaxe";
-    return "MOUSE · Hold to gather " + (node.kind === "berryBush" ? "berries" : node.kind);
+    if (isTree(node.kind)) return "TOOL · Chop " + node.kind + " with Axe";
+    if (node.kind === "rock") return "TOOL · Mine stone with Pickaxe";
+    if (node.kind === "granite") return "TOOL · Mine granite with Pickaxe";
+    if (node.kind === "ironOre") return "TOOL · Mine iron ore with Pickaxe";
+    if (node.kind === "copperOre") return "TOOL · Mine copper ore with Pickaxe";
+    if (node.kind === "coal") return "TOOL · Mine coal with Pickaxe";
+    if (node.kind === "sulfur") return "TOOL · Mine sulfur with Pickaxe";
+    return "TOOL · Gather " + (node.kind === "berryBush" ? "berries" : node.kind);
   }
   if (game.selected === "food") return "E · Eat food";
   return "";
@@ -2446,8 +2446,8 @@ export default function Game() {
               ? BUILD_DATA[game.buildMode].name
               : itemLabel(game.hotbar[game.selectedSlot]);
   const prompt = nearbyPrompt(game);
-  const promptKey = prompt.startsWith("MOUSE") ? "HOLD LMB" : "E";
-  const promptText = prompt.replace(/^(E|MOUSE) · /, "");
+  const promptKey = prompt.startsWith("TOOL") ? "E / HOLD LMB" : "E";
+  const promptText = prompt.replace(/^(E|TOOL) · /, "");
   const messageVisible = game.messageUntil > 0;
   const phase = isNight(game) ? "NIGHT" : "DAY";
 
