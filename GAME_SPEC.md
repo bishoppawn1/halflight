@@ -105,7 +105,7 @@ The Meadow and the connected cave system are separate 5,200 by 3,800 world
 spaces. The caves and their chambers are deliberately unnamed; entrances,
 exits, prompts, and the location display identify them only as caves.
 
-- **The Meadow** contains open grassland, sparse clumps of harvestable wild
+- **The Meadow** contains open grassland, dense patches of harvestable wild
   grass, eight scattered iron and copper deposits, scattered ordinary rock with
   occasional huge outcrops, three cave entrances, one rare Aetherium deposit,
   and the Blackwood.
@@ -193,9 +193,8 @@ the camera moves.
 Each equipped item has one shared action cooldown. An axe or pickaxe uses the
 same cooldown against a resource node and a creature, and changing targets does
 not bypass that timer. Forage also uses the selected item's cooldown but does
-not play its attack animation. Wild grass is the only natural source of fiber.
-Higher tiers remove more node durability per hit and give access to stronger
-deposits.
+not play its attack animation. Higher tiers remove more node durability per hit
+and give access to stronger deposits.
 
 Every axe and pickaxe tier is a separate inventory item. Crafting a Stone
 Pickaxe, for example, does not remove or alter an owned Wood Pickaxe. Tools lose
@@ -220,9 +219,9 @@ no numeric durability text until it is depleted or fully respawned.
 
 | Node | Durability | World drops on depletion |
 | --- | ---: | --- |
-| Oak | 8 | 16 wood |
-| Pine | 6 | 6 wood |
-| Birch | 5 | 5 wood |
+| Oak | 8 | 16 wood and 2 fiber |
+| Pine | 6 | 6 wood and 6 fiber |
+| Birch | 5 | 5 wood and 1 fiber |
 | Stone | 6 | 6 stone |
 | Granite | 9 | 9 granite |
 | Iron ore | 8 | 8 iron |
@@ -288,8 +287,9 @@ A higher tier cannot be downgraded through the crafting panel.
 ## 9. Building and traps
 
 Building pieces are crafted into ready stacks and placed on a 48-unit grid.
-Grid lines outline each cell, while the preview and completed structure sit at
-the exact center of that cell. The target must be within 260 units of the
+Most previews and completed structures occupy one cell. A Crop Plot is the
+exception: it occupies and reserves a two-by-two-cell footprint, with four
+joined soil beds shown inside it. The target must be within 260 units of the
 player. A cell can contain one floor, one roof, and one solid-layer piece.
 Solid pieces cannot be placed over a live tree, rock, deposit, player, or
 creature. A click places one blueprint and exits single-placement mode. Holding
@@ -335,11 +335,13 @@ their respawn until that footprint is clear.
 | Wire Snare | 5 fiber, 2 copper | 2 | 45 | 8 damage and 58% slow for 2.6 seconds |
 | Fire Trap | 4 stone, 3 coal, 2 sulfur | 1 | 70 | 18 damage in a wide area; 3.2-second cooldown |
 | Scrap Turret | 6 wood, 7 iron, 5 copper | 1 | 95 | 12 damage within 360 units every 700 ms |
-| Crop Plot | 2 wood, 2 fiber, 1 seed | 1 | 45 | Produces berries and seeds |
+| Crop Plot | 2 wood, 2 fiber, 1 seed | 1 | 45 | 2×2 field that produces berries and seeds |
 
 Crop plots mature in 300 seconds and display only their current whole-number
 percentage, such as `59%`, without a repeated growth label. A mature harvest
-gives 4 berries and 2 seeds, then resets growth. Monsters damage any building
+gives 4 berries and 2 seeds, then resets growth. Pressing `E` from normal
+interaction range around any edge of the visible field harvests or checks it;
+the player does not have to approach the center. Monsters damage any building
 they pass closely enough to reach.
 Destroyed buildings are removed.
 

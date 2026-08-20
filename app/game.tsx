@@ -275,6 +275,7 @@ const MONSTER_SPAWN_LIGHT_PADDING = 30;
 const CONSTRUCTION_SECONDS = 1.5;
 const DECONSTRUCTION_SECONDS = 2.25;
 const BUILDING_HALF_SIZE = 23;
+const CROP_HALF_SIZE = GRID - 2;
 const AUTO_BUILD_RANGE = GRID * 3;
 const SPAWN_X = 2780;
 const SPAWN_Y = 1940;
@@ -792,13 +793,13 @@ function makeGame(): GameState {
     const y = 110 + seeded(i, 2) * (WORLD_H - 220);
     const roll = i % 16;
     const kind: ResourceKind =
-      roll === 0 ? "berryBush" : roll === 1 ? "grass" : roll === 3 ? "granite" : roll === 4 || roll === 5 ? "rock" : roll === 6 ? "birch" : roll === 7 ? "mushroom" : i % 2 ? "oak" : "pine";
+      roll === 0 ? "berryBush" : roll === 1 || roll === 2 ? "grass" : roll === 3 ? "granite" : roll === 4 || roll === 5 ? "rock" : roll === 6 ? "birch" : roll === 7 ? "mushroom" : i % 2 ? "oak" : "pine";
     if (!inForest(x, y) || !isTree(kind)) {
       addNode(kind, "meadow", x, y, isMineable(kind) ? depositSize(i, 15) : "medium");
     }
   }
 
-  for (let i = 0; i < 48; i++) {
+  for (let i = 0; i < 170; i++) {
     addNode(
       "grass",
       "meadow",
@@ -806,8 +807,8 @@ function makeGame(): GameState {
       70 + seeded(i, 122) * (WORLD_H - 140),
     );
   }
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2 + seeded(i, 126) * 0.3;
+  for (let i = 0; i < 28; i++) {
+    const angle = (i / 28) * Math.PI * 2 + seeded(i, 126) * 0.3;
     const distance = 115 + seeded(i, 127) * 235;
     addNode("grass", "meadow", SPAWN_X + Math.cos(angle) * distance, SPAWN_Y + Math.sin(angle) * distance);
   }
@@ -836,7 +837,7 @@ function makeGame(): GameState {
     const radius = Math.sqrt(seeded(i, 42));
     const x = FOREST_X + Math.cos(angle) * FOREST_RX * radius;
     const y = FOREST_Y + Math.sin(angle) * FOREST_RY * radius;
-    const kind: ResourceKind = i % 13 === 0 ? "berryBush" : i % 17 === 0 ? "mushroom" : i % 29 === 0 ? "grass" : i % 3 === 0 ? "pine" : i % 3 === 1 ? "oak" : "birch";
+    const kind: ResourceKind = i % 13 === 0 ? "berryBush" : i % 17 === 0 ? "mushroom" : i % 11 === 0 ? "grass" : i % 3 === 0 ? "pine" : i % 3 === 1 ? "oak" : "birch";
     const tooClose = isTree(kind) && nodes.some((node) => node.realm === "meadow" && isTree(node.kind) && Math.hypot(node.x - x, node.y - y) < 82);
     if (!tooClose) addNode(kind, "meadow", x, y);
   }
@@ -1347,10 +1348,29 @@ function isSolidBuilding(building: Building) {
   return !(["woodGate", "stoneGate", "door"].includes(building.kind) && building.open);
 }
 
-function distanceToBuilding(building: Building, x: number, y: number, padding = 0) {
-  const dx = Math.max(Math.abs(x - building.gx * GRID) - BUILDING_HALF_SIZE - padding, 0);
-  const dy = Math.max(Math.abs(y - building.gy * GRID) - BUILDING_HALF_SIZE - padding, 0);
+function buildingHalfSize(kind: BuildKind) {
+  return kind === "crop" ? CROP_HALF_SIZE : BUILDING_HALF_SIZE;
+}
+
+function buildingCenter(kind: BuildKind, gx: number, gy: number) {
+  const cropOffset = kind === "crop" ? GRID : 0;
+  return { x: gx * GRID + cropOffset, y: gy * GRID + cropOffset };
+}
+
+function buildingWorldCenter(building: Building) {
+  return buildingCenter(building.kind, building.gx, building.gy);
+}
+
+function distanceToBuildingFootprint(kind: BuildKind, gx: number, gy: number, x: number, y: number, padding = 0) {
+  const center = buildingCenter(kind, gx, gy);
+  const halfSize = buildingHalfSize(kind);
+  const dx = Math.max(Math.abs(x - center.x) - halfSize - padding, 0);
+  const dy = Math.max(Math.abs(y - center.y) - halfSize - padding, 0);
   return Math.hypot(dx, dy);
+}
+
+function distanceToBuilding(building: Building, x: number, y: number, padding = 0) {
+  return distanceToBuildingFootprint(building.kind, building.gx, building.gy, x, y, padding);
 }
 
 function blockingBuildingAt(game: GameState, realm: Realm, x: number, y: number, radius: number) {
@@ -1399,20 +1419,24 @@ function previewCell(game: GameState) {
       y = game.pointer.worldY;
     }
   }
-  return { gx: Math.round(x / GRID), gy: Math.round(y / GRID) };
+  const centerGx = Math.round(x / GRID);
+  const centerGy = Math.round(y / GRID);
+  return game.buildMode === "crop"
+    ? { gx: centerGx - 1, gy: centerGy - 1 }
+    : { gx: centerGx, gy: centerGy };
 }
 
 function validPlacement(game: GameState, kind: BuildKind, gx: number, gy: number) {
-  const x = gx * GRID;
-  const y = gy * GRID;
-  if (x < 70 || y < 70 || x > WORLD_W - 70 || y > WORLD_H - 70) return false;
+  const { x, y } = buildingCenter(kind, gx, gy);
+  const halfSize = buildingHalfSize(kind);
+  if (x < halfSize + 47 || y < halfSize + 47 || x > WORLD_W - halfSize - 47 || y > WORLD_H - halfSize - 47) return false;
   if (Math.hypot(x - game.player.x, y - game.player.y) > 260) return false;
-  if (game.realm === "caveSystem" && !isCaveFloor(x, y, BUILDING_HALF_SIZE + 10)) return false;
+  if (game.realm === "caveSystem" && !isCaveFloor(x, y, halfSize + 10)) return false;
   if (
     game.treasures.some(
       (treasure) =>
         treasure.realm === game.realm &&
-        Math.hypot(treasure.x - x, treasure.y - y) < BUILDING_HALF_SIZE + 34,
+        distanceToBuildingFootprint(kind, gx, gy, treasure.x, treasure.y, 34) === 0,
     )
   ) return false;
   if (
@@ -1422,25 +1446,26 @@ function validPlacement(game: GameState, kind: BuildKind, gx: number, gy: number
         node.realm === game.realm &&
         node.hp > 0 &&
         (isTree(node.kind) || isMineable(node.kind)) &&
-        Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind, node.size) + 24,
+        distanceToBuildingFootprint(kind, gx, gy, node.x, node.y) < nodeRadius(node.kind, node.size),
     )
   ) return false;
   if (
     blocksMovementKind(kind) &&
-    (Math.hypot(game.player.x - x, game.player.y - y) < BUILDING_HALF_SIZE + 25 ||
+    (distanceToBuildingFootprint(kind, gx, gy, game.player.x, game.player.y, 25) === 0 ||
       game.creatures.some(
         (creature) =>
           creature.realm === game.realm &&
           creature.hp > 0 &&
-          Math.hypot(creature.x - x, creature.y - y) < BUILDING_HALF_SIZE + creatureRadius(creature),
+          distanceToBuildingFootprint(kind, gx, gy, creature.x, creature.y, creatureRadius(creature)) === 0,
       ))
   ) return false;
   return !game.buildings.some(
-    (building) =>
-      building.realm === game.realm &&
-      building.gx === gx &&
-      building.gy === gy &&
-      buildLayer(building.kind) === buildLayer(kind),
+    (building) => {
+      if (building.realm !== game.realm || buildLayer(building.kind) !== buildLayer(kind)) return false;
+      const existingCenter = buildingWorldCenter(building);
+      const combinedHalfSize = halfSize + buildingHalfSize(building.kind);
+      return Math.abs(existingCenter.x - x) < combinedHalfSize && Math.abs(existingCenter.y - y) < combinedHalfSize;
+    },
   );
 }
 
@@ -1492,10 +1517,11 @@ function rayEntryToBuilding(game: GameState, building: Building, padding = 10) {
   if (aimLength < 0.001) return null;
   const unitX = aimX / aimLength;
   const unitY = aimY / aimLength;
-  const buildingX = building.gx * GRID - game.player.x;
-  const buildingY = building.gy * GRID - game.player.y;
+  const center = buildingWorldCenter(building);
+  const buildingX = center.x - game.player.x;
+  const buildingY = center.y - game.player.y;
   const projection = buildingX * unitX + buildingY * unitY;
-  const radius = BUILDING_HALF_SIZE * Math.SQRT2 + padding;
+  const radius = buildingHalfSize(building.kind) * Math.SQRT2 + padding;
   if (projection < -radius) return null;
   const perpendicularSquared = buildingX * buildingX + buildingY * buildingY - projection * projection;
   if (perpendicularSquared > radius * radius) return null;
@@ -1595,7 +1621,7 @@ function interact(game: GameState) {
   const nearbyBuilding = game.buildings.find((building) => {
     if (building.realm !== game.realm || building.construction < 1) return false;
     if (building.kind !== "woodGate" && building.kind !== "stoneGate" && building.kind !== "door" && building.kind !== "crop" && building.kind !== "storageChest" && building.kind !== "bedroll") return false;
-    return Math.hypot(building.gx * GRID - game.player.x, building.gy * GRID - game.player.y) < 82;
+    return distanceToBuilding(building, game.player.x, game.player.y) < 58;
   });
   if (nearbyBuilding) {
     if (nearbyBuilding.kind === "storageChest") {
@@ -1704,8 +1730,9 @@ function resourceNodeLabel(kind: ResourceKind) {
 }
 
 function resourceNodeLoot(node: ResourceNode): [Material, number][] {
-  if (node.kind === "oak") return [["wood", node.maxHp * 2]];
-  if (node.kind === "pine" || node.kind === "birch") return [["wood", node.maxHp]];
+  if (node.kind === "oak") return [["wood", node.maxHp * 2], ["fiber", 2]];
+  if (node.kind === "pine") return [["wood", node.maxHp], ["fiber", node.maxHp]];
+  if (node.kind === "birch") return [["wood", node.maxHp], ["fiber", 1]];
   if (node.kind === "rock") return [["stone", node.maxHp]];
   if (node.kind === "granite") return [["granite", node.maxHp]];
   if (node.kind === "ironOre") return [["iron", node.maxHp]];
@@ -2305,8 +2332,7 @@ function updateWorkOrders(game: GameState, dt: number) {
   if (!order || (order.action === "construct" && !game.autoBuildActive)) return;
   const building = game.buildings.find((candidate) => candidate.id === order.buildingId);
   if (!building || building.realm !== game.realm) return;
-  const targetX = building.gx * GRID;
-  const targetY = building.gy * GRID;
+  const { x: targetX, y: targetY } = buildingWorldCenter(building);
   game.player.dir = Math.atan2(targetY - game.player.y, targetX - game.player.x);
   const workRange = order.action === "construct" ? AUTO_BUILD_RANGE : 58;
   if (distanceToBuilding(building, game.player.x, game.player.y) > workRange) {
@@ -3965,8 +3991,8 @@ function drawTreasure(ctx: CanvasRenderingContext2D, treasure: CaveTreasure, now
 }
 
 function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha = 1) {
-  const x = building.gx * GRID;
-  const y = building.gy * GRID;
+  const { x, y } = buildingWorldCenter(building);
+  const halfSize = buildingHalfSize(building.kind);
   ctx.save();
   ctx.globalAlpha = alpha * (0.38 + building.construction * 0.62);
   ctx.translate(x, y);
@@ -3976,8 +4002,8 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
     ctx.strokeStyle = "#b9d4c5";
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 5]);
-    ctx.fillRect(-BUILDING_HALF_SIZE, -BUILDING_HALF_SIZE, BUILDING_HALF_SIZE * 2, BUILDING_HALF_SIZE * 2);
-    ctx.strokeRect(-BUILDING_HALF_SIZE, -BUILDING_HALF_SIZE, BUILDING_HALF_SIZE * 2, BUILDING_HALF_SIZE * 2);
+    ctx.fillRect(-halfSize, -halfSize, halfSize * 2, halfSize * 2);
+    ctx.strokeRect(-halfSize, -halfSize, halfSize * 2, halfSize * 2);
     ctx.setLineDash([]);
   }
   if (kind === "craftingBench") {
@@ -4271,37 +4297,46 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
     ctx.fillStyle = "#795039";
     ctx.strokeStyle = "#50382e";
     ctx.lineWidth = 4;
-    roundedRect(ctx, -22, -22, 44, 44, 6);
+    roundedRect(ctx, -CROP_HALF_SIZE, -CROP_HALF_SIZE, CROP_HALF_SIZE * 2, CROP_HALF_SIZE * 2, 8);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#8c633f";
-    roundedRect(ctx, -16, -16, 32, 32, 4);
-    ctx.fill();
-    const height = 7 + building.growth * 14;
-    ctx.strokeStyle = "#4c803e";
-    ctx.lineWidth = 4;
-    for (const xx of [-9, 0, 9]) {
-      ctx.beginPath();
-      ctx.moveTo(xx, 12);
-      ctx.lineTo(xx, 12 - height);
-      ctx.stroke();
-      if (building.growth > 0.6) {
-        ctx.fillStyle = "#dda641";
-        ctx.beginPath();
-        ctx.arc(xx, 10 - height, 4, 0, Math.PI * 2);
+    for (const bedY of [-23, 23]) {
+      for (const bedX of [-23, 23]) {
+        ctx.fillStyle = "#8c633f";
+        roundedRect(ctx, bedX - 19, bedY - 19, 38, 38, 5);
         ctx.fill();
+        ctx.strokeStyle = "rgba(80,56,46,.55)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(bedX - 13, bedY);
+        ctx.lineTo(bedX + 13, bedY);
+        ctx.stroke();
+        const leafSize = 2.5 + building.growth * 4;
+        for (const plantX of [bedX - 8, bedX + 8]) {
+          ctx.fillStyle = "#4c803e";
+          ctx.beginPath();
+          ctx.ellipse(plantX - leafSize * 0.55, bedY - 4, leafSize, leafSize * 0.62, -0.55, 0, Math.PI * 2);
+          ctx.ellipse(plantX + leafSize * 0.55, bedY + 3, leafSize, leafSize * 0.62, -0.55, 0, Math.PI * 2);
+          ctx.fill();
+          if (building.growth > 0.6) {
+            ctx.fillStyle = "#dda641";
+            ctx.beginPath();
+            ctx.arc(plantX, bedY, 2.4 + building.growth * 1.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
       }
     }
     if (building.construction >= 1) {
       const percent = Math.min(100, Math.floor(building.growth * 100));
       ctx.globalAlpha = alpha;
       ctx.fillStyle = "rgba(16,30,25,.92)";
-      roundedRect(ctx, -23, -39, 46, 14, 6);
+      roundedRect(ctx, -26, -66, 52, 14, 6);
       ctx.fill();
       ctx.fillStyle = building.growth >= 1 ? "#f3c557" : "#dbe9ce";
       ctx.font = "bold 9px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(percent + "%", 0, -29);
+      ctx.fillText(percent + "%", 0, -56);
     }
   }
   const workInProgress = building.construction < 1 || building.deconstruction > 0;
@@ -4312,7 +4347,7 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
         ? building.deconstruction
         : Math.max(0, building.hp / building.maxHp);
     ctx.globalAlpha = alpha;
-    const barY = kind === "crop" ? -53 : -35;
+    const barY = kind === "crop" ? -80 : -35;
     ctx.fillStyle = "rgba(17,30,26,.9)";
     roundedRect(ctx, -25, barY, 50, 8, 4);
     ctx.fill();
@@ -4626,7 +4661,10 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   const viewTop = game.camera.y - height / (2 * scale) - 140;
   const viewBottom = game.camera.y + height / (2 * scale) + 140;
   const onScreen = (x: number, y: number) => x >= viewLeft && x <= viewRight && y >= viewTop && y <= viewBottom;
-  const visibleBuildings = game.buildings.filter((building) => building.realm === game.realm && onScreen(building.gx * GRID, building.gy * GRID));
+  const visibleBuildings = game.buildings.filter((building) => {
+    const center = buildingWorldCenter(building);
+    return building.realm === game.realm && onScreen(center.x, center.y);
+  });
   visibleBuildings.filter((building) => building.kind === "floor").forEach((building) => drawBuilding(ctx, building));
 
   const drawables: { y: number; draw: () => void }[] = [];
@@ -4653,7 +4691,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   });
   visibleBuildings
     .filter((building) => building.kind !== "floor" && building.kind !== "roof")
-    .forEach((building) => drawables.push({ y: building.gy * GRID, draw: () => drawBuilding(ctx, building) }));
+    .forEach((building) => drawables.push({ y: buildingWorldCenter(building).y, draw: () => drawBuilding(ctx, building) }));
   game.creatures.forEach((creature) => {
     if (creature.realm === game.realm && creature.hp > 0 && onScreen(creature.x, creature.y)) {
       drawables.push({ y: creature.y, draw: () => drawCreature(ctx, creature, performance.now()) });
@@ -4674,11 +4712,13 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   if (game.buildMode) {
     const cell = previewCell(game);
     const valid = validPlacement(game, game.buildMode, cell.gx, cell.gy) && game.kits[game.buildMode] > 0;
+    const previewCenter = buildingCenter(game.buildMode, cell.gx, cell.gy);
+    const previewHalfSize = buildingHalfSize(game.buildMode);
     ctx.fillStyle = valid ? "rgba(87,210,113,.24)" : "rgba(230,83,73,.26)";
     ctx.strokeStyle = valid ? "#69db7c" : "#ef6258";
     ctx.lineWidth = 3;
-    ctx.fillRect(cell.gx * GRID - 23, cell.gy * GRID - 23, 46, 46);
-    ctx.strokeRect(cell.gx * GRID - 23, cell.gy * GRID - 23, 46, 46);
+    ctx.fillRect(previewCenter.x - previewHalfSize, previewCenter.y - previewHalfSize, previewHalfSize * 2, previewHalfSize * 2);
+    ctx.strokeRect(previewCenter.x - previewHalfSize, previewCenter.y - previewHalfSize, previewHalfSize * 2, previewHalfSize * 2);
     drawBuilding(
       ctx,
       {
@@ -4736,7 +4776,7 @@ function nearbyPrompt(game: GameState) {
       item.realm === game.realm &&
       item.construction >= 1 &&
       ["woodGate", "stoneGate", "door", "crop", "storageChest", "bedroll"].includes(item.kind) &&
-      Math.hypot(item.gx * GRID - game.player.x, item.gy * GRID - game.player.y) < 82,
+      distanceToBuilding(item, game.player.x, game.player.y) < 58,
   );
   if (building) {
     if (building.kind === "storageChest") return "E · Open Storage Chest";
