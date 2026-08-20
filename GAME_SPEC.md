@@ -19,7 +19,7 @@ complete run.
    mushrooms, and rare Aetherium.
 4. Craft tools, armor, melee weapons, bows, guns, ammunition, and healing.
 5. Build a shelter, crops, barriers, automated defenses, and multiple traps.
-6. Lure wildlife with berries and make chance-based taming attempts.
+6. Lure wildlife with its preferred bait and make chance-based taming attempts.
 7. Survive an increasingly large night wave, recover at dawn, and continue.
 
 ## 3. New-run state
@@ -150,8 +150,8 @@ only 96 units of close night vision; Standing Torches, Campfires, and Fire Traps
 reveal 225, 410, and 115 units respectively. Caves remain dark at every time of
 day and give the player 112 units of close vision before placed lights extend it.
 
-A full cycle lasts 240 seconds: 120 seconds of day and 120 seconds of night. The
-first run begins partway through daylight, leaving about 82 seconds before
+A full cycle lasts 480 seconds: 240 seconds of day and 240 seconds of night. The
+first run begins partway through daylight, leaving about 163 seconds before
 night 1. At dawn, the day counter increases and up to 12 health is restored.
 All ordinary night-wave monsters disappear at dawn. The cave guardian is a
 permanent cave encounter and is not removed by the day transition.
@@ -408,12 +408,12 @@ species without visible legs or other small exterior details.
 
 | Animal | Population | Habitat | Health | Speed | Contact damage | Wild behavior | Tame chance | Companion hit | Drops |
 | --- | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | --- |
-| Rabbit | 10 | Blackwood | 18 | 84 | 0 | Flees within 110 | 60% | 7 | 1 meat, 1 hide |
+| Rabbit | 10 | Blackwood | 18 | 84 | 0 | Flees within 170 | 60% | 7 | 1 meat, 1 hide |
 | Crow | 7 | Meadow | 14 | 102 | 0 | Flies; flees within 85 | 68% | 5 | 1 meat |
-| Deer | 7 | Blackwood | 36 | 74 | 0 | Flees within 150 | 42% | 9 | 2 meat, 2 hide |
+| Deer | 7 | Blackwood | 36 | 74 | 0 | Flees within 220 | 42% | 9 | 2 meat, 2 hide |
 | Raccoon | 5 | Blackwood | 28 | 72 | 0 | Flees within 115 | 35% | 7 | 1 meat, 1 hide |
 | Wild turkey | 4 | Meadow | 34 | 62 | 0 | Flees within 130 | 28% | 8 | 3 meat |
-| Fox | 3 | Blackwood | 30 | 78 | 0 | Flees within 125 | 32% | 7 | 2 meat, 1 hide |
+| Fox | 3 | Blackwood | 30 | 78 | 6 | Attacks within 135 | 32% | 7 | 2 meat, 1 hide |
 | Owl | 3 | Blackwood | 24 | 82 | 0 | Flies; flees within 105 | 38% | 8 | 1 meat |
 | Boar | 2 | Blackwood | 44 | 55 | 6 | Attacks within 90 | 24% | 10 | 2 meat, 1 hide |
 | Wolf | 1 | Blackwood | 50 | 70 | 8 | Attacks within 120 | 16% | 14 | 2 meat, 1 hide |
@@ -426,24 +426,31 @@ softer shadow; all three bird species retain a body-and-head overhead shape.
 Wildlife follows smooth roaming paths and turns progressively instead of
 snapping back and forth when it reaches a roaming target or returns home.
 
-Selecting berries lures wild animals from up to 360 units away and suppresses
-aggression while the berries remain selected and available. Without that lure,
-bears, boars, and wolves attack within their notice distance and stop chasing
-beyond 340 units. Rabbits, deer, foxes, raccoons, crows, owls, and wild turkeys
-never deal contact damage: they flee when approached or attacked, remain
-frightened for five seconds after a hit, and return to their original territory
-once safe. Other disengaged wildlife also returns to its original territory.
+Wildlife is lured from up to 360 units away only by its preferred selected food.
+Bears, foxes, and wolves are meat-eating predators: they ignore berries, follow
+selected meat, and otherwise attack within their notice distance before giving
+up beyond 340 units. Boars remain berry-lured but aggressive when unbaited. All
+other wildlife follows selected berries. Deer and rabbits approach their berries
+slowly and, without bait, flee at the enlarged 220- and 170-unit notice ranges.
 
-Pressing `E` near a lured animal consumes one berry and makes one independent
-taming roll. Failed attempts leave the animal wild, so the lower success rates
-make larger and stronger companions require more berries on average. The player
-can have at most five tamed companions. Tamed animals follow the player, cannot
-be hit by the player, seek night monsters within 230 units, and attack at close
-range.
+Once the player hits a deer or rabbit, that animal becomes permanently wary for
+its current life. It refuses all future bait, runs until it is at least 520 units
+from the player, and adopts the distant stopping point as its new territory. A
+wary deer flees again when the player comes within 340 units; a wary rabbit does
+so within 290 units. Other skittish wildlife remains frightened for five seconds
+after a hit and returns to its original territory once safe. Other disengaged
+wildlife also returns to its original territory.
+
+Pressing `E` near a lured animal consumes one unit of its preferred food and
+makes one independent taming roll. Failed attempts leave the animal wild, so
+lower success rates make larger and stronger companions require more bait on
+average. The player can have at most five tamed companions. Tamed animals follow
+the player, cannot be hit by the player, seek night monsters within 230 units,
+and attack at close range.
 
 Defeated wild animals leave their population slot empty for 120 seconds, then
-respawn at their original territory with full health and no prior taming
-attempts.
+respawn at their original territory with full health, no prior taming attempts,
+and no remembered wariness.
 
 ## 12. Endless night progression
 

@@ -135,6 +135,7 @@ interface Creature {
   homeX: number;
   homeY: number;
   provokedUntil: number;
+  waryOfPlayer: boolean;
   respawnAt: number;
 }
 
@@ -259,7 +260,7 @@ interface Recipe {
 const WORLD_W = 5200;
 const WORLD_H = 3800;
 const GRID = 48;
-const DAY_SECONDS = 240;
+const DAY_SECONDS = 480;
 const LOW_HEALTH_THRESHOLD = 30;
 const LOW_HUNGER_THRESHOLD = 25;
 const COMPANION_ATTACK_COOLDOWN_MS = 1100;
@@ -421,6 +422,10 @@ const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "wraith", "ma
 const MAX_TAMED_ANIMALS = 5;
 const ANIMAL_RESPAWN_MS = 120000;
 const ANIMAL_LURE_DISTANCE = 360;
+const WARY_ESCAPE_DISTANCE = 520;
+const WARY_NOTICE_BONUS = 120;
+const MEAT_EATING_ANIMALS: AnimalKind[] = ["bear", "fox", "wolf"];
+const PERMANENTLY_WARY_PREY: AnimalKind[] = ["deer", "rabbit"];
 
 const ANIMAL_DATA: Record<
   AnimalKind,
@@ -441,9 +446,9 @@ const ANIMAL_DATA: Record<
 > = {
   bear: { hp: 70, speed: 48, damage: 9, temperament: "aggressive", noticeDistance: 135, tameChance: 0.1, startingCount: 1, habitat: "forest", flying: false, meatDrop: 4, hideDrop: 2, companionDamage: 16 },
   boar: { hp: 44, speed: 55, damage: 6, temperament: "aggressive", noticeDistance: 90, tameChance: 0.24, startingCount: 2, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 10 },
-  deer: { hp: 36, speed: 74, damage: 0, temperament: "skittish", noticeDistance: 150, tameChance: 0.42, startingCount: 7, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 2, companionDamage: 9 },
-  rabbit: { hp: 18, speed: 84, damage: 0, temperament: "skittish", noticeDistance: 110, tameChance: 0.6, startingCount: 10, habitat: "forest", flying: false, meatDrop: 1, hideDrop: 1, companionDamage: 7 },
-  fox: { hp: 30, speed: 78, damage: 0, temperament: "skittish", noticeDistance: 125, tameChance: 0.32, startingCount: 3, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 7 },
+  deer: { hp: 36, speed: 74, damage: 0, temperament: "skittish", noticeDistance: 220, tameChance: 0.42, startingCount: 7, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 2, companionDamage: 9 },
+  rabbit: { hp: 18, speed: 84, damage: 0, temperament: "skittish", noticeDistance: 170, tameChance: 0.6, startingCount: 10, habitat: "forest", flying: false, meatDrop: 1, hideDrop: 1, companionDamage: 7 },
+  fox: { hp: 30, speed: 78, damage: 6, temperament: "aggressive", noticeDistance: 135, tameChance: 0.32, startingCount: 3, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 7 },
   wolf: { hp: 50, speed: 70, damage: 8, temperament: "aggressive", noticeDistance: 120, tameChance: 0.16, startingCount: 1, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 14 },
   raccoon: { hp: 28, speed: 72, damage: 0, temperament: "skittish", noticeDistance: 115, tameChance: 0.35, startingCount: 5, habitat: "forest", flying: false, meatDrop: 1, hideDrop: 1, companionDamage: 7 },
   crow: { hp: 14, speed: 102, damage: 0, temperament: "skittish", noticeDistance: 85, tameChance: 0.68, startingCount: 7, habitat: "meadow", flying: true, meatDrop: 1, hideDrop: 0, companionDamage: 5 },
@@ -891,7 +896,7 @@ function makeGame(): GameState {
   const creatures: Creature[] = [];
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = ANIMAL_DATA[kind];
-    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, boss: false, homeX: x, homeY: y, provokedUntil: 0, respawnAt: 0 });
+    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0 });
   };
   const wildlifeRoster = ANIMAL_KINDS.flatMap((kind) =>
     Array.from({ length: ANIMAL_DATA[kind].startingCount }, () => kind),
@@ -963,6 +968,7 @@ function makeGame(): GameState {
     homeX: guardianPoint.x,
     homeY: guardianPoint.y,
     provokedUntil: 0,
+    waryOfPlayer: false,
     respawnAt: 0,
   });
   const startingCampfire: Building = {
@@ -1171,6 +1177,7 @@ function spawnNightWave(game: GameState) {
       homeX: spawnPoint.x,
       homeY: spawnPoint.y,
       provokedUntil: 0,
+      waryOfPlayer: false,
       respawnAt: 0,
     });
     spawned += 1;
@@ -1248,8 +1255,27 @@ function tamedAnimalCount(game: GameState) {
   ).length;
 }
 
-function isHoldingBerries(game: GameState) {
-  return game.selected === "berries" && game.resources.berries > 0;
+function isMeatEatingAnimal(kind: AnimalKind) {
+  return MEAT_EATING_ANIMALS.includes(kind);
+}
+
+function isPermanentlyWaryPrey(kind: AnimalKind) {
+  return PERMANENTLY_WARY_PREY.includes(kind);
+}
+
+function animalLureFood(kind: AnimalKind): Material {
+  return isMeatEatingAnimal(kind) ? "meat" : "berries";
+}
+
+function isHoldingAnimalLure(game: GameState, kind: AnimalKind) {
+  const food = animalLureFood(kind);
+  return game.selected === food && game.resources[food] > 0;
+}
+
+function makePreyPermanentlyWary(creature: Creature) {
+  if (!isAnimal(creature.kind) || !isPermanentlyWaryPrey(creature.kind)) return;
+  creature.waryOfPlayer = true;
+  creature.provokedUntil = 0;
 }
 
 function nearestNode(game: GameState, maxDistance: number) {
@@ -1667,8 +1693,13 @@ function interact(game: GameState) {
   }
   const creature = nearestCreature(game, 92);
   if (creature && isAnimal(creature.kind) && !creature.tame) {
-    if (!isHoldingBerries(game)) {
-      notify(game, "Equip berries, then press E to feed this " + creature.kind + ".");
+    if (isPermanentlyWaryPrey(creature.kind) && creature.waryOfPlayer) {
+      notify(game, "This " + creature.kind + " no longer trusts you and refuses bait.");
+      return;
+    }
+    const lureFood = animalLureFood(creature.kind);
+    if (!isHoldingAnimalLure(game, creature.kind)) {
+      notify(game, "Equip " + lureFood + ", then press E to feed this " + creature.kind + ".");
       return;
     }
     if (tamedAnimalCount(game) >= MAX_TAMED_ANIMALS) {
@@ -1690,7 +1721,7 @@ function interact(game: GameState) {
     } else {
       notify(
         game,
-        "The " + creature.kind + " ate the berries but stayed wild · " +
+        "The " + creature.kind + " ate the " + lureFood + " but stayed wild · " +
           Math.round(tameChance * 100) + "% chance · " + creature.fed +
           (creature.fed === 1 ? " attempt." : " attempts."),
         2600,
@@ -1903,6 +1934,7 @@ function attack(game: GameState) {
       creature.hp -= profile.damage;
       creature.angry = true;
       creature.provokedUntil = now + 5000;
+      makePreyPermanentlyWary(creature);
       creature.x += Math.cos(game.player.dir) * 22;
       creature.y += Math.sin(game.player.dir) * 22;
       hit = true;
@@ -1961,6 +1993,7 @@ function updateProjectiles(game: GameState, dt: number) {
       target.hp -= projectile.damage;
       target.angry = true;
       target.provokedUntil = performance.now() + 5000;
+      makePreyPermanentlyWary(target);
       projectile.life = 0;
       notify(game, (projectile.kind === "arrow" ? "Arrow" : "Bullet") + " hit · " + projectile.damage + " damage", 650);
       if (target.hp <= 0) awardCreatureDrop(game, target);
@@ -2055,6 +2088,7 @@ function updateCreatures(game: GameState, dt: number) {
       creature.tame = false;
       creature.angry = false;
       creature.provokedUntil = 0;
+      creature.waryOfPlayer = false;
       creature.respawnAt = 0;
       creature.rewarded = false;
       creature.dir = creature.phase;
@@ -2065,6 +2099,8 @@ function updateCreatures(game: GameState, dt: number) {
     let movement: "idle" | "chase" | "flee" | "lure" | "follow" | "return" = "idle";
     let attackingPlayer = false;
     const playerDistance = Math.hypot(game.player.x - creature.x, game.player.y - creature.y);
+    const cautiousPrey = isAnimal(creature.kind) && isPermanentlyWaryPrey(creature.kind);
+    const permanentlyWary = cautiousPrey && creature.waryOfPlayer;
     if (isMonster(creature.kind)) {
       const senseDistance: Record<MonsterKind, number> = {
         shade: 320,
@@ -2109,13 +2145,20 @@ function updateCreatures(game: GameState, dt: number) {
       const animal = ANIMAL_DATA[creature.kind];
       const homeDistance = Math.hypot(creature.homeX - creature.x, creature.homeY - creature.y);
       const roamAngle = now / 4300 + creature.phase;
-      const roamRadius = animal.flying ? 92 : animal.habitat === "meadow" ? 58 : 42;
+      const roamRadius = permanentlyWary ? 12 : animal.flying ? 92 : animal.habitat === "meadow" ? 58 : 42;
       targetX = creature.homeX + Math.cos(roamAngle) * roamRadius;
       targetY = creature.homeY + Math.sin(roamAngle) * roamRadius * 0.78;
 
-      if (animal.temperament === "skittish" && now < creature.provokedUntil) {
+      if (permanentlyWary) {
+        if (playerDistance < animal.noticeDistance + WARY_NOTICE_BONUS) creature.angry = true;
+        if (creature.angry && playerDistance >= WARY_ESCAPE_DISTANCE) {
+          creature.angry = false;
+          creature.homeX = creature.x;
+          creature.homeY = creature.y;
+        }
+      } else if (animal.temperament === "skittish" && now < creature.provokedUntil) {
         creature.angry = true;
-      } else if (isHoldingBerries(game) && playerDistance < ANIMAL_LURE_DISTANCE) {
+      } else if (isHoldingAnimalLure(game, creature.kind) && playerDistance < ANIMAL_LURE_DISTANCE) {
         creature.angry = false;
         targetX = game.player.x;
         targetY = game.player.y;
@@ -2138,8 +2181,9 @@ function updateCreatures(game: GameState, dt: number) {
 
       if (animal.temperament === "skittish" && creature.angry && movement !== "lure") {
         const awayDistance = Math.max(1, playerDistance);
-        targetX = creature.x + ((creature.x - game.player.x) / awayDistance) * 220;
-        targetY = creature.y + ((creature.y - game.player.y) / awayDistance) * 220;
+        const fleeDistance = permanentlyWary ? 420 : 240;
+        targetX = creature.x + ((creature.x - game.player.x) / awayDistance) * fleeDistance;
+        targetY = creature.y + ((creature.y - game.player.y) / awayDistance) * fleeDistance;
         movement = "flee";
       } else if (movement === "idle" && homeDistance > roamRadius + 30) {
         targetX = creature.homeX;
@@ -2156,11 +2200,15 @@ function updateCreatures(game: GameState, dt: number) {
       const slowFactor = now < creature.slowUntil ? 0.42 : 1;
       const paceMultiplier =
         movement === "flee"
-          ? 1.45
+          ? permanentlyWary
+            ? 1.7
+            : 1.45
           : movement === "chase" || movement === "follow"
             ? 1
             : movement === "lure"
-              ? 0.85
+              ? cautiousPrey
+                ? 0.42
+                : 0.85
               : movement === "return"
                 ? 0.65
                 : 0.22;
@@ -4855,8 +4903,11 @@ function nearbyPrompt(game: GameState) {
   }
   const creature = nearestCreature(game, 92);
   if (creature && isAnimal(creature.kind) && !creature.tame) {
+    if (isPermanentlyWaryPrey(creature.kind) && creature.waryOfPlayer) {
+      return "This " + creature.kind + " is wary and refuses bait";
+    }
     const chance = Math.round(ANIMAL_DATA[creature.kind].tameChance * 100);
-    return "E · Feed berries to " + creature.kind + " · " + chance + "% tame chance";
+    return "E · Feed " + animalLureFood(creature.kind) + " to " + creature.kind + " · " + chance + "% tame chance";
   }
   if (isFoodItem(game.selected)) return "E · Eat " + game.selected;
   const node = nearestNode(game, 92);
@@ -5738,7 +5789,7 @@ export default function Game() {
                   <div className="free-inventory inventory-hotbar-row">
                     {game.hotbar.map((_, index) => inventorySlot("hotbar", index))}
                   </div>
-                  <div className="taming-tip"><span>♥</span><div><b>Taming wildlife · {tamedAnimalCount(game)}/{MAX_TAMED_ANIMALS}</b><p>Equip berries to lure wildlife close, then press E to try taming it. Each berry rolls the species&apos; chance; larger, stronger animals are harder.</p></div></div>
+                  <div className="taming-tip"><span>♥</span><div><b>Taming wildlife · {tamedAnimalCount(game)}/{MAX_TAMED_ANIMALS}</b><p>Equip meat to lure bears, foxes, and wolves; berries lure all other wildlife. Press E nearby to try taming it. Deer and rabbits you injure become permanently wary and refuse bait.</p></div></div>
                 </>
               )}
               {panel === "craft" && (
