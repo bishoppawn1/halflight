@@ -113,10 +113,9 @@ Inventory and hotbar moves use the two-tap flow.
 
 ## 5. World and time
 
-The Meadow is a 7,200 by 5,200 world space. The connected cave system remains
-within its separate 5,200 by 3,800 space. The caves and their chambers are
-deliberately unnamed; entrances, exits, prompts, and the location display
-identify them only as caves.
+The Meadow and connected cave system are separate 7,200 by 5,200 world spaces.
+The caves and their chambers are deliberately unnamed; entrances, exits,
+prompts, and the location display identify them only as caves.
 
 - **The Meadow** contains open grassland, sparse clumps of harvestable wild
   grass, eight scattered iron and copper deposits, scattered ordinary rock with
@@ -136,14 +135,18 @@ identify them only as caves.
 - One chamber concentrates iron and copper, with some coal, granite, and rare
   Aetherium.
 - One chamber concentrates sulfur and coal, with mushrooms and some copper.
+- Four secondary caverns contain sparse pockets of ordinary rock, coal, and
+  mushrooms between the three main resource chambers.
 
-The three large, unnamed chambers share one underground realm. Visible, solid
-rock walls enclose each chamber, and broad tunnels connect all three through a
-central hub. Each chamber keeps its own terrain palette and resource mix, but
-creatures and placed buildings share the connected cave system. Each chamber
-has an exit to its matching Meadow entrance, so the player can enter through
-one cave, cross the tunnels, and leave through another. Ore seams are
-intentionally sparse among the much more common ordinary rock.
+The three vast, unnamed resource chambers share one underground realm with a
+large central cavern and four secondary caverns. Visible, solid rock walls
+enclose every space. Twelve long, variable-width tunnels form multiple loops,
+so every entrance has alternate routes to the other two instead of a single
+spoke through the center. Each main chamber keeps its own terrain palette and
+resource mix, but creatures and placed buildings share the connected cave
+system. Each main chamber has an exit to its matching Meadow entrance, so the
+player can enter through one cave, cross the network, and leave through another.
+Ore seams are intentionally sparse among the much more common ordinary rock.
 
 At the start of each run, one random chamber contains a one-use treasure cache
 and one random chamber contains a giant cave guardian. The two selections are

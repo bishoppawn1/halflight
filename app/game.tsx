@@ -365,14 +365,27 @@ interface CaveDefinition {
   textureB: string;
 }
 
+interface CaveRoom {
+  x: number;
+  y: number;
+  radius: number;
+  ground: string;
+}
+
+interface CaveConnection {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  halfWidth: number;
+}
+
 const CAVES: CaveDefinition[] = [
   {
     id: "granite",
     entranceX: 4720,
     entranceY: 480,
-    undergroundX: 860,
-    undergroundY: 900,
-    chamberRadius: 570,
+    undergroundX: 950,
+    undergroundY: 1050,
+    chamberRadius: 720,
     ground: "#444f4a",
     textureA: "#52605a",
     textureB: "#35423d",
@@ -381,9 +394,9 @@ const CAVES: CaveDefinition[] = [
     id: "iron",
     entranceX: 4420,
     entranceY: 3260,
-    undergroundX: 4300,
-    undergroundY: 980,
-    chamberRadius: 600,
+    undergroundX: 6220,
+    undergroundY: 1120,
+    chamberRadius: 760,
     ground: "#494b4b",
     textureA: "#5a5c5b",
     textureB: "#393c3c",
@@ -392,21 +405,37 @@ const CAVES: CaveDefinition[] = [
     id: "sulfur",
     entranceX: 650,
     entranceY: 470,
-    undergroundX: 2580,
-    undergroundY: 3100,
-    chamberRadius: 620,
+    undergroundX: 4050,
+    undergroundY: 4320,
+    chamberRadius: 780,
     ground: "#4d4d39",
     textureA: "#626044",
     textureB: "#3d3e31",
   },
 ];
 
-const CAVE_HUB = { x: 2580, y: 1830, radius: 520 };
-const CAVE_TUNNEL_HALF_WIDTH = 185;
-const CAVE_CONNECTIONS = CAVES.map((cave) => [
-  { x: cave.undergroundX, y: cave.undergroundY },
+const CAVE_HUB: CaveRoom = { x: 3500, y: 2600, radius: 620, ground: "#414a46" };
+const CAVE_ROOMS: CaveRoom[] = [
   CAVE_HUB,
-] as const);
+  { x: 2050, y: 2280, radius: 430, ground: "#3e4944" },
+  { x: 3450, y: 820, radius: 420, ground: "#444b49" },
+  { x: 5250, y: 2460, radius: 460, ground: "#454945" },
+  { x: 2700, y: 4150, radius: 470, ground: "#42473d" },
+];
+const CAVE_CONNECTIONS: CaveConnection[] = [
+  { start: { x: CAVES[0].undergroundX, y: CAVES[0].undergroundY }, end: CAVE_ROOMS[1], halfWidth: 195 },
+  { start: CAVE_ROOMS[1], end: CAVE_HUB, halfWidth: 185 },
+  { start: { x: CAVES[0].undergroundX, y: CAVES[0].undergroundY }, end: CAVE_ROOMS[2], halfWidth: 165 },
+  { start: CAVE_ROOMS[2], end: CAVE_HUB, halfWidth: 180 },
+  { start: { x: CAVES[1].undergroundX, y: CAVES[1].undergroundY }, end: CAVE_ROOMS[2], halfWidth: 175 },
+  { start: { x: CAVES[1].undergroundX, y: CAVES[1].undergroundY }, end: CAVE_ROOMS[3], halfWidth: 205 },
+  { start: CAVE_ROOMS[3], end: CAVE_HUB, halfWidth: 190 },
+  { start: CAVE_ROOMS[2], end: CAVE_ROOMS[3], halfWidth: 150 },
+  { start: { x: CAVES[2].undergroundX, y: CAVES[2].undergroundY }, end: CAVE_ROOMS[4], halfWidth: 200 },
+  { start: CAVE_ROOMS[4], end: CAVE_HUB, halfWidth: 185 },
+  { start: { x: CAVES[2].undergroundX, y: CAVES[2].undergroundY }, end: CAVE_ROOMS[3], halfWidth: 170 },
+  { start: CAVE_ROOMS[1], end: CAVE_ROOMS[4], halfWidth: 155 },
+];
 
 function caveEncounterPoint(cave: CaveDefinition, distance: number, lateral = 0) {
   const angle = Math.atan2(cave.undergroundY - CAVE_HUB.y, cave.undergroundX - CAVE_HUB.x);
@@ -802,7 +831,11 @@ function pointToSegmentDistance(
 }
 
 function isCaveFloor(x: number, y: number, padding = 0) {
-  if (Math.hypot(x - CAVE_HUB.x, y - CAVE_HUB.y) <= CAVE_HUB.radius - padding) return true;
+  if (
+    CAVE_ROOMS.some(
+      (room) => Math.hypot(x - room.x, y - room.y) <= room.radius - padding,
+    )
+  ) return true;
   if (
     CAVES.some(
       (cave) =>
@@ -810,8 +843,8 @@ function isCaveFloor(x: number, y: number, padding = 0) {
     )
   ) return true;
   return CAVE_CONNECTIONS.some(
-    ([start, end]) =>
-      pointToSegmentDistance(x, y, start.x, start.y, end.x, end.y) <= CAVE_TUNNEL_HALF_WIDTH - padding,
+    ({ start, end, halfWidth }) =>
+      pointToSegmentDistance(x, y, start.x, start.y, end.x, end.y) <= halfWidth - padding,
   );
 }
 
@@ -1040,6 +1073,21 @@ function makeGame(): GameState {
         cave.undergroundX + Math.cos(angle) * distance,
         cave.undergroundY + Math.sin(angle) * distance,
         isMineable(kind) ? depositSize(i, 96 + caveIndex * 11) : "medium",
+      );
+    }
+  }
+
+  for (const [roomIndex, room] of CAVE_ROOMS.slice(1).entries()) {
+    for (let i = 0; i < 10; i++) {
+      const angle = seeded(i, 171 + roomIndex * 13) * Math.PI * 2;
+      const distance = 90 + Math.sqrt(seeded(i, 172 + roomIndex * 13)) * (room.radius - 190);
+      const kind: ResourceKind = i % 5 === 0 ? "mushroom" : i % 4 === 0 ? "coal" : "rock";
+      addNode(
+        kind,
+        "caveSystem",
+        room.x + Math.cos(angle) * distance,
+        room.y + Math.sin(angle) * distance,
+        isMineable(kind) && i % 3 === 0 ? "small" : "medium",
       );
     }
   }
@@ -5202,39 +5250,46 @@ function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  for (const [start, end] of CAVE_CONNECTIONS) {
+  for (const { start, end, halfWidth } of CAVE_CONNECTIONS) {
     ctx.strokeStyle = "#293330";
-    ctx.lineWidth = (CAVE_TUNNEL_HALF_WIDTH + 58) * 2;
+    ctx.lineWidth = (halfWidth + 58) * 2;
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
     ctx.stroke();
   }
   ctx.fillStyle = "#293330";
-  ctx.beginPath();
-  ctx.arc(CAVE_HUB.x, CAVE_HUB.y, CAVE_HUB.radius + 58, 0, Math.PI * 2);
-  ctx.fill();
+  for (const room of CAVE_ROOMS) {
+    ctx.beginPath();
+    ctx.arc(room.x, room.y, room.radius + 58, 0, Math.PI * 2);
+    ctx.fill();
+  }
   for (const cave of CAVES) {
     ctx.beginPath();
     ctx.arc(cave.undergroundX, cave.undergroundY, cave.chamberRadius + 58, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  for (const [index, [start, end]] of CAVE_CONNECTIONS.entries()) {
+  for (const { start, end, halfWidth } of CAVE_CONNECTIONS) {
     const gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
-    gradient.addColorStop(0, CAVES[index].ground);
-    gradient.addColorStop(1, "#414a46");
+    gradient.addColorStop(0, caveAreaAt(start.x, start.y).ground);
+    gradient.addColorStop(1, caveAreaAt(end.x, end.y).ground);
     ctx.strokeStyle = gradient;
-    ctx.lineWidth = CAVE_TUNNEL_HALF_WIDTH * 2;
+    ctx.lineWidth = halfWidth * 2;
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
     ctx.stroke();
   }
-  ctx.fillStyle = "#414a46";
-  ctx.beginPath();
-  ctx.arc(CAVE_HUB.x, CAVE_HUB.y, CAVE_HUB.radius, 0, Math.PI * 2);
-  ctx.fill();
+  for (const room of CAVE_ROOMS) {
+    ctx.fillStyle = room.ground;
+    ctx.beginPath();
+    ctx.arc(room.x, room.y, room.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(13,20,19,.38)";
+    ctx.lineWidth = 14;
+    ctx.stroke();
+  }
   for (const cave of CAVES) {
     ctx.fillStyle = cave.ground;
     ctx.beginPath();
@@ -5246,7 +5301,7 @@ function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
   }
   ctx.restore();
 
-  for (let i = 0; i < 560; i++) {
+  for (let i = 0; i < 1100; i++) {
     const x = seeded(i, 231) * WORLD_W;
     const y = seeded(i, 232) * WORLD_H;
     if (!isCaveFloor(x, y, 12)) continue;
@@ -5259,13 +5314,23 @@ function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
   }
   ctx.globalAlpha = 1;
 
-  for (const cave of CAVES) {
-    for (let i = 0; i < 26; i++) {
-      const angle = (i / 26) * Math.PI * 2 + seeded(i, 241 + CAVES.indexOf(cave)) * 0.11;
-      const radius = cave.chamberRadius + 31;
-      const x = cave.undergroundX + Math.cos(angle) * radius;
-      const y = cave.undergroundY + Math.sin(angle) * radius;
-      const size = 17 + seeded(i, 244 + CAVES.indexOf(cave)) * 20;
+  const boundaries = [
+    ...CAVES.map((cave) => ({ x: cave.undergroundX, y: cave.undergroundY, radius: cave.chamberRadius })),
+    ...CAVE_ROOMS,
+  ];
+  for (const [boundaryIndex, boundary] of boundaries.entries()) {
+    const rockCount = Math.max(22, Math.round(boundary.radius / 21));
+    for (let i = 0; i < rockCount; i++) {
+      const angle = (i / rockCount) * Math.PI * 2 + seeded(i, 241 + boundaryIndex * 7) * 0.11;
+      const radius = boundary.radius + 31;
+      const x = boundary.x + Math.cos(angle) * radius;
+      const y = boundary.y + Math.sin(angle) * radius;
+      const crossesTunnel = CAVE_CONNECTIONS.some(
+        ({ start, end, halfWidth }) =>
+          pointToSegmentDistance(x, y, start.x, start.y, end.x, end.y) < halfWidth + 14,
+      );
+      if (crossesTunnel) continue;
+      const size = 17 + seeded(i, 244 + boundaryIndex * 7) * 20;
       ctx.fillStyle = i % 2 ? "#202927" : "#343e3a";
       ctx.beginPath();
       ctx.moveTo(x + Math.cos(angle) * size, y + Math.sin(angle) * size);
