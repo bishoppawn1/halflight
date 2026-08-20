@@ -269,7 +269,6 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 
 .mark-wood { background: #9a643e; }
 .mark-stone { background: #7e8c84; }
-.mark-granite { background: #927477; }
 .mark-iron { background: #697984; }
 .mark-copper { background: #c9794d; }
 .mark-coal { background: #313b3b; }
@@ -325,7 +324,6 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 }
 
 .material-stone i,
-.material-granite i,
 .material-iron i,
 .material-copper i,
 .material-coal i,
@@ -338,7 +336,6 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 }
 
 .material-stone b,
-.material-granite b,
 .material-iron b,
 .material-copper b,
 .material-coal b,
@@ -353,8 +350,6 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   box-shadow: 6px 5px 0 rgba(31,45,40,.45);
 }
 
-.material-granite i { background: #bc999b; }
-.material-granite b { background: #68585a; box-shadow: 6px 5px 0 #e2c7bf; }
 .material-iron i { background: #aebcc1; }
 .material-iron b { background: #eef5f3; box-shadow: 6px 5px 0 #53636a; }
 .material-copper i { background: #e19767; }

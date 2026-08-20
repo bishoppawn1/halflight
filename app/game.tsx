@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type CaveRealm = "caveSystem";
-type CaveZone = "granite" | "iron" | "sulfur";
+type CaveZone = "stone" | "iron" | "sulfur";
 type Realm = "meadow" | CaveRealm;
 type ResourceSize = "small" | "medium" | "huge";
 type ResourceKind =
@@ -11,7 +11,6 @@ type ResourceKind =
   | "pine"
   | "birch"
   | "rock"
-  | "granite"
   | "ironOre"
   | "copperOre"
   | "coal"
@@ -58,7 +57,6 @@ type BuildKind =
 type Material =
   | "wood"
   | "stone"
-  | "granite"
   | "iron"
   | "copper"
   | "coal"
@@ -278,7 +276,6 @@ const RESOURCE_RESPAWN_DAYS: Record<ResourceKind, readonly [number, number]> = {
   pine: [5, 10],
   birch: [5, 10],
   rock: [10, 20],
-  granite: [10, 20],
   ironOre: [10, 20],
   copperOre: [10, 20],
   coal: [10, 20],
@@ -381,7 +378,7 @@ interface CaveConnection {
 
 const CAVES: CaveDefinition[] = [
   {
-    id: "granite",
+    id: "stone",
     entranceX: 4720,
     entranceY: 480,
     undergroundX: 950,
@@ -449,7 +446,6 @@ function caveEncounterPoint(cave: CaveDefinition, distance: number, lateral = 0)
 const MATERIALS: { id: Material; name: string }[] = [
   { id: "wood", name: "Wood" },
   { id: "stone", name: "Stone" },
-  { id: "granite", name: "Granite" },
   { id: "iron", name: "Iron" },
   { id: "copper", name: "Copper" },
   { id: "coal", name: "Coal" },
@@ -477,10 +473,10 @@ const BUILD_DATA: Record<
   woodFence: { name: "Wood Fence", detail: "A quick timber barrier", icon: "WF", cost: { wood: 3 }, makes: 2, hp: 55 },
   stoneFence: { name: "Stone Fence", detail: "Slow, sturdy protection", icon: "SF", cost: { stone: 4 }, makes: 2, hp: 105 },
   woodGate: { name: "Wood Gate", detail: "Opens with E", icon: "WG", cost: { wood: 5 }, makes: 1, hp: 70 },
-  stoneGate: { name: "Granite Gate", detail: "Reinforced entrance", icon: "GG", cost: { granite: 5, iron: 1 }, makes: 1, hp: 130 },
+  stoneGate: { name: "Stone Gate", detail: "Reinforced entrance", icon: "SG", cost: { stone: 5, iron: 1 }, makes: 1, hp: 130 },
   floor: { name: "Wood Floor", detail: "Snaps beneath structures", icon: "FL", cost: { wood: 2 }, makes: 2, hp: 45 },
   woodWall: { name: "Wood Wall", detail: "Basic shelter wall", icon: "WW", cost: { wood: 4 }, makes: 2, hp: 90 },
-  stoneWall: { name: "Stone Wall", detail: "Strong masonry wall", icon: "SW", cost: { stone: 5, granite: 2 }, makes: 2, hp: 155 },
+  stoneWall: { name: "Stone Wall", detail: "Strong masonry wall", icon: "SW", cost: { stone: 7 }, makes: 2, hp: 155 },
   metalWall: { name: "Metal Wall", detail: "Heavy end-game barrier", icon: "MW", cost: { iron: 6, coal: 1 }, makes: 2, hp: 235 },
   door: { name: "House Door", detail: "A doorway for your shelter", icon: "DR", cost: { wood: 4, iron: 1 }, makes: 1, hp: 90 },
   roof: { name: "Roof", detail: "Shelter from the dark", icon: "RF", cost: { wood: 4, fiber: 2 }, makes: 1, hp: 75 },
@@ -578,7 +574,6 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   pistol: "Scrap Pistol",
   wood: "Wood",
   stone: "Stone",
-  granite: "Granite",
   iron: "Iron",
   copper: "Copper",
   coal: "Coal",
@@ -760,7 +755,7 @@ function isTree(kind: ResourceKind) {
 }
 
 function isMineable(kind: ResourceKind) {
-  return ["rock", "granite", "ironOre", "copperOre", "coal", "sulfur", "aetherOre"].includes(kind);
+  return ["rock", "ironOre", "copperOre", "coal", "sulfur", "aetherOre"].includes(kind);
 }
 
 const RESOURCE_SIZE_SCALE: Record<ResourceSize, number> = {
@@ -776,13 +771,11 @@ function nodeRadius(kind: ResourceKind, size: ResourceSize = "medium") {
       ? 52
       : kind === "birch"
         ? 47
-        : kind === "granite"
-          ? 50
-          : isMineable(kind)
-            ? 43
-            : kind === "berryBush"
-              ? 28
-              : 22;
+        : isMineable(kind)
+          ? 43
+          : kind === "berryBush"
+            ? 28
+            : 22;
   return baseRadius * (isMineable(kind) ? RESOURCE_SIZE_SCALE[size] : 1);
 }
 
@@ -793,17 +786,15 @@ function nodeHp(kind: ResourceKind, size: ResourceSize = "medium") {
       ? 6
       : kind === "birch"
         ? 5
-        : kind === "granite"
-          ? 9
-          : kind === "ironOre"
-            ? 8
-            : kind === "copperOre"
-              ? 7
-              : kind === "aetherOre"
-                ? 12
-                : kind === "rock" || kind === "coal" || kind === "sulfur"
-                  ? 6
-                  : 1;
+        : kind === "ironOre"
+          ? 8
+          : kind === "copperOre"
+            ? 7
+            : kind === "aetherOre"
+              ? 12
+              : kind === "rock" || kind === "coal" || kind === "sulfur"
+                ? 6
+                : 1;
   if (!isMineable(kind)) return baseHp;
   const durabilityScale = size === "small" ? 0.6 : size === "huge" ? 2 : 1;
   return Math.max(1, Math.round(baseHp * durabilityScale));
@@ -994,7 +985,7 @@ function makeGame(): GameState {
     const y = 110 + seeded(i, 2) * (WORLD_H - 220);
     const roll = i % 16;
     const kind: ResourceKind =
-      roll === 0 ? "berryBush" : roll === 1 ? "grass" : roll === 3 ? "granite" : roll === 4 || roll === 5 ? "rock" : roll === 6 ? "birch" : roll === 7 ? "mushroom" : i % 2 ? "oak" : "pine";
+      roll === 0 ? "berryBush" : roll === 1 ? "grass" : roll === 3 || roll === 4 || roll === 5 ? "rock" : roll === 6 ? "birch" : roll === 7 ? "mushroom" : i % 2 ? "oak" : "pine";
     if (!inForest(x, y) || !isTree(kind)) {
       addNode(kind, "meadow", x, y, isMineable(kind) ? depositSize(i, 15) : "medium");
     }
@@ -1059,10 +1050,10 @@ function makeGame(): GameState {
     for (let i = 0; i < 68; i++) {
       const roll = i % 24;
       let kind: ResourceKind;
-      if (cave.id === "granite") {
-        kind = roll % 4 === 0 ? "granite" : roll === 1 ? "coal" : roll === 5 || roll === 17 ? "mushroom" : "rock";
+      if (cave.id === "stone") {
+        kind = roll === 1 ? "coal" : roll === 5 || roll === 17 ? "mushroom" : "rock";
       } else if (cave.id === "iron") {
-        kind = i === 67 ? "aetherOre" : roll === 0 || roll === 12 ? "ironOre" : roll === 7 ? "copperOre" : roll === 3 ? "coal" : roll === 9 ? "granite" : "rock";
+        kind = i === 67 ? "aetherOre" : roll === 0 || roll === 12 ? "ironOre" : roll === 7 ? "copperOre" : roll === 3 ? "coal" : "rock";
       } else {
         kind = roll === 0 || roll === 8 || roll === 16 ? "sulfur" : roll === 5 || roll === 15 ? "coal" : roll === 3 || roll === 19 ? "mushroom" : roll === 11 ? "copperOre" : "rock";
       }
@@ -1100,7 +1091,7 @@ function makeGame(): GameState {
       x: treasurePoint.x,
       y: treasurePoint.y,
       opened: false,
-      loot: { granite: 4, iron: 5, copper: 4, coal: 3, sulfur: 3, aetherium: 2 },
+      loot: { stone: 4, iron: 5, copper: 4, coal: 3, sulfur: 3, aetherium: 2 },
     },
   ];
   const creatures: Creature[] = [];
@@ -1211,7 +1202,7 @@ function makeGame(): GameState {
     realm: "meadow",
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
-    resources: { wood: 0, stone: 0, granite: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, seeds: 0, hide: 0, arrows: 0, bullets: 0 },
+    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, seeds: 0, hide: 0, arrows: 0, bullets: 0 },
     gear: {
       spear: false,
       sword: false,
@@ -2264,7 +2255,6 @@ function resourceNodeLabel(kind: ResourceKind) {
   if (kind === "pine") return "Pine";
   if (kind === "birch") return "Birch";
   if (kind === "rock") return "Stone";
-  if (kind === "granite") return "Granite";
   if (kind === "ironOre") return "Iron deposit";
   if (kind === "copperOre") return "Copper deposit";
   if (kind === "coal") return "Coal deposit";
@@ -2279,7 +2269,6 @@ function resourceNodeLoot(node: ResourceNode): [Material, number][] {
   if (node.kind === "oak") return [["wood", node.maxHp * 2]];
   if (node.kind === "pine" || node.kind === "birch") return [["wood", node.maxHp]];
   if (node.kind === "rock") return [["stone", node.maxHp]];
-  if (node.kind === "granite") return [["granite", node.maxHp]];
   if (node.kind === "ironOre") return [["iron", node.maxHp]];
   if (node.kind === "copperOre") return [["copper", node.maxHp]];
   if (node.kind === "coal") return [["coal", node.maxHp]];
@@ -3180,7 +3169,6 @@ function drawGroundDrop(ctx: CanvasRenderingContext2D, drop: GroundDrop, now: nu
   } else {
     const oreColor: Partial<Record<Material, string>> = {
       stone: "#8b9690",
-      granite: "#a39a91",
       iron: "#b8c1bd",
       copper: "#c2774b",
       coal: "#343c3b",
@@ -3377,26 +3365,22 @@ function drawRock(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   const ore = ["ironOre", "copperOre", "coal", "sulfur", "aetherOre"].includes(node.kind);
   const base = node.kind === "aetherOre"
     ? "#394e5f"
-    : node.kind === "granite"
-      ? "#8e7778"
-      : node.kind === "coal"
-        ? "#343a3b"
-        : node.kind === "sulfur"
-          ? "#8b8050"
-          : ore
-            ? "#596877"
-            : "#718177";
+    : node.kind === "coal"
+      ? "#343a3b"
+      : node.kind === "sulfur"
+        ? "#8b8050"
+        : ore
+          ? "#596877"
+          : "#718177";
   const edge = node.kind === "aetherOre"
     ? "#172c3a"
-    : node.kind === "granite"
-      ? "#624f53"
-      : node.kind === "coal"
-        ? "#1d2424"
-        : node.kind === "sulfur"
-          ? "#5c5638"
-          : ore
-            ? "#343a4b"
-            : "#4c6259";
+    : node.kind === "coal"
+      ? "#1d2424"
+      : node.kind === "sulfur"
+        ? "#5c5638"
+        : ore
+          ? "#343a4b"
+          : "#4c6259";
   const seam = node.kind === "aetherOre"
     ? "#67e2f0"
     : node.kind === "copperOre"
@@ -3460,7 +3444,7 @@ function drawRock(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   ctx.lineTo(radius * 0.18, -radius * 0.58);
   ctx.stroke();
 
-  if (ore || node.kind === "granite") {
+  if (ore) {
     const drawVein = (offset: number, scale: number) => {
       ctx.beginPath();
       ctx.moveTo(-radius * 0.62 * scale, radius * (0.24 + offset));
@@ -5939,7 +5923,6 @@ function nearbyPrompt(game: GameState) {
   if (node) {
     if (isTree(node.kind)) return "TOOL · " + (game.selected === "hands" ? "Punch " : "Chop ") + node.kind + (game.selected === "hands" ? "" : " with Axe");
     if (node.kind === "rock") return "TOOL · Mine stone with Pickaxe";
-    if (node.kind === "granite") return "TOOL · Mine granite with Pickaxe";
     if (node.kind === "ironOre") return "TOOL · Mine iron ore with Pickaxe";
     if (node.kind === "copperOre") return "TOOL · Mine copper ore with Pickaxe";
     if (node.kind === "coal") return "TOOL · Mine coal with Pickaxe";

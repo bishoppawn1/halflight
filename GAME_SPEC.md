@@ -15,7 +15,7 @@ complete run.
 
 1. Explore the open Meadow, its three forests, lakes, and marshes.
 2. Gather wood, stone, fiber, food, seeds, hide, and specialized materials.
-3. Explore three distinct caves for granite, iron, copper, coal, sulfur,
+3. Explore three distinct caves for stone, iron, copper, coal, sulfur,
    mushrooms, and rare Aetherium.
 4. Craft tools, armor, melee weapons, bows, guns, ammunition, and healing.
 5. Build a shelter, crops, barriers, automated defenses, and multiple traps.
@@ -132,9 +132,9 @@ prompts, and the location display identify them only as caves.
   generate inside either water depth. Their smoothly irregular shorelines use
   layered shallow-to-deep color, scattered curved ripples, sparse reeds, and
   occasional lily pads instead of perfect concentric rings or dashed markings.
-- One chamber is rich in granite and ordinary rock, with some coal and
+- One chamber is rich in stone, with some coal and
   mushrooms.
-- One chamber concentrates iron and copper, with some coal, granite, and rare
+- One chamber concentrates iron and copper, with some coal, stone, and rare
   Aetherium.
 - One chamber concentrates sulfur and coal, with mushrooms and some copper.
 - Four secondary caverns contain sparse pockets of ordinary rock, coal, and
@@ -153,7 +153,7 @@ Ore seams are intentionally sparse among the much more common ordinary rock.
 At the start of each run, one random chamber contains a one-use treasure cache
 and one random chamber contains a giant cave guardian. The two selections are
 independent, so a chamber can contain the cache, the guardian, both, or neither.
-Opening the cache with `E` awards 4 granite, 5 iron, 4 copper, 3 coal, 3 sulfur,
+Opening the cache with `E` awards 4 stone, 5 iron, 4 copper, 3 coal, 3 sulfur,
 and 2 Aetherium. Its opened chest remains visible.
 
 The three tree species and every rock are drawn from directly overhead. Pines
@@ -220,7 +220,7 @@ instead of turning it into an unintended attack or selecting a different node.
 | --- | ---: | ---: | ---: | --- |
 | Hands | 1 | 600 ms | — | Trees only |
 | Wood | 1 | 700 ms | 820 ms | Trees and ordinary rock |
-| Stone | 2 | 760 ms | 860 ms | Trees, granite, iron, copper, coal, and sulfur |
+| Stone | 2 | 760 ms | 860 ms | Trees, stone, iron, copper, coal, and sulfur |
 | Iron | 3 | 700 ms | 800 ms | All deposits, including Aetherium |
 | Aetherium | 5 | 620 ms | 700 ms | All deposits |
 
@@ -267,7 +267,6 @@ no numeric durability text until it is depleted or fully respawned.
 | Pine | 6 | 6 wood |
 | Birch | 5 | 5 wood |
 | Stone | 6 | 6 stone |
-| Granite | 9 | 9 granite |
 | Iron ore | 8 | 8 iron |
 | Copper ore | 7 | 7 copper |
 | Coal | 6 | 6 coal |
@@ -372,10 +371,10 @@ their respawn until that footprint is clear.
 | Wood Fence | 3 wood | 2 | 55 | Light barrier |
 | Stone Fence | 4 stone | 2 | 105 | Durable barrier |
 | Wood Gate | 5 wood | 1 | 70 | Opens and closes with `E` |
-| Granite Gate | 5 granite, 1 iron | 1 | 130 | Reinforced gate |
+| Stone Gate | 5 stone, 1 iron | 1 | 130 | Reinforced gate |
 | Wood Floor | 2 wood | 2 | 45 | Floor layer |
 | Wood Wall | 4 wood | 2 | 90 | Basic shelter wall |
-| Stone Wall | 5 stone, 2 granite | 2 | 155 | Strong masonry wall |
+| Stone Wall | 7 stone | 2 | 155 | Strong masonry wall |
 | Metal Wall | 6 iron, 1 coal | 2 | 235 | Heavy end-game barrier |
 | House Door | 4 wood, 1 iron | 1 | 90 | Opens and closes with `E` |
 | Roof | 4 wood, 2 fiber | 1 | 75 | Roof layer |
