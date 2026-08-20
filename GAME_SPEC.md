@@ -173,8 +173,10 @@ reveal 225, 410, and 115 units respectively. Caves remain dark at every time of
 day and give the player 112 units of close vision before placed lights extend
 it. Every light follows line of sight. Living tree crowns, completed wood,
 stone, and metal walls, closed gates and doors, and cave-rock boundaries stop
-light and leave darkness behind them. Open gates and doors pass light, and
-overlapping sources can illuminate one another's shadows.
+light and leave darkness behind them. The first tree or completed structure hit
+by a light remains visibly illuminated so the source of each cast shadow is
+clear. Open gates and doors pass light, and overlapping sources can illuminate
+one another's shadows.
 
 A full cycle lasts 480 seconds: 240 seconds of day and 240 seconds of night. The
 first run begins partway through daylight, leaving about 163 seconds before

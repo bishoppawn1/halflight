@@ -1700,6 +1700,20 @@ function rayRectangleDistance(
   return near >= 0 && near <= maximum ? near : null;
 }
 
+function lightOccluderRayDistance(
+  sourceX: number,
+  sourceY: number,
+  angle: number,
+  maximum: number,
+  blocker: LightOccluder,
+) {
+  const directionX = Math.cos(angle);
+  const directionY = Math.sin(angle);
+  return blocker.shape === "circle"
+    ? rayCircleDistance(sourceX, sourceY, directionX, directionY, blocker, maximum)
+    : rayRectangleDistance(sourceX, sourceY, directionX, directionY, blocker, maximum);
+}
+
 function caveWallRayDistance(
   sourceX: number,
   sourceY: number,
@@ -1741,9 +1755,7 @@ function lightRayDistance(
     ? caveWallRayDistance(sourceX, sourceY, directionX, directionY, maximum)
     : maximum;
   for (const blocker of occluders) {
-    const intersection = blocker.shape === "circle"
-      ? rayCircleDistance(sourceX, sourceY, directionX, directionY, blocker, distance)
-      : rayRectangleDistance(sourceX, sourceY, directionX, directionY, blocker, distance);
+    const intersection = lightOccluderRayDistance(sourceX, sourceY, angle, distance, blocker);
     if (intersection !== null) distance = Math.min(distance, intersection);
   }
   return distance;
@@ -5684,6 +5696,37 @@ function drawDarkness(
     light.fillStyle = gradient;
     light.fillRect(x - screenRadius, y - screenRadius, screenRadius * 2, screenRadius * 2);
     light.restore();
+
+    for (const blocker of occluders) {
+      const angle = Math.atan2(blocker.y - worldY, blocker.x - worldX);
+      const blockerDistance = lightOccluderRayDistance(worldX, worldY, angle, radius, blocker);
+      if (blockerDistance === null) continue;
+      const visibleDistance = lightRayDistance(game.realm, worldX, worldY, angle, radius, occluders);
+      if (blockerDistance > visibleDistance + 0.75) continue;
+
+      light.save();
+      light.beginPath();
+      if (blocker.shape === "circle") {
+        light.arc(
+          offsetX + blocker.x * scale,
+          offsetY + blocker.y * scale,
+          blocker.radius * scale,
+          0,
+          Math.PI * 2,
+        );
+      } else {
+        light.rect(
+          offsetX + (blocker.x - blocker.halfWidth) * scale,
+          offsetY + (blocker.y - blocker.halfHeight) * scale,
+          blocker.halfWidth * 2 * scale,
+          blocker.halfHeight * 2 * scale,
+        );
+      }
+      light.clip();
+      light.fillStyle = gradient;
+      light.fillRect(x - screenRadius, y - screenRadius, screenRadius * 2, screenRadius * 2);
+      light.restore();
+    }
   };
 
   reveal(game.player.x, game.player.y, PLAYER_LIGHT_RADIUS[game.realm], 25);
