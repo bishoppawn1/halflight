@@ -336,9 +336,10 @@ their respawn until that footprint is clear.
 | Scrap Turret | 6 wood, 7 iron, 5 copper | 1 | 95 | 12 damage within 360 units every 700 ms |
 | Crop Plot | 2 wood, 2 fiber, 1 seed | 1 | 45 | Produces berries and seeds |
 
-Crop plots mature in 75 seconds and always display their current whole-number
-growth percentage. A mature harvest gives 4 berries and 2 seeds, then resets
-growth. Monsters damage any building they pass closely enough to reach.
+Crop plots mature in 300 seconds and display only their current whole-number
+percentage, such as `59%`, without a repeated growth label. A mature harvest
+gives 4 berries and 2 seeds, then resets growth. Monsters damage any building
+they pass closely enough to reach.
 Destroyed buildings are removed.
 
 The Storage Chest is a basic hand-crafted piece. Pressing `E` nearby opens a

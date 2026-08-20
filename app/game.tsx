@@ -2392,7 +2392,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
     game.started = false;
   }
   for (const building of game.buildings) {
-    if (building.kind === "crop" && building.construction >= 1) building.growth = Math.min(1, building.growth + dt / 75);
+    if (building.kind === "crop" && building.construction >= 1) building.growth = Math.min(1, building.growth + dt / 300);
   }
   updateProjectiles(game, dt);
   updateCreatures(game, dt);
@@ -4292,7 +4292,7 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
       ctx.fillStyle = building.growth >= 1 ? "#f3c557" : "#dbe9ce";
       ctx.font = "bold 9px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(percent + "% GROWN", 0, -29);
+      ctx.fillText(percent + "%", 0, -29);
     }
   }
   const workInProgress = building.construction < 1 || building.deconstruction > 0;
