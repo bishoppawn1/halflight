@@ -3248,6 +3248,23 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
   const { body, light, length, width, headX, headLength, headWidth } = style[kind];
   const outline = kind === "rabbit" ? "#56544e" : "#3e322c";
 
+  if (kind === "wolf") {
+    ctx.fillStyle = body;
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-length + 2, -width * 0.48);
+    ctx.bezierCurveTo(-length - 15, -width * 1.15, -length - 31, -width * 0.72, -length - 36, -width * 0.18);
+    ctx.bezierCurveTo(-length - 24, width * 0.1, -length - 13, width * 0.52, -length + 1, width * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = light;
+    ctx.beginPath();
+    ctx.ellipse(-length - 28, -width * 0.29, 8, 4.2, 0.18, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   ctx.fillStyle = body;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 4;
@@ -3288,16 +3305,103 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
     }
   }
 
+  if (kind === "deer") {
+    ctx.fillStyle = body;
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 3.5;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(headX - 5, side * (headWidth * 0.45));
+      ctx.quadraticCurveTo(headX - 10, side * (headWidth + 3), headX - 1, side * (headWidth + 8));
+      ctx.quadraticCurveTo(headX + 5, side * (headWidth + 4), headX + 3, side * (headWidth * 0.55));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    const traceAntlers = () => {
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(headX + 1, side * (headWidth * 0.62));
+        ctx.quadraticCurveTo(headX + 1, side * (headWidth + 9), headX + 10, side * (headWidth + 16));
+        ctx.lineTo(headX + 17, side * (headWidth + 19));
+        ctx.moveTo(headX + 3, side * (headWidth + 9));
+        ctx.lineTo(headX - 5, side * (headWidth + 17));
+        ctx.moveTo(headX + 8, side * (headWidth + 14));
+        ctx.lineTo(headX + 5, side * (headWidth + 23));
+        ctx.moveTo(headX + 13, side * (headWidth + 17));
+        ctx.lineTo(headX + 15, side * (headWidth + 26));
+        ctx.stroke();
+      }
+    };
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 6;
+    traceAntlers();
+    ctx.strokeStyle = "#d6b879";
+    ctx.lineWidth = 3;
+    traceAntlers();
+  } else if (kind === "rabbit") {
+    for (const side of [-1, 1]) {
+      const rotation = side * 0.82;
+      const earX = headX - 6;
+      const earY = side * (headWidth * 0.76);
+      ctx.fillStyle = body;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(earX, earY, 18.5, 5.4, rotation, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#d8a8a0";
+      ctx.beginPath();
+      ctx.ellipse(earX + 1, earY, 13.5, 2.2, rotation, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (kind === "wolf") {
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = body;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(headX - 9, side * (headWidth * 0.35));
+      ctx.lineTo(headX - 10, side * (headWidth + 10));
+      ctx.lineTo(headX + 4, side * (headWidth * 0.82));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#b6beb9";
+      ctx.beginPath();
+      ctx.moveTo(headX - 7, side * (headWidth * 0.62));
+      ctx.lineTo(headX - 7, side * (headWidth + 5));
+      ctx.lineTo(headX + 1, side * (headWidth * 0.82));
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
   ctx.fillStyle = body;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 4;
-  if (kind === "fox" || kind === "wolf") {
+  if (kind === "fox") {
     ctx.fillStyle = body;
     ctx.beginPath();
     ctx.moveTo(headX + headLength, 0);
     ctx.lineTo(headX - headLength * 0.6, -headWidth);
     ctx.lineTo(headX - headLength, 0);
     ctx.lineTo(headX - headLength * 0.6, headWidth);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  } else if (kind === "wolf") {
+    ctx.beginPath();
+    ctx.moveTo(headX + headLength, 0);
+    ctx.quadraticCurveTo(headX + headLength * 0.62, -headWidth * 0.58, headX + headLength * 0.08, -headWidth * 0.78);
+    ctx.quadraticCurveTo(headX - headLength * 0.55, -headWidth, headX - headLength, -headWidth * 0.42);
+    ctx.lineTo(headX - headLength, headWidth * 0.42);
+    ctx.quadraticCurveTo(headX - headLength * 0.55, headWidth, headX + headLength * 0.08, headWidth * 0.78);
+    ctx.quadraticCurveTo(headX + headLength * 0.62, headWidth * 0.58, headX + headLength, 0);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
@@ -3317,6 +3421,30 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
   ctx.arc(headX + headLength * 0.2, -headWidth * 0.42, 2.1, 0, Math.PI * 2);
   ctx.arc(headX + headLength * 0.2, headWidth * 0.42, 2.1, 0, Math.PI * 2);
   ctx.fill();
+  if (kind === "wolf") {
+    ctx.fillStyle = "#171a19";
+    ctx.beginPath();
+    ctx.ellipse(headX + headLength * 0.92, 0, 3.7, 4.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(55,67,64,.72)";
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(headX + 1, -headWidth * 0.72);
+    ctx.lineTo(headX + headLength * 0.5, -headWidth * 0.32);
+    ctx.moveTo(headX + 1, headWidth * 0.72);
+    ctx.lineTo(headX + headLength * 0.5, headWidth * 0.32);
+    ctx.stroke();
+  } else if (kind === "rabbit") {
+    ctx.fillStyle = "#4b3535";
+    ctx.beginPath();
+    ctx.arc(headX + headLength * 0.9, 0, 2.7, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (kind === "deer") {
+    ctx.fillStyle = "#33251f";
+    ctx.beginPath();
+    ctx.ellipse(headX + headLength * 0.88, 0, 2.9, 3.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   if (kind === "raccoon") {
     ctx.strokeStyle = "rgba(37,43,42,.82)";
     ctx.lineWidth = 5;

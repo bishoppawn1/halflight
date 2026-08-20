@@ -55,6 +55,9 @@ Every world object and creature is presented from directly overhead. Wildlife
 uses a clean silhouette made from a torso and head. Birds add contained folded-
 wing markings inside that torso, while ground animals use coat markings. Legs
 are omitted because they would not be clearly visible from this camera height.
+Deer have large, branched antlers and visible side ears; wolves have a broad
+head, triangular ears, a defined muzzle, and a bushy tail; rabbits have two
+long, splayed ears. These defining features remain prominent at gameplay zoom.
 Animals are never represented as a front-facing or side-profile face, and
 creatures turn their whole overhead body in their direction of travel.
 
