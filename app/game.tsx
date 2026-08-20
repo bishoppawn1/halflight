@@ -3671,6 +3671,7 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
     turkey: { body: "#704b39", light: "#bd7747", outline: "#342720", length: 32, width: 20, headX: 28, headLength: 12, headWidth: 11 },
   };
   const { body, light, outline, length, width, headX, headLength, headWidth } = style[kind];
+  const escaping = ANIMAL_DATA[kind].flying && creature.angry && !creature.tame;
 
   if (kind === "turkey") {
     ctx.fillStyle = "#8e5339";
@@ -3697,10 +3698,12 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
     ctx.moveTo(-length - 34, -width * 1.04);
     ctx.quadraticCurveTo(-length - 45, 0, -length - 34, width * 1.04);
     ctx.stroke();
-  } else {
-    const flap = (Math.sin(now / 125 + creature.phase) + 1) / 2;
-    const reach = kind === "owl" ? 37 + flap * 13 : 34 + flap * 15;
+  } else if (escaping) {
+    const flap = Math.sin(now / 115 + creature.phase);
+    const sweep = flap * (kind === "owl" ? 16 : 19);
+    const reach = (kind === "owl" ? 46 : 42) + Math.cos(now / 115 + creature.phase) * 4;
     for (const side of [-1, 1]) {
+      const tipX = 4 + sweep;
       ctx.fillStyle = body;
       ctx.strokeStyle = outline;
       ctx.lineWidth = 4;
@@ -3708,15 +3711,15 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
       ctx.beginPath();
       ctx.moveTo(-13, side * 4);
       if (kind === "owl") {
-        ctx.bezierCurveTo(-18, side * 18, -8, side * (reach - 3), 8, side * reach);
-        ctx.bezierCurveTo(20, side * (reach - 4), 17, side * 17, 5, side * 7);
+        ctx.bezierCurveTo(-18 + sweep * 0.2, side * 19, tipX - 12, side * (reach - 3), tipX, side * reach);
+        ctx.bezierCurveTo(tipX + 13, side * (reach - 5), 17 + sweep * 0.25, side * 18, 5, side * 7);
       } else {
-        ctx.bezierCurveTo(-18, side * 15, -6, side * (reach * 0.7), 12, side * reach);
-        ctx.lineTo(7, side * (reach * 0.68));
-        ctx.lineTo(16, side * (reach * 0.76));
-        ctx.lineTo(8, side * (reach * 0.48));
-        ctx.lineTo(15, side * (reach * 0.53));
-        ctx.bezierCurveTo(10, side * 18, 4, side * 8, -4, side * 5);
+        ctx.bezierCurveTo(-18 + sweep * 0.2, side * 16, tipX - 11, side * (reach * 0.72), tipX, side * reach);
+        ctx.lineTo(tipX - 6, side * (reach * 0.72));
+        ctx.lineTo(tipX + 4, side * (reach * 0.79));
+        ctx.lineTo(tipX - 4, side * (reach * 0.51));
+        ctx.lineTo(tipX + 5, side * (reach * 0.56));
+        ctx.bezierCurveTo(10 + sweep * 0.2, side * 19, 4, side * 8, -4, side * 5);
       }
       ctx.closePath();
       ctx.fill();
@@ -3728,7 +3731,7 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
       for (const featherOffset of [0, 7, 14]) {
         ctx.beginPath();
         ctx.moveTo(-5 + featherOffset * 0.35, side * 9);
-        ctx.lineTo(7 + featherOffset * 0.45, side * Math.max(17, reach - featherOffset));
+        ctx.lineTo(tipX + featherOffset * 0.32, side * Math.max(17, reach - featherOffset));
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
