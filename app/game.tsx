@@ -1253,24 +1253,27 @@ function nearestNode(game: GameState, maxDistance: number) {
   return found;
 }
 
-function nearestGroundDrop(game: GameState, maxDistance: number) {
-  let found: GroundDrop | null = null;
-  let best = maxDistance;
-  for (const drop of game.drops) {
-    if (drop.realm !== game.realm) continue;
-    const distance = Math.hypot(drop.x - game.player.x, drop.y - game.player.y);
-    if (distance < best) {
-      best = distance;
-      found = drop;
-    }
-  }
-  return found;
-}
+function collectGroundDrops(game: GameState) {
+  const collected = game.drops.filter(
+    (drop) =>
+      drop.realm === game.realm &&
+      Math.hypot(drop.x - game.player.x, drop.y - game.player.y) < 36,
+  );
+  if (collected.length === 0) return;
 
-function pickUpGroundDrop(game: GameState, drop: GroundDrop) {
-  addMaterial(game, drop.material, drop.amount);
-  game.drops = game.drops.filter((candidate) => candidate.id !== drop.id);
-  notify(game, "Picked up " + drop.amount + " " + itemLabel(drop.material) + ".", 1300);
+  const collectedIds = new Set(collected.map((drop) => drop.id));
+  const totals = new Map<Material, number>();
+  for (const drop of collected) {
+    addMaterial(game, drop.material, drop.amount);
+    totals.set(drop.material, (totals.get(drop.material) ?? 0) + drop.amount);
+  }
+  game.drops = game.drops.filter((drop) => !collectedIds.has(drop.id));
+  notify(
+    game,
+    "Picked up " +
+      [...totals].map(([material, amount]) => amount + " " + itemLabel(material)).join(" · "),
+    1300,
+  );
 }
 
 function nearestTreasure(game: GameState, maxDistance: number) {
@@ -1582,11 +1585,6 @@ function interact(game: GameState) {
     placeBuild(game, false, game.keys.has("shift"));
     return;
   }
-  const groundDrop = nearestGroundDrop(game, 86);
-  if (groundDrop) {
-    pickUpGroundDrop(game, groundDrop);
-    return;
-  }
   const entrance = nearbyCaveEntrance(game);
   const caveExit = nearbyCaveExit(game);
   if (entrance || caveExit) {
@@ -1800,7 +1798,7 @@ function harvestNode(game: GameState, node: ResourceNode) {
   if (node.hp <= 0) {
     node.respawnAt = now + 120000;
     const dropCount = dropNodeLoot(game, node);
-    feedback.push(resourceNodeLabel(node.kind) + " depleted · " + dropCount + " items dropped. Press E nearby to pick them up");
+    feedback.push(resourceNodeLabel(node.kind) + " depleted · " + dropCount + " items dropped. Walk over them to collect");
   } else {
     feedback.push(resourceNodeLabel(node.kind) + " damaged");
   }
@@ -2413,6 +2411,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
     );
   }
   updateWorkOrders(game, dt);
+  collectGroundDrops(game);
   if (game.mouseHeld) primaryAction(game, true);
   game.player.swing = Math.max(0, game.player.swing - dt);
   if (game.attackFlash && performance.now() - game.attackFlash.startedAt >= game.attackFlash.duration) {
@@ -4816,8 +4815,6 @@ function nearbyPrompt(game: GameState) {
     const target = targetBuilding(game, 118);
     if (target) return "TOOL · Deconstruct " + BUILD_DATA[target.kind].name + " · " + Math.ceil(target.hp) + "/" + target.maxHp + " health";
   }
-  const groundDrop = nearestGroundDrop(game, 86);
-  if (groundDrop) return "E · Pick up " + groundDrop.amount + " " + itemLabel(groundDrop.material);
   const entrance = nearbyCaveEntrance(game);
   const currentCave = nearbyCaveExit(game);
   if (entrance) return "E · Enter cave";

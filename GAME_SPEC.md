@@ -80,7 +80,7 @@ or door can be crossed.
 | Left click in build mode | Place one ready building piece |
 | Hold `Shift` and left-drag | Place ready pieces across each valid grid cell crossed |
 | Right click in build mode | Cancel placement without using a ready piece |
-| `E` | Context action: pick up ground drops, eat, feed, harvest, open treasure, operate, enter/exit, or place once |
+| `E` | Context action: eat, feed, harvest, open treasure, operate, enter/exit, or place once |
 | `Space` or `F` | Attack once |
 | `1`–`9`, `0` | Select hotbar slots 1 through 10 |
 | `Q` | Open or close ready building pieces |
@@ -212,9 +212,9 @@ break at zero. A broken tool disappears and its recipe becomes available again.
 | Aetherium | 180 |
 
 Hits only reduce node durability. When a node is fully depleted, all of its
-materials appear as illustrated ground drops near the node. The player must
-move near a drop and press `E` to collect it. Depleted nodes return after 120
-seconds.
+materials appear as illustrated ground drops near the node. Moving within 36
+units automatically collects every nearby stack. Depleted nodes return after
+120 seconds.
 
 Every partially damaged resource node shows a large, outlined health bar with
 no numeric durability text until it is depleted or fully respawned.
