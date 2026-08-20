@@ -346,11 +346,13 @@ footprint is within three grid squares (144 units), takes 1.5 seconds per piece,
 and continues through other blueprints in that local range. It never walks the
 player toward a distant job. Any movement immediately stops auto-build while
 preserving partial progress; pressing `B` after moving resumes from the nearest
-eligible blueprint. A completed solid structure blocks movement. Equipping the
-Deconstruction Hammer and aiming with left mouse queues a nearby structure for
-2.25 seconds of deconstruction. This returns half of each per-piece recipe cost,
-rounded down to whole materials. Deconstructing a chest also returns everything
-stored inside it.
+eligible blueprint. A movement-blocking blueprint pauses just before completion
+if the player overlaps its footprint; auto-build stops until the player moves
+clear and presses `B` again. A completed solid structure blocks movement.
+Equipping the Deconstruction Hammer and aiming with left mouse queues a nearby
+structure for 2.25 seconds of deconstruction. This returns half of each
+per-piece recipe cost, rounded down to whole materials. Deconstructing a chest
+also returns everything stored inside it.
 
 Every placed layer reserves its footprint as soon as its blueprint appears.
 Night monsters choose another spawn point, and depleted resources or wildlife

@@ -2922,8 +2922,21 @@ function updateWorkOrders(game: GameState, dt: number) {
   }
   if (game.player.swing <= 0.03) game.player.swing = 0.2;
   const duration = order.action === "construct" ? CONSTRUCTION_SECONDS : DECONSTRUCTION_SECONDS;
-  order.progress = Math.min(1, order.progress + dt / duration);
+  const nextProgress = Math.min(1, order.progress + dt / duration);
   if (order.action === "construct") {
+    if (
+      nextProgress >= 1 &&
+      blocksMovementKind(building.kind) &&
+      distanceToBuilding(building, game.player.x, game.player.y, 22) === 0
+    ) {
+      order.progress = Math.min(nextProgress, 0.99);
+      building.construction = order.progress;
+      building.hp = Math.max(building.hp, Math.ceil(building.maxHp * (0.15 + order.progress * 0.85)));
+      game.autoBuildActive = false;
+      notify(game, "Move clear of the blueprint, then press B to finish building.", 2200);
+      return;
+    }
+    order.progress = nextProgress;
     building.construction = order.progress;
     building.hp = Math.max(building.hp, Math.ceil(building.maxHp * (0.15 + order.progress * 0.85)));
     if (order.progress >= 1) {
@@ -2940,6 +2953,7 @@ function updateWorkOrders(game: GameState, dt: number) {
     }
     return;
   }
+  order.progress = nextProgress;
   building.deconstruction = order.progress;
   if (order.progress >= 1) {
     game.workOrders.shift();
