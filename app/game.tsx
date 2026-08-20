@@ -1589,7 +1589,7 @@ function interact(game: GameState) {
 
 const TOOL_TIER_RANK: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 4 };
 const TOOL_POWER: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 5 };
-const TOOL_COOLDOWN: Record<ToolTier, number> = { none: 450, wood: 400, stone: 320, iron: 220, aetherium: 140 };
+const TOOL_COOLDOWN: Record<ToolTier, number> = { none: 450, wood: 400, stone: 400, iron: 400, aetherium: 400 };
 
 function wearTool(game: GameState, tool: DurableTool) {
   const remaining = Math.max(0, game.gear.toolDurability[tool] - 1);
@@ -2248,8 +2248,9 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
   while (game.clock >= 1) {
     game.clock -= 1;
     game.day += 1;
+    game.creatures = game.creatures.filter((creature) => !isMonster(creature.kind) || creature.boss);
     game.player.hp = Math.min(game.player.maxHp, game.player.hp + 12);
-    notify(game, "DAWN — Day " + game.day + ". There is no final night.", 4000);
+    notify(game, "DAWN — Day " + game.day + ". The night creatures fade with the dark.", 4000);
   }
   const afterNight = isNight(game);
   if (afterNight && game.wave < game.day) spawnNightWave(game);
@@ -2307,20 +2308,39 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
 
 function drawResourceHealth(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   if (node.hp >= node.maxHp) return;
-  const width = Math.max(44, Math.min(62, nodeRadius(node.kind) * 1.15));
-  const y = node.y - nodeRadius(node.kind) - 17;
-  const ratio = Math.max(0, node.hp / node.maxHp);
+  const width = Math.max(70, Math.min(108, nodeRadius(node.kind, node.size) * 1.45));
+  const height = 14;
+  const y = node.y - nodeRadius(node.kind, node.size) - 24;
+  const ratio = Math.max(0, Math.min(1, node.hp / node.maxHp));
   ctx.save();
-  ctx.fillStyle = "rgba(15,27,24,.92)";
-  roundedRect(ctx, node.x - width / 2, y, width, 9, 4);
+  ctx.shadowColor = "rgba(6,13,11,.55)";
+  ctx.shadowBlur = 7;
+  ctx.shadowOffsetY = 3;
+  ctx.fillStyle = "rgba(12,22,19,.96)";
+  roundedRect(ctx, node.x - width / 2 - 2, y - 2, width + 4, height + 4, 7);
   ctx.fill();
-  ctx.fillStyle = ratio > 0.5 ? "#75c86e" : ratio > 0.25 ? "#e1b84e" : "#e55f56";
-  roundedRect(ctx, node.x - width / 2 + 2, y + 2, (width - 4) * ratio, 5, 2);
+  ctx.shadowColor = "transparent";
+  ctx.fillStyle = "#4e2b2b";
+  roundedRect(ctx, node.x - width / 2, y, width, height, 5);
   ctx.fill();
-  ctx.fillStyle = "#fff2dc";
-  ctx.font = "bold 8px Arial";
+  if (ratio > 0) {
+    const fillWidth = Math.max(4, width * ratio);
+    ctx.fillStyle = ratio > 0.5 ? "#63bd68" : ratio > 0.25 ? "#e1ae43" : "#de5d54";
+    roundedRect(ctx, node.x - width / 2, y, fillWidth, height, 5);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.2)";
+    roundedRect(ctx, node.x - width / 2 + 3, y + 2, Math.max(1, fillWidth - 6), 3, 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(247,238,214,.85)";
+  ctx.lineWidth = 2;
+  roundedRect(ctx, node.x - width / 2, y, width, height, 5);
+  ctx.stroke();
+  ctx.fillStyle = "#fff8e7";
+  ctx.font = "900 9px Arial";
   ctx.textAlign = "center";
-  ctx.fillText(Math.max(0, Math.ceil(node.hp)) + "/" + node.maxHp, node.x, y - 3);
+  ctx.textBaseline = "middle";
+  ctx.fillText(Math.max(0, Math.ceil(node.hp)) + " / " + node.maxHp, node.x, y + height / 2 + 0.5);
   ctx.restore();
 }
 
@@ -2742,141 +2762,166 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
   ctx.stroke();
   if (durableTool?.family === "axe") {
     const tier = durableTool.tier;
-    ctx.strokeStyle = "#32443e";
+    const headColor = tier === "wood" ? "#a66b3e" : tier === "stone" ? "#858f89" : tier === "iron" ? "#b8c6c3" : "#63dae7";
+    const edgeColor = tier === "wood" ? "#e0b06a" : tier === "stone" ? "#c3cbc7" : tier === "iron" ? "#f3f7f5" : "#d7fcff";
+    ctx.strokeStyle = tier === "wood" ? "#55372a" : tier === "aetherium" ? "#256a72" : "#344540";
     ctx.lineWidth = 3;
-    ctx.beginPath();
-    if (tier === "wood") {
-      ctx.fillStyle = "#9d673b";
-      ctx.moveTo(30, 6);
-      ctx.lineTo(31, -13);
-      ctx.lineTo(39, -14);
-      ctx.quadraticCurveTo(49, -24, 56, -21);
-      ctx.lineTo(52, -6);
-      ctx.quadraticCurveTo(47, 5, 38, 10);
-    } else if (tier === "stone") {
-      ctx.fillStyle = "#818d86";
-      ctx.moveTo(28, 8);
-      ctx.lineTo(29, -17);
-      ctx.lineTo(39, -19);
-      ctx.lineTo(51, -27);
-      ctx.lineTo(58, -22);
-      ctx.lineTo(53, -5);
-      ctx.lineTo(43, 12);
-    } else if (tier === "iron") {
-      ctx.fillStyle = "#c4cfcb";
-      ctx.moveTo(27, 10);
-      ctx.lineTo(28, -18);
-      ctx.lineTo(39, -20);
-      ctx.quadraticCurveTo(51, -30, 60, -25);
-      ctx.lineTo(55, -4);
-      ctx.quadraticCurveTo(49, 11, 39, 16);
-    } else {
+    if (tier === "aetherium") {
       ctx.shadowColor = "#69e6ef";
       ctx.shadowBlur = 12;
-      ctx.fillStyle = "#6ce0ec";
-      ctx.moveTo(26, 11);
-      ctx.lineTo(28, -18);
-      ctx.lineTo(39, -22);
-      ctx.lineTo(50, -31);
-      ctx.lineTo(63, -26);
-      ctx.lineTo(56, -12);
-      ctx.lineTo(60, -2);
-      ctx.lineTo(43, 17);
+    }
+    ctx.beginPath();
+    if (tier === "wood") {
+      ctx.moveTo(30, -11);
+      ctx.lineTo(40, -10);
+      ctx.quadraticCurveTo(48, -12, 54, -17);
+      ctx.quadraticCurveTo(59, 0, 54, 17);
+      ctx.quadraticCurveTo(48, 11, 40, 10);
+      ctx.lineTo(30, 11);
+    } else if (tier === "stone") {
+      ctx.moveTo(30, -16);
+      ctx.lineTo(39, -15);
+      ctx.lineTo(54, -24);
+      ctx.lineTo(59, -16);
+      ctx.lineTo(57, 16);
+      ctx.lineTo(53, 23);
+      ctx.lineTo(39, 14);
+      ctx.lineTo(30, 16);
+    } else if (tier === "iron") {
+      ctx.moveTo(29, -17);
+      ctx.lineTo(39, -16);
+      ctx.quadraticCurveTo(51, -19, 58, -27);
+      ctx.quadraticCurveTo(65, 0, 57, 26);
+      ctx.quadraticCurveTo(50, 18, 39, 15);
+      ctx.lineTo(29, 17);
+    } else {
+      ctx.moveTo(28, -18);
+      ctx.lineTo(39, -17);
+      ctx.lineTo(55, -30);
+      ctx.lineTo(61, -22);
+      ctx.lineTo(58, -9);
+      ctx.lineTo(64, 0);
+      ctx.lineTo(56, 29);
+      ctx.lineTo(39, 16);
+      ctx.lineTo(28, 18);
     }
     ctx.closePath();
+    ctx.fillStyle = headColor;
     ctx.fill();
     ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = tier === "aetherium" ? "#d5fbff" : tier === "iron" ? "#f0f6f2" : "#d3b06a";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = edgeColor;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(35, -13);
-    ctx.lineTo(tier === "iron" || tier === "aetherium" ? 52 : 48, -20);
+    if (tier === "stone") {
+      ctx.moveTo(54, -24);
+      ctx.lineTo(59, -16);
+      ctx.lineTo(57, 16);
+      ctx.lineTo(53, 23);
+    } else {
+      ctx.moveTo(tier === "aetherium" ? 55 : tier === "iron" ? 58 : 54, tier === "aetherium" ? -30 : tier === "iron" ? -27 : -17);
+      ctx.quadraticCurveTo(tier === "aetherium" ? 65 : tier === "iron" ? 65 : 59, 0, tier === "aetherium" ? 56 : tier === "iron" ? 57 : 54, tier === "aetherium" ? 29 : tier === "iron" ? 26 : 17);
+    }
     ctx.stroke();
     if (tier === "wood") {
       ctx.strokeStyle = "#d6b15f";
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(29, -5);
-      ctx.lineTo(35, 6);
-      ctx.moveTo(30, -9);
-      ctx.lineTo(36, 2);
+      ctx.moveTo(30, -8);
+      ctx.lineTo(39, 6);
+      ctx.moveTo(30, -2);
+      ctx.lineTo(38, 12);
       ctx.stroke();
     }
+    ctx.fillStyle = "#4a3329";
+    ctx.strokeStyle = "#ead5aa";
+    ctx.lineWidth = 1.5;
+    roundedRect(ctx, 31, -6, 10, 12, 3);
+    ctx.fill();
+    ctx.stroke();
   } else if (durableTool?.family === "pickaxe") {
     const tier = durableTool.tier;
-    ctx.strokeStyle = "#32443e";
-    ctx.beginPath();
-    if (tier === "wood") {
-      ctx.fillStyle = "#946039";
-      ctx.moveTo(34, -23);
-      ctx.lineTo(44, -19);
-      ctx.lineTo(44, 19);
-      ctx.lineTo(34, 23);
-    } else if (tier === "stone") {
-      ctx.fillStyle = "#818d86";
-      ctx.moveTo(40, -29);
-      ctx.lineTo(48, -18);
-      ctx.lineTo(44, -6);
-      ctx.lineTo(49, 0);
-      ctx.lineTo(44, 7);
-      ctx.lineTo(48, 18);
-      ctx.lineTo(40, 29);
-      ctx.lineTo(32, 18);
-      ctx.lineTo(36, 7);
-      ctx.lineTo(32, 0);
-      ctx.lineTo(36, -6);
-      ctx.lineTo(32, -18);
-    } else if (tier === "iron") {
-      ctx.fillStyle = "#c4cfcb";
-      ctx.moveTo(40, -33);
-      ctx.lineTo(47, -18);
-      ctx.lineTo(43, -4);
-      ctx.lineTo(50, 0);
-      ctx.lineTo(43, 4);
-      ctx.lineTo(47, 18);
-      ctx.lineTo(40, 33);
-      ctx.lineTo(34, 18);
-      ctx.lineTo(37, 4);
-      ctx.lineTo(33, 0);
-      ctx.lineTo(37, -4);
-      ctx.lineTo(34, -18);
-    } else {
+    const headColor = tier === "wood" ? "#a66b3e" : tier === "stone" ? "#858f89" : tier === "iron" ? "#b8c6c3" : "#63dae7";
+    const edgeColor = tier === "wood" ? "#e0b06a" : tier === "stone" ? "#c3cbc7" : tier === "iron" ? "#f3f7f5" : "#d7fcff";
+    ctx.strokeStyle = tier === "wood" ? "#55372a" : tier === "aetherium" ? "#256a72" : "#344540";
+    ctx.lineWidth = 3;
+    if (tier === "aetherium") {
       ctx.shadowColor = "#69e6ef";
       ctx.shadowBlur = 12;
-      ctx.fillStyle = "#6ce0ec";
-      ctx.moveTo(40, -35);
-      ctx.lineTo(49, -17);
-      ctx.lineTo(44, -5);
-      ctx.lineTo(54, 0);
-      ctx.lineTo(44, 5);
-      ctx.lineTo(49, 17);
-      ctx.lineTo(40, 35);
-      ctx.lineTo(31, 17);
+    }
+    ctx.beginPath();
+    if (tier === "wood") {
+      ctx.moveTo(39, -28);
+      ctx.lineTo(46, -20);
+      ctx.lineTo(43, -5);
+      ctx.lineTo(49, 0);
+      ctx.lineTo(43, 5);
+      ctx.lineTo(46, 20);
+      ctx.lineTo(39, 28);
+      ctx.lineTo(33, 19);
       ctx.lineTo(36, 5);
-      ctx.lineTo(29, 0);
+      ctx.lineTo(31, 0);
       ctx.lineTo(36, -5);
-      ctx.lineTo(31, -17);
+      ctx.lineTo(33, -19);
+    } else if (tier === "stone") {
+      ctx.moveTo(39, -31);
+      ctx.lineTo(48, -20);
+      ctx.lineTo(44, -6);
+      ctx.lineTo(51, 0);
+      ctx.lineTo(44, 6);
+      ctx.lineTo(48, 20);
+      ctx.lineTo(39, 31);
+      ctx.lineTo(31, 19);
+      ctx.lineTo(35, 6);
+      ctx.lineTo(29, 0);
+      ctx.lineTo(35, -6);
+      ctx.lineTo(31, -19);
+    } else if (tier === "iron") {
+      ctx.moveTo(39, -34);
+      ctx.quadraticCurveTo(50, -22, 45, -5);
+      ctx.lineTo(52, 0);
+      ctx.lineTo(45, 5);
+      ctx.quadraticCurveTo(50, 22, 39, 34);
+      ctx.quadraticCurveTo(29, 21, 35, 5);
+      ctx.lineTo(29, 0);
+      ctx.lineTo(35, -5);
+      ctx.quadraticCurveTo(29, -21, 39, -34);
+    } else {
+      ctx.moveTo(39, -36);
+      ctx.lineTo(49, -23);
+      ctx.lineTo(46, -10);
+      ctx.lineTo(53, -5);
+      ctx.lineTo(48, 0);
+      ctx.lineTo(54, 7);
+      ctx.lineTo(46, 11);
+      ctx.lineTo(49, 23);
+      ctx.lineTo(39, 36);
+      ctx.lineTo(30, 22);
+      ctx.lineTo(35, 6);
+      ctx.lineTo(28, 0);
+      ctx.lineTo(35, -6);
+      ctx.lineTo(30, -22);
     }
     ctx.closePath();
+    ctx.fillStyle = headColor;
     ctx.fill();
-    ctx.lineWidth = 3;
     ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = tier === "aetherium" ? "#ddfcff" : tier === "iron" ? "#f0f6f2" : "#d3b06a";
+    ctx.strokeStyle = edgeColor;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(40, -21);
-    ctx.lineTo(40, 21);
+    ctx.moveTo(39, -26);
+    ctx.quadraticCurveTo(45, -10, 40, 0);
+    ctx.quadraticCurveTo(45, 10, 39, 26);
     ctx.stroke();
     if (tier === "wood") {
       ctx.strokeStyle = "#e0b85e";
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(34, -7);
+      ctx.moveTo(32, -7);
       ctx.lineTo(45, 5);
-      ctx.moveTo(34, 0);
-      ctx.lineTo(44, 11);
+      ctx.moveTo(32, 0);
+      ctx.lineTo(44, 12);
       ctx.stroke();
     }
   } else if (tool === "hammer") {
@@ -4191,7 +4236,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "woodAxe",
     name: "Wood Axe",
-    detail: "Starter chopping tool · 36 durability",
+    detail: "1 chopping damage per swing · 36 durability",
     cost: { wood: 3 },
     owned: (game) => game.gear.toolDurability.woodAxe > 0,
     action: (game) => {
@@ -4202,7 +4247,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "woodPick",
     name: "Wood Pickaxe",
-    detail: "Mines surface stone · 36 durability",
+    detail: "1 mining damage per swing · 36 durability",
     cost: { wood: 3 },
     owned: (game) => game.gear.toolDurability.woodPickaxe > 0,
     action: (game) => {
@@ -4213,7 +4258,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "stoneAxe",
     name: "Stone Axe",
-    detail: "Stronger, faster chopping · 72 durability",
+    detail: "2 chopping damage per swing · 72 durability",
     cost: { wood: 3, stone: 4 },
     owned: (game) => game.gear.toolDurability.stoneAxe > 0,
     action: (game) => {
@@ -4224,7 +4269,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "stonePick",
     name: "Stone Pickaxe",
-    detail: "Mines granite and common metals · 72 durability",
+    detail: "2 mining damage per swing · common metals · 72 durability",
     cost: { wood: 3, stone: 4 },
     owned: (game) => game.gear.toolDurability.stonePickaxe > 0,
     action: (game) => {
@@ -4349,7 +4394,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "ironAxe",
     name: "Iron Axe",
-    detail: "Advanced high-speed chopping · 120 durability",
+    detail: "3 chopping damage per swing · 120 durability",
     cost: { wood: 4, iron: 5 },
     requiresBench: true,
     owned: (game) => game.gear.toolDurability.ironAxe > 0,
@@ -4361,7 +4406,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "ironPick",
     name: "Iron Pickaxe",
-    detail: "Can mine rare Aetherium · 120 durability",
+    detail: "3 mining damage per swing · mines Aetherium · 120 durability",
     cost: { wood: 4, iron: 5 },
     requiresBench: true,
     owned: (game) => game.gear.toolDurability.ironPickaxe > 0,
@@ -4373,7 +4418,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "aetherAxe",
     name: "Aetherium Axe",
-    detail: "Five-hit chopping power · 180 durability",
+    detail: "5 chopping damage per swing · 180 durability",
     cost: { wood: 4, aetherium: 7, iron: 3 },
     requiresBench: true,
     owned: (game) => game.gear.toolDurability.aetheriumAxe > 0,
@@ -4385,7 +4430,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "aetherPick",
     name: "Aetherium Pickaxe",
-    detail: "Five-hit mining power · 180 durability",
+    detail: "5 mining damage per swing · 180 durability",
     cost: { wood: 4, aetherium: 7, iron: 3 },
     requiresBench: true,
     owned: (game) => game.gear.toolDurability.aetheriumPickaxe > 0,
@@ -4417,6 +4462,58 @@ const CRAFT_RECIPES: Recipe[] = [
 ];
 
 function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
+  if (type === "axe" || type === "pickaxe") {
+    const material = tier ?? "iron";
+    const colors: Record<ToolTier, { head: string; edge: string; outline: string }> = {
+      none: { head: "#b8c5c0", edge: "#eef4f0", outline: "#33443e" },
+      wood: { head: "#a66b3e", edge: "#dca668", outline: "#55372a" },
+      stone: { head: "#858f89", edge: "#c3cbc7", outline: "#3d4b47" },
+      iron: { head: "#b8c6c3", edge: "#f3f7f5", outline: "#3a4946" },
+      aetherium: { head: "#63dae7", edge: "#d7fcff", outline: "#256a72" },
+    };
+    const palette = colors[material];
+    const axeHead: Record<ToolTier, string> = {
+      none: "M22 8 L34 10 Q41 9 46 4 Q51 20 44 35 Q39 29 33 28 L22 31 Z",
+      wood: "M23 9 L34 10 L42 5 L47 8 Q50 20 44 34 L34 28 L23 30 Z",
+      stone: "M21 7 L34 10 L44 3 L50 10 L47 32 L43 36 L34 28 L22 32 Z",
+      iron: "M21 7 L34 10 Q42 8 47 2 Q52 20 44 37 Q39 30 33 28 L21 32 Z",
+      aetherium: "M20 8 L34 10 L45 1 L50 7 L47 16 L52 22 L43 38 L34 28 L20 33 Z",
+    };
+    const axeEdge: Record<ToolTier, string> = {
+      none: "M46 4 Q51 20 44 35",
+      wood: "M42 5 Q50 19 44 34",
+      stone: "M44 3 L50 10 L47 32 L43 36",
+      iron: "M47 2 Q52 20 44 37",
+      aetherium: "M45 1 L50 7 L47 16 L52 22 L43 38",
+    };
+    const pickCurve = material === "wood" ? "M5 21 Q25 8 47 16" : material === "stone" ? "M4 22 Q25 6 48 16" : material === "aetherium" ? "M3 23 Q25 4 49 15" : "M4 22 Q25 5 48 15";
+    return (
+      <span className={"tool-glyph tool-" + type + " tier-" + material} aria-hidden="true">
+        <svg className="tool-svg" viewBox="0 0 52 52" focusable="false">
+          <path d="M9 46 L31 21" stroke="#4b3025" strokeWidth="9" strokeLinecap="round" />
+          <path d="M10 44 L30 22" stroke="#b47745" strokeWidth="4.5" strokeLinecap="round" />
+          {type === "axe" ? (
+            <>
+              <path d={axeHead[material]} fill={palette.head} stroke={palette.outline} strokeWidth="2.5" strokeLinejoin="round" />
+              <path d={axeEdge[material]} fill="none" stroke={palette.edge} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              <rect x="27" y="16" width="8" height="10" rx="2.5" fill="#4b342a" stroke="#ead5a8" strokeWidth="1.4" transform="rotate(2 31 21)" />
+              {material === "wood" && <path d="M23 20 L35 29 M23 25 L33 33" fill="none" stroke="#e0bb6b" strokeWidth="2.2" strokeLinecap="round" />}
+            </>
+          ) : (
+            <>
+              <path d={pickCurve} fill="none" stroke={palette.outline} strokeWidth={material === "stone" ? 11 : 9} strokeLinecap="round" />
+              <path d={pickCurve} fill="none" stroke={palette.head} strokeWidth={material === "stone" ? 7 : 5.5} strokeLinecap="round" />
+              <path d="M3 23 L11 13 L12 22 Z" fill={palette.head} stroke={palette.outline} strokeWidth="2" strokeLinejoin="round" />
+              <path d="M47 16 L51 7 L49 18 Z" fill={palette.head} stroke={palette.outline} strokeWidth="2" strokeLinejoin="round" />
+              <path d={pickCurve} fill="none" stroke={palette.edge} strokeWidth="1.5" strokeLinecap="round" />
+              <rect x="27" y="13" width="8" height="10" rx="2.5" fill="#4b342a" stroke="#ead5a8" strokeWidth="1.4" transform="rotate(-18 31 18)" />
+              {material === "wood" && <path d="M25 16 L34 24 M22 18 L31 26" fill="none" stroke="#e0bb6b" strokeWidth="2" strokeLinecap="round" />}
+            </>
+          )}
+        </svg>
+      </span>
+    );
+  }
   return (
     <span className={"tool-glyph tool-" + type + (tier ? " tier-" + tier : "")} aria-hidden="true">
       <i />
@@ -4981,9 +5078,15 @@ export default function Game() {
 
       {panel && (
         <div className="panel-scrim" onPointerDown={() => setPanel(null)}>
-          <aside className="game-panel" onPointerDown={(event) => event.stopPropagation()}>
+          <aside
+            className={"game-panel" + (panel === "craft" ? " crafting-menu" : "")}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="game-panel-title"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
             <header>
-              <div><small>SURVIVAL KIT</small><h2>{panel === "inventory" ? "Backpack" : panel === "craft" ? "Crafting" : "Ready Pieces"}</h2></div>
+              <div><small>SURVIVAL KIT</small><h2 id="game-panel-title">{panel === "inventory" ? "Backpack" : panel === "craft" ? "Crafting" : "Ready Pieces"}</h2></div>
               <button onClick={() => setPanel(null)} aria-label="Close panel">×</button>
             </header>
             <nav className="panel-tabs">

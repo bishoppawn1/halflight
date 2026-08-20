@@ -633,6 +633,15 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   height: 34px;
 }
 
+.tool-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.tool-glyph.tier-aetherium .tool-svg { filter: drop-shadow(0 0 3px rgba(105,230,239,.8)); }
+
 .tool-glyph i,
 .tool-glyph b { position: absolute; display: block; }
 .tool-glyph i {
@@ -840,8 +849,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   position: absolute;
   z-index: 20;
   inset: 0;
-  background: rgba(8,18,15,.4);
-  backdrop-filter: blur(2px);
+  background: rgba(8,18,15,.68);
+  backdrop-filter: blur(5px);
 }
 
 .game-panel {
@@ -860,7 +869,17 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   animation: panel-in .2s ease-out;
 }
 
+.game-panel.crafting-menu {
+  left: max(18px, calc((100vw - 1180px) / 2));
+  right: max(18px, calc((100vw - 1180px) / 2));
+  width: auto;
+  background: linear-gradient(145deg, #182d25, #12231d);
+  box-shadow: 0 22px 70px rgba(4,11,9,.7);
+  animation: crafting-menu-in .18s ease-out;
+}
+
 @keyframes panel-in { from { opacity: 0; transform: translateX(24px); } }
+@keyframes crafting-menu-in { from { opacity: 0; transform: scale(.985); } }
 
 .game-panel > header {
   display: flex;
@@ -1023,17 +1042,41 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .taming-tip b { display: block; color: #f0d9aa; font-size: 10px; }
 .taming-tip p { margin: 4px 0 0; color: #9fb3a9; font-size: 9px; line-height: 1.45; }
 
-.recipe-list { display: grid; gap: 8px; }
-.recipe-list article {
+.recipe-list {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+  align-items: stretch;
+  gap: 12px;
+}
+.recipe-list article {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  min-height: 69px;
-  padding: 10px;
+  min-width: 0;
+  min-height: 188px;
+  aspect-ratio: 1 / 1;
+  padding: 14px;
   border: 1px solid rgba(255,255,255,.08);
-  border-radius: 12px;
-  background: #20372f;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #243c33, #1c322a);
+  box-shadow: inset 0 1px rgba(255,255,255,.04), 0 6px 15px rgba(4,12,9,.13);
+  text-align: center;
+  transition: border-color .15s ease, transform .15s ease, background .15s ease;
+}
+
+.recipe-list article:hover {
+  border-color: rgba(240,185,71,.42);
+  background: linear-gradient(145deg, #2b463b, #20372e);
+  transform: translateY(-2px);
+}
+
+.recipe-list article > div:nth-child(2) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
 }
 
 .recipe-badge,
@@ -1051,12 +1094,42 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   font-weight: 950;
 }
 
+.recipe-badge {
+  flex: 0 0 auto;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #efc05c, #bd7d35);
+}
+
+.recipe-badge .tool-glyph {
+  width: 48px;
+  height: 48px;
+}
+
+.recipe-badge .resource-mark,
+.recipe-badge .recipe-special,
+.recipe-badge > .build-icon {
+  transform: scale(1.35);
+}
+
 .recipe-list h3,
 .build-grid h3 { margin: 0; color: #f0e7d5; font-size: 11px; }
+.recipe-list h3 { font-size: 12px; line-height: 1.2; }
 .recipe-list p,
 .build-grid p { margin: 3px 0 5px; color: #92a89d; font-size: 8px; }
+.recipe-list p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 5px 0;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .recipe-list small,
 .build-grid small { color: #d6ad5e; font-size: 8px; font-weight: 800; text-transform: capitalize; }
+.recipe-list small { margin-top: auto; line-height: 1.3; }
 .recipe-list button,
 .build-grid button {
   padding: 8px 10px;
@@ -1067,6 +1140,12 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   font-size: 8px;
   font-weight: 900;
   cursor: pointer;
+}
+
+.recipe-list button {
+  width: 100%;
+  margin-top: 10px;
+  padding-block: 9px;
 }
 
 .recipe-list button:disabled,
@@ -1340,11 +1419,16 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   .hunger-warning span { font-size: 10px; }
   .build-mode-banner { top: 86px; }
   .game-panel { inset: 6px; width: auto; }
+  .game-panel.crafting-menu { inset: 6px; width: auto; }
   .chest-panel { left: 6px; right: 6px; top: 6px; bottom: 6px; width: auto; max-height: none; transform: none; }
   .chest-content { grid-template-columns: 1fr; }
   .chest-content > section + section { border-top: 1px solid rgba(255,255,255,.09); border-left: 0; }
   .build-grid { grid-template-columns: 1fr; }
   .build-grid footer { grid-column: 1 / span 2; }
+  .recipe-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .recipe-list article { min-height: 174px; aspect-ratio: auto; padding: 10px; }
+  .recipe-badge { width: 52px; height: 52px; margin-bottom: 7px; }
+  .recipe-badge .tool-glyph { width: 42px; height: 42px; }
   .panel-content { padding: 14px; }
   .free-inventory { gap: 3px; }
   .inventory-slot { height: 46px; grid-template-rows: 28px 10px; }

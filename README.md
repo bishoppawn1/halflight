@@ -29,7 +29,8 @@ Move tools, weapons, resources, food, and ready building pieces freely between
 the backpack and hotbar by dragging them, or by selecting a source and then a
 destination slot.
 
-Craft starter tools and a Crafting Bench from the Craft menu. After placing the
+Craft starter tools and a Crafting Bench from the full-screen, square-card Craft
+menu. After placing the
 bench, stand near it to unlock advanced tools, weapons, ammunition, and wood,
 stone, or metal construction pieces. Construction recipes create stacks in the
 inventory; they never place a piece automatically.
@@ -43,8 +44,9 @@ supplies unavailable to crafting until you retrieve them.
 A Wood Axe and lit campfire are available at spawn. Bedrolls provide one rest
 per day, while Standing Torches and Campfires create permanent pools of light.
 At night and underground, the world beyond those light pools is hidden. Damaged
-resources show their remaining health, and crop plots show a live growth percent.
-Night waves continue without a cap and spawn at random valid points across the map.
+resources show a clear health bar, and crop plots show a live growth percent.
+Night waves continue without a cap and spawn at random valid points across the map;
+surviving wave monsters disappear at dawn.
 The caves have no individual names. Each run hides a treasure cache in one
 random cave chamber and an oversized guardian in another; both can appear in
 the same chamber.

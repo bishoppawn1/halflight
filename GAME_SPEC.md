@@ -144,7 +144,8 @@ day and give the player 112 units of close vision before placed lights extend it
 A full cycle lasts 110 seconds: 55 seconds of day and 55 seconds of night. The
 first run begins partway through daylight, leaving about 37 seconds before
 night 1. At dawn, the day counter increases and up to 12 health is restored.
-Surviving monsters remain after dawn.
+All ordinary night-wave monsters disappear at dawn. The cave guardian is a
+permanent cave encounter and is not removed by the day transition.
 
 ## 6. Hunger, food, and death
 
@@ -177,12 +178,14 @@ Pointer coordinates stay synchronized while the camera moves.
 | Tool tier | Node durability removed and per-hit yield | Cooldown | Access |
 | --- | ---: | ---: | --- |
 | Wood | 1 | 400 ms | Trees and ordinary rock |
-| Stone | 2 | 320 ms | Trees, granite, iron, copper, coal, and sulfur |
-| Iron | 3 | 220 ms | All deposits, including Aetherium |
-| Aetherium | 5 | 140 ms | All deposits |
+| Stone | 2 | 400 ms | Trees, granite, iron, copper, coal, and sulfur |
+| Iron | 3 | 400 ms | All deposits, including Aetherium |
+| Aetherium | 5 | 400 ms | All deposits |
 
 Forage uses a 300 ms cooldown. A tool awards the material for every durability
-point it removes, so higher tiers gather several hits' yield at once.
+point it removes, so higher tiers gather several hits' yield at once. Tool
+tiers never accelerate the swing rate; their advantage is increased node
+damage and access to stronger deposits.
 
 Every axe and pickaxe tier is a separate inventory item. Crafting a Stone
 Pickaxe, for example, does not remove or alter an owned Wood Pickaxe. Tools lose
@@ -200,8 +203,9 @@ break at zero. A broken tool disappears and its recipe becomes available again.
 Materials are awarded on every hit, not only when a node breaks. Depleted nodes
 return after 120 seconds.
 
-Every partially damaged resource node shows both a health bar and its remaining
-durability as a current/maximum number until it is depleted or fully respawned.
+Every partially damaged resource node shows a large, outlined health bar with
+its current/maximum durability centered inside until it is depleted or fully
+respawned.
 
 | Node | Durability | Material awarded per hit | Depletion bonus |
 | --- | ---: | --- | --- |
@@ -240,14 +244,17 @@ advanced weapons, armor, metal tools, ammunition, and defenses. Owned durable
 tools cannot be duplicated, but can be crafted again after breaking. Crafting a
 higher tool tier adds a new item instead of replacing a lower-tier tool.
 Permanent weapons and armor cannot be crafted twice or downgraded; ammunition,
-bandages, and building pieces are repeatable.
+bandages, and building pieces are repeatable. Opening crafting enters a large
+screen-wide menu. Every recipe occupies its own square card with a prominent
+illustration, name, description, material cost, bench requirement, and craft
+button.
 
 | Recipe | Cost | Result |
 | --- | --- | --- |
-| Wood Axe | 3 wood | Tier-1 chopping tool; 36 durability |
-| Wood Pickaxe | 3 wood | Tier-1 pickaxe for ordinary rock; 36 durability |
-| Stone Axe | 3 wood, 4 stone | Tier-2 chopping tool; 72 durability |
-| Stone Pickaxe | 3 wood, 4 stone | Tier-2 pickaxe for common ores; 72 durability |
+| Wood Axe | 3 wood | 1 node damage per swing; 36 durability |
+| Wood Pickaxe | 3 wood | 1 node damage per swing; ordinary rock; 36 durability |
+| Stone Axe | 3 wood, 4 stone | 2 node damage per swing; 72 durability |
+| Stone Pickaxe | 3 wood, 4 stone | 2 node damage per swing; common ores; 72 durability |
 | Deconstruction Hammer | 4 wood, 2 stone | Removes an aimed structure and recovers part of its materials |
 | Stone Spear | 5 wood, 3 stone | 17-damage melee weapon |
 | Iron Sword | 4 wood, 7 iron | Fast 25-damage melee weapon |
@@ -258,10 +265,10 @@ bandages, and building pieces are repeatable.
 | Copper Armor | 12 copper, 5 hide | Copper helmet; 18% damage reduction |
 | Iron Armor | 14 iron, 6 hide | Iron helmet; 35% damage reduction |
 | Blacksteel Armor | 18 iron, 10 coal, 4 sulfur, 8 hide | Blacksteel helmet; 55% damage reduction |
-| Iron Axe | 4 wood, 5 iron | Tier-3 chopping tool, 14 combat damage, and 120 durability |
-| Iron Pickaxe | 4 wood, 5 iron | Tier-3 pickaxe for Aetherium; 120 durability |
-| Aetherium Axe | 4 wood, 7 Aetherium, 3 iron | Tier-4 chopping tool, 22 combat damage, and 180 durability |
-| Aetherium Pickaxe | 4 wood, 7 Aetherium, 3 iron | Tier-4 mining tool, 18 combat damage, and 180 durability |
+| Iron Axe | 4 wood, 5 iron | 3 node damage per swing, 14 combat damage, and 120 durability |
+| Iron Pickaxe | 4 wood, 5 iron | 3 node damage per swing; mines Aetherium; 120 durability |
+| Aetherium Axe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 22 combat damage, and 180 durability |
+| Aetherium Pickaxe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 18 combat damage, and 180 durability |
 | Field Bandage | 5 fiber, 1 berry | Immediately restores up to 35 health |
 
 Crafting a higher armor tier replaces the visible helmet and protection tier.
@@ -427,7 +434,8 @@ tentacle count and thickness, color, eyes, horns, and tooth patterns distinguish
 shades, crawlers, brutes, wraiths, and maws. Monsters initially prowl instead of
 knowing the player's location. They chase after sensing the player or being
 attacked, then return to prowling after the player moves beyond 1.8 times that
-monster's sense radius. Survivors remain after dawn.
+monster's sense radius. Any surviving ordinary night-wave monsters disappear
+at dawn before the next day begins.
 
 ## 13. Current scope
 
