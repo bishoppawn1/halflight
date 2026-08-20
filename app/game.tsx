@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type Realm = "meadow" | "cave";
+type CaveRealm = "graniteCave" | "ironCave" | "sulfurCave";
+type Realm = "meadow" | CaveRealm;
 type ResourceKind =
   | "oak"
   | "pine"
@@ -13,17 +14,23 @@ type ResourceKind =
   | "copperOre"
   | "coal"
   | "sulfur"
+  | "aetherOre"
   | "berryBush"
   | "grass"
   | "mushroom";
-type Tool = "axe" | "pickaxe" | "spear" | "sword" | "bow" | "pistol" | "food" | "build" | "hands";
+type FoodMaterial = "berries" | "mushrooms" | "meat";
+type Tool = "axe" | "pickaxe" | "spear" | "sword" | "bow" | "pistol" | FoodMaterial | "build" | "hands";
+type ToolTier = "none" | "wood" | "stone" | "iron" | "aetherium";
 type BuildKind =
+  | "craftingBench"
   | "woodFence"
   | "stoneFence"
   | "woodGate"
   | "stoneGate"
   | "floor"
-  | "wall"
+  | "woodWall"
+  | "stoneWall"
+  | "metalWall"
   | "door"
   | "roof"
   | "spikes"
@@ -40,6 +47,7 @@ type Material =
   | "copper"
   | "coal"
   | "sulfur"
+  | "aetherium"
   | "fiber"
   | "berries"
   | "meat"
@@ -98,6 +106,18 @@ interface Building {
   triggerAt: number;
 }
 
+interface Projectile {
+  id: number;
+  kind: "arrow" | "bullet";
+  realm: Realm;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  damage: number;
+}
+
 interface Player {
   x: number;
   y: number;
@@ -125,8 +145,8 @@ interface GameState {
     sword: boolean;
     bow: boolean;
     pistol: boolean;
-    ironAxe: boolean;
-    ironPick: boolean;
+    axeTier: ToolTier;
+    pickaxeTier: ToolTier;
     armor: ArmorKind;
   };
   kits: Record<BuildKind, number>;
@@ -139,8 +159,11 @@ interface GameState {
   nodes: ResourceNode[];
   creatures: Creature[];
   buildings: Building[];
+  projectiles: Projectile[];
   keys: Set<string>;
   mouseHeld: boolean;
+  buildDrag: boolean;
+  lastBuildCell: string | null;
   pointer: { x: number; y: number; worldX: number; worldY: number; active: boolean };
   camera: { x: number; y: number };
   message: string;
@@ -155,6 +178,8 @@ interface Recipe {
   name: string;
   detail: string;
   cost: Partial<Record<Material, number>>;
+  requiresBench?: boolean;
+  owned?: (game: GameState) => boolean;
   action: (game: GameState) => void;
 }
 
@@ -164,12 +189,52 @@ const GRID = 48;
 const DAY_SECONDS = 110;
 const SPAWN_X = 2780;
 const SPAWN_Y = 1940;
-const CAVE_X = 4720;
-const CAVE_Y = 480;
+const CAVE_EXIT_X = 180;
+const CAVE_EXIT_Y = 180;
 const FOREST_X = 1320;
 const FOREST_Y = 2080;
 const FOREST_RX = 1120;
 const FOREST_RY = 1500;
+
+interface CaveDefinition {
+  realm: CaveRealm;
+  name: string;
+  entranceX: number;
+  entranceY: number;
+  ground: string;
+  textureA: string;
+  textureB: string;
+}
+
+const CAVES: CaveDefinition[] = [
+  {
+    realm: "graniteCave",
+    name: "Granite Hollow",
+    entranceX: 4720,
+    entranceY: 480,
+    ground: "#444f4a",
+    textureA: "#52605a",
+    textureB: "#35423d",
+  },
+  {
+    realm: "ironCave",
+    name: "Iron Delve",
+    entranceX: 4420,
+    entranceY: 3260,
+    ground: "#494b4b",
+    textureA: "#5a5c5b",
+    textureB: "#393c3c",
+  },
+  {
+    realm: "sulfurCave",
+    name: "Sulfur Grotto",
+    entranceX: 650,
+    entranceY: 470,
+    ground: "#4d4d39",
+    textureA: "#626044",
+    textureB: "#3d3e31",
+  },
+];
 
 const MATERIALS: { id: Material; name: string; icon: string }[] = [
   { id: "wood", name: "Wood", icon: "W" },
@@ -179,6 +244,7 @@ const MATERIALS: { id: Material; name: string; icon: string }[] = [
   { id: "copper", name: "Copper", icon: "Cu" },
   { id: "coal", name: "Coal", icon: "C" },
   { id: "sulfur", name: "Sulfur", icon: "Su" },
+  { id: "aetherium", name: "Aetherium", icon: "Ae" },
   { id: "fiber", name: "Fiber", icon: "F" },
   { id: "berries", name: "Berries", icon: "●" },
   { id: "meat", name: "Meat", icon: "M" },
@@ -193,12 +259,15 @@ const BUILD_DATA: Record<
   BuildKind,
   { name: string; detail: string; icon: string; cost: Partial<Record<Material, number>>; makes: number; hp: number }
 > = {
+  craftingBench: { name: "Crafting Bench", detail: "Unlocks advanced crafting nearby", icon: "CB", cost: { wood: 4, stone: 2 }, makes: 1, hp: 85 },
   woodFence: { name: "Wood Fence", detail: "A quick timber barrier", icon: "WF", cost: { wood: 3 }, makes: 2, hp: 55 },
-  stoneFence: { name: "Granite Fence", detail: "Slow, sturdy protection", icon: "GF", cost: { stone: 1, granite: 3 }, makes: 2, hp: 105 },
+  stoneFence: { name: "Stone Fence", detail: "Slow, sturdy protection", icon: "SF", cost: { stone: 4 }, makes: 2, hp: 105 },
   woodGate: { name: "Wood Gate", detail: "Opens with E", icon: "WG", cost: { wood: 5 }, makes: 1, hp: 70 },
   stoneGate: { name: "Granite Gate", detail: "Reinforced entrance", icon: "GG", cost: { granite: 5, iron: 1 }, makes: 1, hp: 130 },
   floor: { name: "Wood Floor", detail: "Snaps beneath structures", icon: "FL", cost: { wood: 2 }, makes: 2, hp: 45 },
-  wall: { name: "House Wall", detail: "Heavy shelter wall", icon: "WL", cost: { wood: 4, granite: 3 }, makes: 1, hp: 120 },
+  woodWall: { name: "Wood Wall", detail: "Basic shelter wall", icon: "WW", cost: { wood: 4 }, makes: 2, hp: 90 },
+  stoneWall: { name: "Stone Wall", detail: "Strong masonry wall", icon: "SW", cost: { stone: 5, granite: 2 }, makes: 2, hp: 155 },
+  metalWall: { name: "Metal Wall", detail: "Heavy end-game barrier", icon: "MW", cost: { iron: 6, coal: 1 }, makes: 2, hp: 235 },
   door: { name: "House Door", detail: "A doorway for your shelter", icon: "DR", cost: { wood: 4, iron: 1 }, makes: 1, hp: 90 },
   roof: { name: "Roof", detail: "Shelter from the dark", icon: "RF", cost: { wood: 4, fiber: 2 }, makes: 1, hp: 75 },
   spikes: { name: "Spike Trap", detail: "Fast close-range damage", icon: "SP", cost: { wood: 4, iron: 2 }, makes: 1, hp: 60 },
@@ -209,12 +278,15 @@ const BUILD_DATA: Record<
 };
 
 const BUILD_ORDER: BuildKind[] = [
+  "craftingBench",
   "woodFence",
   "stoneFence",
   "woodGate",
   "stoneGate",
   "floor",
-  "wall",
+  "woodWall",
+  "stoneWall",
+  "metalWall",
   "door",
   "roof",
   "spikes",
@@ -234,7 +306,6 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   sword: "Iron Sword",
   bow: "Hunting Bow",
   pistol: "Scrap Pistol",
-  food: "Food",
   wood: "Wood",
   stone: "Stone",
   granite: "Granite",
@@ -242,6 +313,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   copper: "Copper",
   coal: "Coal",
   sulfur: "Sulfur",
+  aetherium: "Aetherium",
   fiber: "Fiber",
   berries: "Berries",
   meat: "Meat",
@@ -268,9 +340,23 @@ function isMaterial(item: InventoryItem): item is Material {
   return MATERIALS.some((material) => material.id === item);
 }
 
-function itemLabel(item: InventoryItem | null) {
+const TOOL_TIER_NAMES: Record<ToolTier, string> = {
+  none: "No",
+  wood: "Wood",
+  stone: "Stone",
+  iron: "Iron",
+  aetherium: "Aetherium",
+};
+
+function isFoodItem(item: InventoryItem | null): item is FoodMaterial {
+  return item === "berries" || item === "mushrooms" || item === "meat";
+}
+
+function itemLabel(item: InventoryItem | null, game?: GameState) {
   if (!item) return "Empty";
   if (isBuildKind(item)) return BUILD_DATA[item].name;
+  if (item === "axe" && game) return TOOL_TIER_NAMES[game.gear.axeTier] + " Axe";
+  if (item === "pickaxe" && game) return TOOL_TIER_NAMES[game.gear.pickaxeTier] + " Pickaxe";
   return ITEM_LABELS[item] || item;
 }
 
@@ -278,19 +364,19 @@ function itemCount(game: GameState, item: InventoryItem | null) {
   if (!item) return 0;
   if (isBuildKind(item)) return game.kits[item];
   if (isMaterial(item)) return game.resources[item];
-  if (item === "axe" || item === "pickaxe") return 1;
+  if (item === "axe") return game.gear.axeTier === "none" ? 0 : 1;
+  if (item === "pickaxe") return game.gear.pickaxeTier === "none" ? 0 : 1;
   if (item === "spear") return game.gear.spear ? 1 : 0;
   if (item === "sword") return game.gear.sword ? 1 : 0;
   if (item === "bow") return game.gear.bow ? 1 : 0;
   if (item === "pistol") return game.gear.pistol ? 1 : 0;
-  if (item === "food") return totalFood(game);
   return 0;
 }
 
 function ensureItemListed(game: GameState, item: InventoryItem) {
   if (game.hotbar.includes(item) || game.inventory.includes(item)) return;
   const openHotbar = game.hotbar.findIndex((entry) => entry === null);
-  if (openHotbar >= 0 && (item === "spear" || item === "sword" || item === "bow" || item === "pistol")) {
+  if (openHotbar >= 0 && (item === "axe" || item === "pickaxe" || item === "spear" || item === "sword" || item === "bow" || item === "pistol")) {
     game.hotbar[openHotbar] = item;
     return;
   }
@@ -303,20 +389,10 @@ function addMaterial(game: GameState, material: Material, amount: number) {
   if (game.resources[material] > 0) ensureItemListed(game, material);
 }
 
-function totalFood(game: GameState) {
-  return game.resources.berries + game.resources.meat + game.resources.mushrooms;
-}
-
-function consumeFood(game: GameState, amount = 1) {
-  let remaining = amount;
-  const foods: Material[] = ["berries", "mushrooms", "meat"];
-  for (const food of foods) {
-    const used = Math.min(game.resources[food], remaining);
-    game.resources[food] -= used;
-    remaining -= used;
-    if (remaining === 0) return true;
-  }
-  return false;
+function consumeSelectedFood(game: GameState) {
+  if (!isFoodItem(game.selected) || game.resources[game.selected] <= 0) return null;
+  game.resources[game.selected] -= 1;
+  return game.selected;
 }
 
 function isTree(kind: ResourceKind) {
@@ -324,7 +400,7 @@ function isTree(kind: ResourceKind) {
 }
 
 function isMineable(kind: ResourceKind) {
-  return ["rock", "granite", "ironOre", "copperOre", "coal", "sulfur"].includes(kind);
+  return ["rock", "granite", "ironOre", "copperOre", "coal", "sulfur", "aetherOre"].includes(kind);
 }
 
 function nodeRadius(kind: ResourceKind) {
@@ -344,8 +420,25 @@ function nodeHp(kind: ResourceKind) {
   if (kind === "granite") return 9;
   if (kind === "ironOre") return 8;
   if (kind === "copperOre") return 7;
+  if (kind === "aetherOre") return 12;
   if (kind === "rock" || kind === "coal" || kind === "sulfur") return 6;
   return 1;
+}
+
+function isCaveRealm(realm: Realm): realm is CaveRealm {
+  return realm !== "meadow";
+}
+
+function caveForRealm(realm: Realm) {
+  if (!isCaveRealm(realm)) return undefined;
+  return CAVES.find((cave) => cave.realm === realm);
+}
+
+function nearbyCaveEntrance(game: GameState) {
+  if (game.realm !== "meadow") return null;
+  return CAVES.find(
+    (cave) => Math.hypot(game.player.x - cave.entranceX, game.player.y - cave.entranceY) < 110,
+  ) || null;
 }
 
 function inForest(x: number, y: number) {
@@ -369,9 +462,13 @@ function makeGame(): GameState {
   const nodes: ResourceNode[] = [];
   let id = 1;
   const addNode = (kind: ResourceKind, realm: Realm, x: number, y: number) => {
-    const clearSpawn = realm !== "meadow" || Math.hypot(x - SPAWN_X, y - SPAWN_Y) > 360;
-    const clearCave = realm !== "meadow" || Math.hypot(x - CAVE_X, y - CAVE_Y) > 210;
-    if (!clearSpawn || !clearCave) return;
+    const blocksMovement = isTree(kind) || isMineable(kind);
+    const clearSpawn = realm !== "meadow" || !blocksMovement || Math.hypot(x - SPAWN_X, y - SPAWN_Y) > 360;
+    const clearExit = realm === "meadow" || Math.hypot(x - CAVE_EXIT_X, y - CAVE_EXIT_Y) > 210;
+    const clearCave =
+      realm !== "meadow" ||
+      CAVES.every((cave) => Math.hypot(x - cave.entranceX, y - cave.entranceY) > 210);
+    if (!clearSpawn || !clearExit || !clearCave) return;
     const hp = nodeHp(kind);
     nodes.push({ id: id++, kind, realm, x, y, hp, maxHp: hp, respawnAt: 0 });
   };
@@ -385,6 +482,36 @@ function makeGame(): GameState {
     if (!inForest(x, y) || !isTree(kind)) addNode(kind, "meadow", x, y);
   }
 
+  for (let i = 0; i < 170; i++) {
+    addNode(
+      "grass",
+      "meadow",
+      70 + seeded(i, 121) * (WORLD_W - 140),
+      70 + seeded(i, 122) * (WORLD_H - 140),
+    );
+  }
+  for (let i = 0; i < 28; i++) {
+    const angle = (i / 28) * Math.PI * 2 + seeded(i, 126) * 0.3;
+    const distance = 115 + seeded(i, 127) * 235;
+    addNode("grass", "meadow", SPAWN_X + Math.cos(angle) * distance, SPAWN_Y + Math.sin(angle) * distance);
+  }
+  for (let i = 0; i < 24; i++) {
+    addNode(
+      i % 3 === 0 ? "copperOre" : "ironOre",
+      "meadow",
+      180 + seeded(i, 131) * (WORLD_W - 360),
+      180 + seeded(i, 132) * (WORLD_H - 360),
+    );
+  }
+  for (let i = 0; i < 5; i++) {
+    addNode(
+      "aetherOre",
+      "meadow",
+      280 + seeded(i, 137) * (WORLD_W - 560),
+      280 + seeded(i, 138) * (WORLD_H - 560),
+    );
+  }
+
   for (let i = 0; i < 245; i++) {
     const angle = seeded(i, 41) * Math.PI * 2;
     const radius = Math.sqrt(seeded(i, 42));
@@ -395,10 +522,24 @@ function makeGame(): GameState {
     if (!tooClose) addNode(kind, "meadow", x, y);
   }
 
-  for (let i = 0; i < 155; i++) {
-    const roll = i % 18;
-    const kind: ResourceKind = roll === 0 ? "sulfur" : roll === 1 || roll === 2 ? "coal" : roll % 7 === 0 ? "copperOre" : roll % 4 === 0 ? "ironOre" : roll % 5 === 0 ? "granite" : roll === 3 ? "mushroom" : "rock";
-    addNode(kind, "cave", 130 + seeded(i, 9) * (WORLD_W - 260), 130 + seeded(i, 10) * (WORLD_H - 260));
+  for (const [caveIndex, cave] of CAVES.entries()) {
+    for (let i = 0; i < 145; i++) {
+      const roll = i % 18;
+      let kind: ResourceKind;
+      if (cave.realm === "graniteCave") {
+        kind = roll % 3 === 0 ? "granite" : roll === 1 ? "coal" : roll === 5 ? "mushroom" : "rock";
+      } else if (cave.realm === "ironCave") {
+        kind = roll === 17 ? "aetherOre" : roll % 4 === 0 ? "ironOre" : roll % 7 === 0 ? "copperOre" : roll === 3 ? "coal" : roll === 9 ? "granite" : "rock";
+      } else {
+        kind = roll % 4 === 0 ? "sulfur" : roll % 5 === 0 ? "coal" : roll === 3 ? "mushroom" : roll === 7 ? "copperOre" : "rock";
+      }
+      addNode(
+        kind,
+        cave.realm,
+        150 + seeded(i, 90 + caveIndex * 11) * (WORLD_W - 300),
+        150 + seeded(i, 91 + caveIndex * 11) * (WORLD_H - 300),
+      );
+    }
   }
 
   const creatures: Creature[] = [];
@@ -429,15 +570,18 @@ function makeGame(): GameState {
     realm: "meadow",
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
-    resources: { wood: 8, stone: 5, granite: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, fiber: 4, berries: 3, meat: 0, mushrooms: 0, seeds: 2, hide: 0, arrows: 0, bullets: 0 },
-    gear: { spear: false, sword: false, bow: false, pistol: false, ironAxe: false, ironPick: false, armor: "none" },
+    resources: { wood: 8, stone: 5, granite: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, fiber: 4, berries: 3, meat: 0, mushrooms: 0, seeds: 2, hide: 0, arrows: 0, bullets: 0 },
+    gear: { spear: false, sword: false, bow: false, pistol: false, axeTier: "none", pickaxeTier: "none", armor: "none" },
     kits: {
-      woodFence: 2,
+      craftingBench: 0,
+      woodFence: 0,
       stoneFence: 0,
       woodGate: 0,
       stoneGate: 0,
-      floor: 2,
-      wall: 0,
+      floor: 0,
+      woodWall: 0,
+      stoneWall: 0,
+      metalWall: 0,
       door: 0,
       roof: 0,
       spikes: 0,
@@ -446,17 +590,20 @@ function makeGame(): GameState {
       turret: 0,
       crop: 0,
     },
-    selected: "axe",
+    selected: "berries",
     selectedSlot: 0,
     weapon: "spear",
     inventory: ["wood", "stone", "fiber", "berries", "seeds", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
-    hotbar: ["axe", "pickaxe", null, "food", "woodFence", "floor", null, null, null, null],
+    hotbar: ["berries", null, null, null, null, null, null, null, null, null],
     buildMode: null,
     nodes,
     creatures,
     buildings: [],
+    projectiles: [],
     keys: new Set(),
     mouseHeld: false,
+    buildDrag: false,
+    lastBuildCell: null,
     pointer: { x: 0, y: 0, worldX: 0, worldY: 0, active: false },
     camera: { x: SPAWN_X, y: SPAWN_Y },
     message: "Gather, craft, and build before nightfall.",
@@ -531,7 +678,7 @@ function spawnNightWave(game: GameState) {
       damage: stats.damage + game.day * 1.4,
       fed: 0,
       tame: false,
-      angry: true,
+      angry: false,
       hitAt: 0,
       phase: i,
       slowUntil: 0,
@@ -543,6 +690,16 @@ function spawnNightWave(game: GameState) {
 
 function activeTool(game: GameState): Tool {
   return game.selected;
+}
+
+function nearCraftingBench(game: GameState) {
+  return game.buildings.some(
+    (building) =>
+      building.kind === "craftingBench" &&
+      building.realm === game.realm &&
+      building.hp > 0 &&
+      Math.hypot(building.gx * GRID - game.player.x, building.gy * GRID - game.player.y) <= 150,
+  );
 }
 
 function selectSlot(game: GameState, slot: number) {
@@ -559,8 +716,8 @@ function selectSlot(game: GameState, slot: number) {
     game.buildMode = item;
     return;
   }
-  if (item === "food") {
-    game.selected = "food";
+  if (isFoodItem(item)) {
+    game.selected = item;
     return;
   }
   if (isMaterial(item)) {
@@ -601,20 +758,41 @@ function nearestNode(game: GameState, maxDistance: number) {
 
 function targetNode(game: GameState, maxDistance: number) {
   if (game.pointer.active) {
-    const pointed = game.nodes
+    const reachable = game.nodes.filter(
+      (node) =>
+        node.realm === game.realm &&
+        node.hp > 0 &&
+        Math.hypot(node.x - game.player.x, node.y - game.player.y) - nodeRadius(node.kind) < maxDistance,
+    );
+    const pointed = reachable
       .filter(
         (node) =>
-          node.realm === game.realm &&
-          node.hp > 0 &&
-          Math.hypot(node.x - game.player.x, node.y - game.player.y) - nodeRadius(node.kind) < maxDistance &&
-          Math.hypot(node.x - game.pointer.worldX, node.y - game.pointer.worldY) < nodeRadius(node.kind) + 10,
+          Math.hypot(node.x - game.pointer.worldX, node.y - game.pointer.worldY) < nodeRadius(node.kind) + 18,
       )
       .sort(
         (a, b) =>
-          Math.hypot(a.x - game.pointer.worldX, a.y - game.pointer.worldY) -
-          Math.hypot(b.x - game.pointer.worldX, b.y - game.pointer.worldY),
+          Math.hypot(a.x - game.pointer.worldX, a.y - game.pointer.worldY) - nodeRadius(a.kind) -
+          (Math.hypot(b.x - game.pointer.worldX, b.y - game.pointer.worldY) - nodeRadius(b.kind)),
       )[0];
-    return pointed || null;
+    if (pointed) return pointed;
+
+    const aim = Math.atan2(
+      game.pointer.worldY - game.player.y,
+      game.pointer.worldX - game.player.x,
+    );
+    return reachable
+      .map((node) => {
+        let angle = Math.atan2(node.y - game.player.y, node.x - game.player.x) - aim;
+        while (angle > Math.PI) angle -= Math.PI * 2;
+        while (angle < -Math.PI) angle += Math.PI * 2;
+        return {
+          node,
+          angle: Math.abs(angle),
+          edge: Math.hypot(node.x - game.player.x, node.y - game.player.y) - nodeRadius(node.kind),
+        };
+      })
+      .filter((target) => target.angle < 0.55)
+      .sort((a, b) => a.angle - b.angle || a.edge - b.edge)[0]?.node || null;
   }
   return nearestNode(game, maxDistance);
 }
@@ -662,17 +840,17 @@ function validPlacement(game: GameState, kind: BuildKind, gx: number, gy: number
   );
 }
 
-function placeBuild(game: GameState) {
+function placeBuild(game: GameState, quiet = false) {
   const kind = game.buildMode;
-  if (!kind) return;
+  if (!kind) return false;
   const cell = previewCell(game);
   if (!validPlacement(game, kind, cell.gx, cell.gy)) {
-    notify(game, "That grid space is blocked or too far away.");
-    return;
+    if (!quiet) notify(game, "That grid space is blocked or too far away.");
+    return false;
   }
   if (game.kits[kind] <= 0) {
-    notify(game, "Craft another " + BUILD_DATA[kind].name + " first.");
-    return;
+    if (!quiet) notify(game, "Craft another " + BUILD_DATA[kind].name + " first.");
+    return false;
   }
   game.kits[kind] -= 1;
   game.buildings.push({
@@ -687,8 +865,19 @@ function placeBuild(game: GameState) {
     growth: 0,
     triggerAt: 0,
   });
-  notify(game, BUILD_DATA[kind].name + " placed. E places another.");
-  if (game.kits[kind] <= 0) game.buildMode = null;
+  if (!quiet) {
+    notify(
+      game,
+      game.kits[kind] > 0
+        ? BUILD_DATA[kind].name + " placed. Hold Shift and drag to place several."
+        : BUILD_DATA[kind].name + " placed. Craft more pieces to keep building.",
+    );
+  }
+  if (game.kits[kind] <= 0) {
+    game.buildMode = null;
+    game.selected = "hands";
+  }
+  return true;
 }
 
 function interact(game: GameState) {
@@ -696,15 +885,25 @@ function interact(game: GameState) {
     placeBuild(game);
     return;
   }
-  const caveX = game.realm === "meadow" ? CAVE_X : 180;
-  const caveY = game.realm === "meadow" ? CAVE_Y : 180;
-  if (Math.hypot(game.player.x - caveX, game.player.y - caveY) < 110) {
-    game.realm = game.realm === "meadow" ? "cave" : "meadow";
-    game.player.x = game.realm === "cave" ? 260 : CAVE_X - 90;
-    game.player.y = game.realm === "cave" ? 240 : CAVE_Y + 90;
+  const entrance = nearbyCaveEntrance(game);
+  const currentCave = caveForRealm(game.realm);
+  const atCaveExit =
+    currentCave &&
+    Math.hypot(game.player.x - CAVE_EXIT_X, game.player.y - CAVE_EXIT_Y) < 110;
+  if (entrance || atCaveExit) {
+    if (entrance) {
+      game.realm = entrance.realm;
+      game.player.x = CAVE_EXIT_X + 80;
+      game.player.y = CAVE_EXIT_Y + 60;
+      notify(game, entrance.name + " entered. Its deposits differ from the other caves.");
+    } else if (currentCave) {
+      game.realm = "meadow";
+      game.player.x = currentCave.entranceX - 90;
+      game.player.y = currentCave.entranceY + 90;
+      notify(game, "Back in the meadow from " + currentCave.name + ".");
+    }
     game.camera.x = game.player.x;
     game.camera.y = game.player.y;
-    notify(game, game.realm === "cave" ? "Cave entered. Mine ore, but watch the dark." : "Back in the meadow.");
     return;
   }
   const nearbyBuilding = game.buildings.find((building) => {
@@ -730,33 +929,28 @@ function interact(game: GameState) {
   }
   const creature = nearestCreature(game, 92);
   if (creature && isAnimal(creature.kind) && !creature.tame) {
-    if (game.selected !== "food") {
-      notify(game, "Equip Food, then press E to feed this " + creature.kind + ".");
+    if (!isFoodItem(game.selected)) {
+      notify(game, "Equip berries, mushrooms, or meat, then press E to feed this " + creature.kind + ".");
       return;
     }
-    if (totalFood(game) <= 0) {
+    if (game.resources[game.selected] <= 0) {
       notify(game, "You need food to tame animals.");
       return;
     }
-    consumeFood(game);
+    const fedFood = consumeSelectedFood(game);
     creature.fed += 1;
     creature.angry = false;
     if (creature.fed >= 3) {
       creature.tame = true;
       notify(game, "Tamed! Your " + creature.kind + " will follow and defend you.", 3500);
     } else {
-      notify(game, "Fed " + creature.kind + " (" + creature.fed + "/3).");
+      notify(game, "Fed " + fedFood + " to the " + creature.kind + " (" + creature.fed + "/3).");
     }
     return;
   }
-  const node = nearestNode(game, 92);
-  if (node) {
-    harvestNode(game, node);
-    return;
-  }
-  if (game.selected === "food" && totalFood(game) > 0) {
-    const food: "berries" | "mushrooms" | "meat" = game.resources.berries > 0 ? "berries" : game.resources.mushrooms > 0 ? "mushrooms" : "meat";
-    game.resources[food] -= 1;
+  if (isFoodItem(game.selected) && game.resources[game.selected] > 0) {
+    const food = consumeSelectedFood(game);
+    if (!food) return;
     const hunger = food === "meat" ? 38 : food === "mushrooms" ? 26 : 18;
     const health = food === "meat" ? 10 : food === "mushrooms" ? 8 : 2;
     game.player.hunger = Math.min(100, game.player.hunger + hunger);
@@ -766,6 +960,10 @@ function interact(game: GameState) {
   }
   notify(game, "Nothing close enough to interact with.");
 }
+
+const TOOL_TIER_RANK: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 4 };
+const TOOL_POWER: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 5 };
+const TOOL_COOLDOWN: Record<ToolTier, number> = { none: 450, wood: 400, stone: 320, iron: 220, aetherium: 140 };
 
 function harvestNode(game: GameState, node: ResourceNode) {
   const now = performance.now();
@@ -782,12 +980,24 @@ function harvestNode(game: GameState, node: ResourceNode) {
     game.player.useReady = now + 450;
     return;
   }
-  const upgraded = (tree && game.gear.ironAxe) || (mining && game.gear.ironPick);
-  const power = upgraded ? 2 : 1;
+  const tier = tree ? game.gear.axeTier : mining ? game.gear.pickaxeTier : "wood";
+  const requiredPickTier: ToolTier = node.kind === "aetherOre"
+    ? "iron"
+    : node.kind === "rock"
+      ? "wood"
+      : mining
+        ? "stone"
+        : "none";
+  if (mining && TOOL_TIER_RANK[tier] < TOOL_TIER_RANK[requiredPickTier]) {
+    notify(game, "This deposit needs a " + TOOL_TIER_NAMES[requiredPickTier] + " Pickaxe or better.", 1100);
+    game.player.useReady = now + 500;
+    return;
+  }
+  const power = tree || mining ? TOOL_POWER[tier] : 1;
   const hits = Math.min(power, node.hp);
   node.hp -= power;
   game.player.swing = 0.24;
-  game.player.useReady = now + (upgraded ? 190 : 320);
+  game.player.useReady = now + (tree || mining ? TOOL_COOLDOWN[tier] : 300);
   const gains: string[] = [];
   const gain = (material: Material, amount: number) => {
     addMaterial(game, material, amount);
@@ -812,6 +1022,8 @@ function harvestNode(game: GameState, node: ResourceNode) {
     gain("coal", hits);
   } else if (node.kind === "sulfur") {
     gain("sulfur", hits);
+  } else if (node.kind === "aetherOre") {
+    gain("aetherium", hits);
   } else if (node.kind === "berryBush") {
     gain("berries", 3);
     gain("seeds", 1);
@@ -840,33 +1052,27 @@ function attack(game: GameState) {
       game.player.attackReady = now + 500;
       return;
     }
-    const targets = game.creatures
-      .filter((creature) => creature.realm === game.realm && creature.hp > 0 && !creature.tame)
-      .map((creature) => {
-        const dx = creature.x - game.player.x;
-        const dy = creature.y - game.player.y;
-        let angle = Math.atan2(dy, dx) - game.player.dir;
-        while (angle > Math.PI) angle -= Math.PI * 2;
-        while (angle < -Math.PI) angle += Math.PI * 2;
-        return { creature, distance: Math.hypot(dx, dy), angle: Math.abs(angle) };
-      })
-      .filter((target) => target.distance < (tool === "bow" ? 520 : 640) && target.angle < (tool === "bow" ? 0.3 : 0.22))
-      .sort((a, b) => a.angle - b.angle || a.distance - b.distance);
     game.resources[ammo] -= 1;
     game.player.attackReady = now + (tool === "bow" ? 520 : 320);
     game.player.swing = 0.2;
-    const target = targets[0]?.creature;
-    if (target) {
-      const damage = tool === "bow" ? 18 : 34;
-      target.hp -= damage;
-      target.angry = true;
-      if (target.hp <= 0) awardCreatureDrop(game, target);
-      notify(game, (tool === "bow" ? "Arrow" : "Bullet") + " hit · " + damage + " damage", 650);
-    }
+    const speed = tool === "bow" ? 620 : 1120;
+    game.projectiles.push({
+      id: game.lastId++,
+      kind: tool === "bow" ? "arrow" : "bullet",
+      realm: game.realm,
+      x: game.player.x + Math.cos(game.player.dir) * 34,
+      y: game.player.y + Math.sin(game.player.dir) * 34,
+      vx: Math.cos(game.player.dir) * speed,
+      vy: Math.sin(game.player.dir) * speed,
+      life: tool === "bow" ? 0.9 : 0.58,
+      damage: tool === "bow" ? 18 : 34,
+    });
     return;
   }
+  const axeDamage: Record<ToolTier, number> = { none: 3, wood: 7, stone: 9, iron: 14, aetherium: 22 };
+  const pickDamage: Record<ToolTier, number> = { none: 3, wood: 5, stone: 7, iron: 11, aetherium: 18 };
   const damage =
-    tool === "sword" ? 25 : tool === "spear" ? 17 : tool === "axe" ? (game.gear.ironAxe ? 14 : 9) : tool === "pickaxe" ? 7 : 3;
+    tool === "sword" ? 25 : tool === "spear" ? 17 : tool === "axe" ? axeDamage[game.gear.axeTier] : tool === "pickaxe" ? pickDamage[game.gear.pickaxeTier] : 3;
   const range = tool === "spear" || tool === "sword" ? 102 : 78;
   game.player.attackReady = now + (tool === "sword" ? 380 : 500);
   game.player.swing = 0.28;
@@ -909,12 +1115,43 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
   }
 }
 
-function primaryAction(game: GameState) {
+function updateProjectiles(game: GameState, dt: number) {
+  for (const projectile of game.projectiles) {
+    projectile.x += projectile.vx * dt;
+    projectile.y += projectile.vy * dt;
+    projectile.life -= dt;
+    const target = game.creatures.find(
+      (creature) =>
+        creature.realm === projectile.realm &&
+        creature.hp > 0 &&
+        !creature.tame &&
+        Math.hypot(creature.x - projectile.x, creature.y - projectile.y) < (creature.kind === "maw" || creature.kind === "bear" ? 38 : 28),
+    );
+    if (target) {
+      target.hp -= projectile.damage;
+      target.angry = true;
+      projectile.life = 0;
+      notify(game, (projectile.kind === "arrow" ? "Arrow" : "Bullet") + " hit · " + projectile.damage + " damage", 650);
+      if (target.hp <= 0) awardCreatureDrop(game, target);
+    }
+    if (projectile.x < 0 || projectile.y < 0 || projectile.x > WORLD_W || projectile.y > WORLD_H) projectile.life = 0;
+  }
+  game.projectiles = game.projectiles.filter((projectile) => projectile.life > 0);
+}
+
+function primaryAction(game: GameState, repeated = false) {
   const now = performance.now();
   if (game.buildMode) {
-    if (now < game.player.useReady) return;
-    placeBuild(game);
-    game.player.useReady = now + 300;
+    const continuous = game.buildDrag || game.keys.has("shift");
+    if (repeated && !continuous) return;
+    const cell = previewCell(game);
+    const cellKey = game.realm + ":" + cell.gx + ":" + cell.gy;
+    if (repeated && game.lastBuildCell === cellKey) return;
+    if (!continuous && now < game.player.useReady) return;
+    const placed = placeBuild(game, repeated);
+    game.lastBuildCell = cellKey;
+    game.player.useReady = continuous ? now : now + 300;
+    if (!placed && !continuous) game.lastBuildCell = null;
     return;
   }
   const node = targetNode(game, 112);
@@ -938,11 +1175,23 @@ function updateCreatures(game: GameState, dt: number) {
     if (creature.hp <= 0 || creature.realm !== game.realm) continue;
     let targetX = creature.x + Math.cos(now / 1400 + creature.phase) * 15;
     let targetY = creature.y + Math.sin(now / 1700 + creature.phase) * 15;
-    let chasing = isMonster(creature.kind);
+    let chasing = false;
     const playerDistance = Math.hypot(game.player.x - creature.x, game.player.y - creature.y);
-    if (isAnimal(creature.kind) && !creature.tame) {
+    if (isMonster(creature.kind)) {
+      const senseDistance: Record<MonsterKind, number> = {
+        shade: 320,
+        crawler: 390,
+        brute: 270,
+        wraith: 440,
+        maw: 240,
+      };
+      const sense = senseDistance[creature.kind];
+      if (playerDistance < sense) creature.angry = true;
+      if (playerDistance > sense * 1.8) creature.angry = false;
+      chasing = creature.angry;
+    } else if (!creature.tame) {
       const aggroDistance = creature.kind === "bear" ? 135 : creature.kind === "wolf" ? 120 : creature.kind === "boar" ? 90 : 62;
-      if (playerDistance < aggroDistance && game.selected !== "food") creature.angry = true;
+      if (playerDistance < aggroDistance && !isFoodItem(game.selected)) creature.angry = true;
       if (playerDistance > 340) creature.angry = false;
       chasing = creature.angry;
     }
@@ -1041,17 +1290,22 @@ function canStand(game: GameState, x: number, y: number) {
   );
 }
 
-function updateGame(game: GameState, dt: number) {
-  const beforeNight = isNight(game);
+function syncPointerWorld(game: GameState, viewportWidth: number, viewportHeight: number) {
+  if (!game.pointer.active) return;
+  game.pointer.worldX = game.camera.x + (game.pointer.x - viewportWidth / 2) / game.zoom;
+  game.pointer.worldY = game.camera.y + (game.pointer.y - viewportHeight / 2) / game.zoom;
+}
+
+function updateGame(game: GameState, dt: number, viewportWidth: number, viewportHeight: number) {
   game.clock += dt / DAY_SECONDS;
-  if (game.clock >= 1) {
+  while (game.clock >= 1) {
     game.clock -= 1;
     game.day += 1;
     game.player.hp = Math.min(game.player.maxHp, game.player.hp + 12);
     notify(game, "DAWN — Day " + game.day + ". There is no final night.", 4000);
   }
   const afterNight = isNight(game);
-  if (!beforeNight && afterNight) spawnNightWave(game);
+  if (afterNight && game.wave < game.day) spawnNightWave(game);
   game.wasNight = afterNight;
 
   let dx = 0;
@@ -1067,11 +1321,18 @@ function updateGame(game: GameState, dt: number) {
     const nextY = Math.max(32, Math.min(WORLD_H - 32, game.player.y + (dy / length) * speed * dt));
     if (canStand(game, nextX, game.player.y)) game.player.x = nextX;
     if (canStand(game, game.player.x, nextY)) game.player.y = nextY;
-    game.player.dir = Math.atan2(dy, dx);
-  } else if (game.pointer.active) {
-    game.player.dir = Math.atan2(game.pointer.worldY - game.player.y, game.pointer.worldX - game.player.x);
+    if (!game.pointer.active) game.player.dir = Math.atan2(dy, dx);
   }
-  if (game.mouseHeld) primaryAction(game);
+  game.camera.x += (game.player.x - game.camera.x) * Math.min(1, dt * 8);
+  game.camera.y += (game.player.y - game.camera.y) * Math.min(1, dt * 8);
+  syncPointerWorld(game, viewportWidth, viewportHeight);
+  if (game.pointer.active) {
+    game.player.dir = Math.atan2(
+      game.pointer.worldY - game.player.y,
+      game.pointer.worldX - game.player.x,
+    );
+  }
+  if (game.mouseHeld) primaryAction(game, true);
   game.player.swing = Math.max(0, game.player.swing - dt);
   game.player.hunger = Math.max(0, game.player.hunger - dt * 0.5);
   if (game.player.hunger <= 0) game.player.hp -= dt * 2;
@@ -1080,11 +1341,10 @@ function updateGame(game: GameState, dt: number) {
     game.dead = true;
     game.started = false;
   }
-  game.camera.x += (game.player.x - game.camera.x) * Math.min(1, dt * 8);
-  game.camera.y += (game.player.y - game.camera.y) * Math.min(1, dt * 8);
   for (const building of game.buildings) {
     if (building.kind === "crop") building.growth = Math.min(1, building.growth + dt / 75);
   }
+  updateProjectiles(game, dt);
   updateCreatures(game, dt);
   reviveNodes(game);
 }
@@ -1159,9 +1419,9 @@ function drawRock(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   ctx.lineTo(radius * 0.72, radius * 0.72);
   ctx.lineTo(-radius * 0.18, radius);
   ctx.closePath();
-  const ore = node.kind === "ironOre" || node.kind === "copperOre" || node.kind === "coal" || node.kind === "sulfur";
-  ctx.fillStyle = node.kind === "granite" ? "#8e7778" : node.kind === "coal" ? "#343a3b" : node.kind === "sulfur" ? "#8b8050" : ore ? "#596877" : "#718177";
-  ctx.strokeStyle = node.kind === "granite" ? "#624f53" : node.kind === "coal" ? "#1d2424" : node.kind === "sulfur" ? "#5c5638" : ore ? "#343a4b" : "#4c6259";
+  const ore = node.kind === "ironOre" || node.kind === "copperOre" || node.kind === "coal" || node.kind === "sulfur" || node.kind === "aetherOre";
+  ctx.fillStyle = node.kind === "aetherOre" ? "#394e5f" : node.kind === "granite" ? "#8e7778" : node.kind === "coal" ? "#343a3b" : node.kind === "sulfur" ? "#8b8050" : ore ? "#596877" : "#718177";
+  ctx.strokeStyle = node.kind === "aetherOre" ? "#172c3a" : node.kind === "granite" ? "#624f53" : node.kind === "coal" ? "#1d2424" : node.kind === "sulfur" ? "#5c5638" : ore ? "#343a4b" : "#4c6259";
   ctx.lineWidth = 6;
   ctx.fill();
   ctx.stroke();
@@ -1173,7 +1433,7 @@ function drawRock(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   ctx.fillStyle = "#9aa99e";
   ctx.fill();
   if (ore) {
-    ctx.fillStyle = node.kind === "copperOre" ? "#d77d50" : node.kind === "coal" ? "#151a1a" : node.kind === "sulfur" ? "#e0cb42" : "#d3a95a";
+    ctx.fillStyle = node.kind === "aetherOre" ? "#67e2f0" : node.kind === "copperOre" ? "#d77d50" : node.kind === "coal" ? "#151a1a" : node.kind === "sulfur" ? "#e0cb42" : "#d3a95a";
     for (const [x, y] of [[-18, 2], [10, 14], [22, -13], [-2, -20]]) {
       ctx.beginPath();
       ctx.arc(x, y, 5, 0, Math.PI * 2);
@@ -1187,16 +1447,26 @@ function drawBush(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   ctx.save();
   ctx.translate(node.x, node.y);
   if (node.kind === "grass") {
-    ctx.strokeStyle = "#4f8f42";
-    ctx.lineWidth = 4;
+    ctx.fillStyle = "rgba(38,75,39,.18)";
+    ctx.beginPath();
+    ctx.ellipse(3, 10, 30, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#5c9d45";
+    ctx.lineWidth = 5;
     ctx.lineCap = "round";
-    for (let i = 0; i < 13; i++) {
-      const angle = (Math.PI * 2 * i) / 13;
-      const length = 12 + (i % 4) * 4;
+    for (let i = 0; i < 21; i++) {
+      const angle = (Math.PI * 2 * i) / 21;
+      const length = 19 + (i % 5) * 4;
       ctx.beginPath();
       ctx.moveTo(0, 8);
       ctx.quadraticCurveTo(Math.cos(angle) * length * 0.45, Math.sin(angle) * length * 0.45, Math.cos(angle) * length, Math.sin(angle) * length);
       ctx.stroke();
+      if (i % 5 === 0) {
+        ctx.fillStyle = "#d8bf63";
+        ctx.beginPath();
+        ctx.arc(Math.cos(angle) * length, Math.sin(angle) * length, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.restore();
     return;
@@ -1237,20 +1507,33 @@ function drawBush(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   ctx.restore();
 }
 
-function drawTool(ctx: CanvasRenderingContext2D, tool: Tool, swing: number) {
+function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number) {
+  const tool = activeTool(game);
   const angle = swing > 0 ? -0.75 : -0.22;
   ctx.save();
   ctx.translate(19, 6);
   ctx.rotate(angle);
-  if (tool === "food") {
-    ctx.fillStyle = "#d9574f";
+  if (isFoodItem(tool)) {
+    ctx.fillStyle = tool === "berries" ? "#d95762" : tool === "mushrooms" ? "#d9cba8" : "#b95c4d";
     ctx.strokeStyle = "#432f2b";
     ctx.lineWidth = 3;
-    for (const [x, y] of [[8, -4], [15, 1], [7, 5]]) {
-      ctx.beginPath();
-      ctx.arc(x, y, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+    if (tool === "mushrooms") {
+      for (const [x, y] of [[8, -3], [17, 4]] as const) {
+        roundedRect(ctx, x, y, 4, 10, 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + 2, y, 7, Math.PI, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+    } else {
+      for (const [x, y] of [[8, -4], [15, 1], [7, 5]] as const) {
+        ctx.beginPath();
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
     ctx.restore();
     return;
@@ -1289,16 +1572,41 @@ function drawTool(ctx: CanvasRenderingContext2D, tool: Tool, swing: number) {
     return;
   }
   if (tool === "pistol") {
-    ctx.fillStyle = "#68767b";
+    ctx.fillStyle = "#77878b";
     ctx.strokeStyle = "#2d3638";
     ctx.lineWidth = 3;
-    roundedRect(ctx, 8, -8, 36, 16, 4);
+    ctx.beginPath();
+    ctx.moveTo(6, -11);
+    ctx.lineTo(48, -11);
+    ctx.lineTo(53, -6);
+    ctx.lineTo(53, 5);
+    ctx.lineTo(22, 8);
+    ctx.lineTo(8, 5);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
+    ctx.fillStyle = "#30393b";
+    roundedRect(ctx, 27, -6, 14, 7, 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(51, -1, 3, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = "#71503a";
-    roundedRect(ctx, 12, 5, 13, 20, 3);
+    ctx.beginPath();
+    ctx.moveTo(14, 6);
+    ctx.lineTo(29, 6);
+    ctx.lineTo(25, 27);
+    ctx.lineTo(10, 23);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
+    ctx.strokeStyle = "#2d3638";
+    ctx.beginPath();
+    ctx.arc(31, 9, 8, 0.2, 2.65);
+    ctx.stroke();
+    ctx.fillStyle = "#2d3638";
+    roundedRect(ctx, 9, -15, 6, 4, 1);
+    ctx.fill();
     ctx.restore();
     return;
   }
@@ -1310,7 +1618,8 @@ function drawTool(ctx: CanvasRenderingContext2D, tool: Tool, swing: number) {
   ctx.lineTo(tool === "spear" || tool === "sword" ? 49 : 39, 0);
   ctx.stroke();
   if (tool === "axe") {
-    ctx.fillStyle = "#b7c0b9";
+    const tier = game.gear.axeTier;
+    ctx.fillStyle = tier === "wood" ? "#9a693f" : tier === "stone" ? "#87948d" : tier === "iron" ? "#c3ceca" : "#69d8e7";
     ctx.strokeStyle = "#32443e";
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -1322,10 +1631,20 @@ function drawTool(ctx: CanvasRenderingContext2D, tool: Tool, swing: number) {
     ctx.fill();
     ctx.stroke();
   } else if (tool === "pickaxe") {
-    ctx.strokeStyle = "#aebbb4";
+    const tier = game.gear.pickaxeTier;
+    const headColor = tier === "wood" ? "#9a693f" : tier === "stone" ? "#87948d" : tier === "iron" ? "#c3ceca" : "#69d8e7";
+    ctx.strokeStyle = "#32443e";
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(29, -25);
+    ctx.quadraticCurveTo(53, 0, 29, 25);
+    ctx.stroke();
+    ctx.strokeStyle = headColor;
     ctx.lineWidth = 7;
     ctx.beginPath();
-    ctx.arc(40, 0, 14, Math.PI * 1.1, Math.PI * 1.9);
+    ctx.moveTo(29, -25);
+    ctx.quadraticCurveTo(53, 0, 29, 25);
     ctx.stroke();
   } else if (tool === "spear") {
     ctx.fillStyle = "#cad4ce";
@@ -1409,7 +1728,7 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: GameState) {
   ctx.ellipse(6, 17, 28, 15, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.rotate(player.dir);
-  drawTool(ctx, activeTool(game), player.swing);
+  drawTool(ctx, game, player.swing);
   ctx.fillStyle = "#dfa93d";
   ctx.strokeStyle = "#203a33";
   ctx.lineWidth = 6;
@@ -1675,7 +1994,29 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
   ctx.globalAlpha = alpha;
   ctx.translate(x, y);
   const kind = building.kind;
-  if (kind === "floor") {
+  if (kind === "craftingBench") {
+    ctx.fillStyle = "#75482f";
+    ctx.strokeStyle = "#432c22";
+    ctx.lineWidth = 4;
+    roundedRect(ctx, -23, -17, 46, 34, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#b77a45";
+    roundedRect(ctx, -25, -20, 50, 12, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#c8d1cc";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-12, -5);
+    ctx.lineTo(8, 9);
+    ctx.moveTo(12, -6);
+    ctx.lineTo(-6, 10);
+    ctx.stroke();
+    ctx.fillStyle = "#69787a";
+    roundedRect(ctx, 6, -10, 18, 8, 2);
+    ctx.fill();
+  } else if (kind === "floor") {
     ctx.fillStyle = "#b47a43";
     ctx.strokeStyle = "#6b472f";
     ctx.lineWidth = 3;
@@ -1737,14 +2078,14 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
     ctx.lineTo(32, 11);
     ctx.stroke();
     ctx.restore();
-  } else if (kind === "wall") {
-    ctx.fillStyle = "#875738";
-    ctx.strokeStyle = "#583b2c";
+  } else if (kind === "woodWall" || kind === "stoneWall" || kind === "metalWall") {
+    ctx.fillStyle = kind === "metalWall" ? "#68777b" : kind === "stoneWall" ? "#89958f" : "#875738";
+    ctx.strokeStyle = kind === "metalWall" ? "#344348" : kind === "stoneWall" ? "#596861" : "#583b2c";
     ctx.lineWidth = 4;
     roundedRect(ctx, -23, -23, 46, 46, 5);
     ctx.fill();
     ctx.stroke();
-    ctx.strokeStyle = "#b77a45";
+    ctx.strokeStyle = kind === "metalWall" ? "#9ba9ac" : kind === "stoneWall" ? "#b3beb6" : "#b77a45";
     ctx.lineWidth = 5;
     for (const yy of [-13, 0, 13]) {
       ctx.beginPath();
@@ -1850,7 +2191,13 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
   ctx.restore();
 }
 
-function drawCave(ctx: CanvasRenderingContext2D, x: number, y: number, exit: boolean) {
+function drawCave(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  exit: boolean,
+  label: string,
+) {
   ctx.save();
   ctx.translate(x, y);
   ctx.fillStyle = "rgba(27,39,34,.25)";
@@ -1874,11 +2221,52 @@ function drawCave(ctx: CanvasRenderingContext2D, x: number, y: number, exit: boo
   ctx.lineTo(-31, 37);
   ctx.closePath();
   ctx.fill();
-  if (exit) {
-    ctx.fillStyle = "#d4b256";
-    ctx.font = "bold 13px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("EXIT", 0, -51);
+  ctx.fillStyle = exit ? "#d4b256" : "#e7d6a5";
+  ctx.font = "bold 13px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(exit ? "EXIT · " + label.toUpperCase() : label.toUpperCase(), 0, -51);
+  ctx.restore();
+}
+
+function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile) {
+  ctx.save();
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(Math.atan2(projectile.vy, projectile.vx));
+  if (projectile.kind === "arrow") {
+    ctx.strokeStyle = "#4b3426";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-18, 0);
+    ctx.lineTo(14, 0);
+    ctx.stroke();
+    ctx.fillStyle = "#d7e0dc";
+    ctx.beginPath();
+    ctx.moveTo(21, 0);
+    ctx.lineTo(10, -5);
+    ctx.lineTo(10, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#e5b85a";
+    ctx.beginPath();
+    ctx.moveTo(-18, 0);
+    ctx.lineTo(-11, -5);
+    ctx.lineTo(-11, 5);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    const trail = ctx.createLinearGradient(-28, 0, 10, 0);
+    trail.addColorStop(0, "rgba(255,211,91,0)");
+    trail.addColorStop(1, "rgba(255,239,169,.95)");
+    ctx.strokeStyle = trail;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(-30, 0);
+    ctx.lineTo(6, 0);
+    ctx.stroke();
+    ctx.fillStyle = "#fff4bd";
+    ctx.beginPath();
+    ctx.arc(8, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -1889,8 +2277,8 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
-  const cave = game.realm === "cave";
-  ctx.fillStyle = cave ? "#34423d" : "#89bd63";
+  const cave = caveForRealm(game.realm);
+  ctx.fillStyle = cave ? cave.ground : "#89bd63";
   ctx.fillRect(0, 0, width, height);
   const scale = game.zoom;
   const offsetX = width / 2 - game.camera.x * scale;
@@ -1899,7 +2287,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   ctx.translate(offsetX, offsetY);
   ctx.scale(scale, scale);
 
-  ctx.fillStyle = cave ? "#3b4944" : "#91c66b";
+  ctx.fillStyle = cave ? cave.ground : "#91c66b";
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
   if (!cave) {
     ctx.fillStyle = "#5f8f50";
@@ -1914,7 +2302,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   for (let i = 0; i < 420; i++) {
     const x = seeded(i, cave ? 31 : 21) * WORLD_W;
     const y = seeded(i, cave ? 32 : 22) * WORLD_H;
-    ctx.fillStyle = cave ? (i % 2 ? "#45534e" : "#2f3d38") : i % 2 ? "#7eb35b" : "#a3cf7b";
+    ctx.fillStyle = cave ? (i % 2 ? cave.textureA : cave.textureB) : i % 2 ? "#7eb35b" : "#a3cf7b";
     ctx.beginPath();
     ctx.arc(x, y, 2 + seeded(i, 4) * 3, 0, Math.PI * 2);
     ctx.fill();
@@ -1939,8 +2327,13 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
       ctx.stroke();
     }
   }
-  if (!cave) drawCave(ctx, CAVE_X, CAVE_Y, false);
-  else drawCave(ctx, 180, 180, true);
+  if (!cave) {
+    CAVES.forEach((entrance) =>
+      drawCave(ctx, entrance.entranceX, entrance.entranceY, false, entrance.name),
+    );
+  } else {
+    drawCave(ctx, CAVE_EXIT_X, CAVE_EXIT_Y, true, cave.name);
+  }
 
   const viewLeft = game.camera.x - width / (2 * scale) - 140;
   const viewRight = game.camera.x + width / (2 * scale) + 140;
@@ -1968,6 +2361,11 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   game.creatures.forEach((creature) => {
     if (creature.realm === game.realm && creature.hp > 0 && onScreen(creature.x, creature.y)) {
       drawables.push({ y: creature.y, draw: () => drawCreature(ctx, creature, performance.now()) });
+    }
+  });
+  game.projectiles.forEach((projectile) => {
+    if (projectile.realm === game.realm && onScreen(projectile.x, projectile.y)) {
+      drawables.push({ y: projectile.y + 40, draw: () => drawProjectile(ctx, projectile) });
     }
   });
   drawables.push({ y: game.player.y, draw: () => drawPlayer(ctx, game) });
@@ -2022,11 +2420,17 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
 }
 
 function nearbyPrompt(game: GameState) {
-  if (game.buildMode) return "E · Place " + BUILD_DATA[game.buildMode].name + " on grid";
-  const caveX = game.realm === "meadow" ? CAVE_X : 180;
-  const caveY = game.realm === "meadow" ? CAVE_Y : 180;
-  if (Math.hypot(game.player.x - caveX, game.player.y - caveY) < 110) {
-    return "E · " + (game.realm === "meadow" ? "Enter cave" : "Exit cave");
+  if (game.buildMode) {
+    return "BUILD · Place " + BUILD_DATA[game.buildMode].name + " · Shift-drag for multiple";
+  }
+  const entrance = nearbyCaveEntrance(game);
+  const currentCave = caveForRealm(game.realm);
+  if (entrance) return "E · Enter " + entrance.name;
+  if (
+    currentCave &&
+    Math.hypot(game.player.x - CAVE_EXIT_X, game.player.y - CAVE_EXIT_Y) < 110
+  ) {
+    return "E · Exit " + currentCave.name;
   }
   const building = game.buildings.find(
     (item) =>
@@ -2040,8 +2444,9 @@ function nearbyPrompt(game: GameState) {
   }
   const creature = nearestCreature(game, 92);
   if (creature && isAnimal(creature.kind) && !creature.tame) {
-    return "E · Feed " + creature.kind + " with Food (" + creature.fed + "/3)";
+    return "E · Feed " + creature.kind + " with equipped food (" + creature.fed + "/3)";
   }
+  if (isFoodItem(game.selected)) return "E · Eat " + game.selected;
   const node = nearestNode(game, 92);
   if (node) {
     if (isTree(node.kind)) return "TOOL · Chop " + node.kind + " with Axe";
@@ -2051,18 +2456,63 @@ function nearbyPrompt(game: GameState) {
     if (node.kind === "copperOre") return "TOOL · Mine copper ore with Pickaxe";
     if (node.kind === "coal") return "TOOL · Mine coal with Pickaxe";
     if (node.kind === "sulfur") return "TOOL · Mine sulfur with Pickaxe";
+    if (node.kind === "aetherOre") return "TOOL · Mine rare Aetherium with Iron Pickaxe";
     return "TOOL · Gather " + (node.kind === "berryBush" ? "berries" : node.kind);
   }
-  if (game.selected === "food") return "E · Eat food";
   return "";
 }
 
 const CRAFT_RECIPES: Recipe[] = [
   {
+    id: "woodAxe",
+    name: "Wood Axe",
+    detail: "Starter chopping tool",
+    cost: { wood: 3 },
+    owned: (game) => TOOL_TIER_RANK[game.gear.axeTier] >= TOOL_TIER_RANK.wood,
+    action: (game) => {
+      game.gear.axeTier = "wood";
+      equipNewItem(game, "axe");
+    },
+  },
+  {
+    id: "woodPick",
+    name: "Wood Pickaxe",
+    detail: "Mines surface stone",
+    cost: { wood: 3 },
+    owned: (game) => TOOL_TIER_RANK[game.gear.pickaxeTier] >= TOOL_TIER_RANK.wood,
+    action: (game) => {
+      game.gear.pickaxeTier = "wood";
+      equipNewItem(game, "pickaxe");
+    },
+  },
+  {
+    id: "stoneAxe",
+    name: "Stone Axe",
+    detail: "Stronger and faster chopping",
+    cost: { wood: 3, stone: 4 },
+    owned: (game) => TOOL_TIER_RANK[game.gear.axeTier] >= TOOL_TIER_RANK.stone,
+    action: (game) => {
+      game.gear.axeTier = "stone";
+      equipNewItem(game, "axe");
+    },
+  },
+  {
+    id: "stonePick",
+    name: "Stone Pickaxe",
+    detail: "Mines granite and common metals",
+    cost: { wood: 3, stone: 4 },
+    owned: (game) => TOOL_TIER_RANK[game.gear.pickaxeTier] >= TOOL_TIER_RANK.stone,
+    action: (game) => {
+      game.gear.pickaxeTier = "stone";
+      equipNewItem(game, "pickaxe");
+    },
+  },
+  {
     id: "spear",
     name: "Stone Spear",
     detail: "Long reach · 17 damage",
     cost: { wood: 5, stone: 3 },
+    owned: (game) => game.gear.spear,
     action: (game) => {
       game.gear.spear = true;
       game.weapon = "spear";
@@ -2074,6 +2524,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Iron Sword",
     detail: "Fast swing · 25 damage",
     cost: { wood: 4, iron: 7 },
+    requiresBench: true,
+    owned: (game) => game.gear.sword,
     action: (game) => {
       game.gear.sword = true;
       game.weapon = "sword";
@@ -2085,6 +2537,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Hunting Bow",
     detail: "520 range · 18 damage",
     cost: { wood: 6, fiber: 4, copper: 2 },
+    requiresBench: true,
+    owned: (game) => game.gear.bow,
     action: (game) => {
       game.gear.bow = true;
       game.weapon = "bow";
@@ -2105,6 +2559,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Scrap Pistol",
     detail: "640 range · 34 damage",
     cost: { iron: 8, copper: 6, coal: 3, sulfur: 2 },
+    requiresBench: true,
+    owned: (game) => game.gear.pistol,
     action: (game) => {
       game.gear.pistol = true;
       game.weapon = "pistol";
@@ -2116,6 +2572,7 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Bullet Bundle ×12",
     detail: "Ammunition for pistols",
     cost: { iron: 2, coal: 1, sulfur: 2 },
+    requiresBench: true,
     action: (game) => {
       addMaterial(game, "bullets", 12);
     },
@@ -2125,6 +2582,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Copper Armor",
     detail: "Reduces incoming damage by 18%",
     cost: { copper: 12, hide: 5 },
+    requiresBench: true,
+    owned: (game) => game.gear.armor !== "none",
     action: (game) => {
       game.gear.armor = "copper";
     },
@@ -2134,6 +2593,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Iron Armor",
     detail: "Reduces incoming damage by 35%",
     cost: { iron: 14, hide: 6 },
+    requiresBench: true,
+    owned: (game) => game.gear.armor === "iron" || game.gear.armor === "blacksteel",
     action: (game) => {
       game.gear.armor = "iron";
     },
@@ -2143,6 +2604,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Blacksteel Armor",
     detail: "Reduces incoming damage by 55%",
     cost: { iron: 18, coal: 10, sulfur: 4, hide: 8 },
+    requiresBench: true,
+    owned: (game) => game.gear.armor === "blacksteel",
     action: (game) => {
       game.gear.armor = "blacksteel";
     },
@@ -2150,21 +2613,49 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "ironAxe",
     name: "Iron Axe",
-    detail: "Chops twice as fast",
+    detail: "Advanced high-speed chopping",
     cost: { wood: 4, iron: 5 },
+    requiresBench: true,
+    owned: (game) => TOOL_TIER_RANK[game.gear.axeTier] >= TOOL_TIER_RANK.iron,
     action: (game) => {
-      game.gear.ironAxe = true;
-      game.selected = "axe";
+      game.gear.axeTier = "iron";
+      equipNewItem(game, "axe");
     },
   },
   {
     id: "ironPick",
     name: "Iron Pickaxe",
-    detail: "Mines twice as fast",
+    detail: "Can mine rare Aetherium",
     cost: { wood: 4, iron: 5 },
+    requiresBench: true,
+    owned: (game) => TOOL_TIER_RANK[game.gear.pickaxeTier] >= TOOL_TIER_RANK.iron,
     action: (game) => {
-      game.gear.ironPick = true;
-      game.selected = "pickaxe";
+      game.gear.pickaxeTier = "iron";
+      equipNewItem(game, "pickaxe");
+    },
+  },
+  {
+    id: "aetherAxe",
+    name: "Aetherium Axe",
+    detail: "Super tool · five-hit chopping power",
+    cost: { wood: 4, aetherium: 7, iron: 3 },
+    requiresBench: true,
+    owned: (game) => game.gear.axeTier === "aetherium",
+    action: (game) => {
+      game.gear.axeTier = "aetherium";
+      equipNewItem(game, "axe");
+    },
+  },
+  {
+    id: "aetherPick",
+    name: "Aetherium Pickaxe",
+    detail: "Super tool · five-hit mining power",
+    cost: { wood: 4, aetherium: 7, iron: 3 },
+    requiresBench: true,
+    owned: (game) => game.gear.pickaxeTier === "aetherium",
+    action: (game) => {
+      game.gear.pickaxeTier = "aetherium";
+      equipNewItem(game, "pickaxe");
     },
   },
   {
@@ -2176,6 +2667,17 @@ const CRAFT_RECIPES: Recipe[] = [
       game.player.hp = Math.min(game.player.maxHp, game.player.hp + 35);
     },
   },
+  ...BUILD_ORDER.map((kind): Recipe => ({
+    id: "build:" + kind,
+    name: BUILD_DATA[kind].name + " ×" + BUILD_DATA[kind].makes,
+    detail: BUILD_DATA[kind].detail + " · crafted into inventory",
+    cost: BUILD_DATA[kind].cost,
+    requiresBench: !["craftingBench", "woodFence", "floor", "woodWall", "crop"].includes(kind),
+    action: (game) => {
+      game.kits[kind] += BUILD_DATA[kind].makes;
+      ensureItemListed(game, kind);
+    },
+  })),
 ];
 
 function ToolGlyph({ type }: { type: Tool | "pack" }) {
@@ -2188,7 +2690,7 @@ function ToolGlyph({ type }: { type: Tool | "pack" }) {
 }
 
 function ItemVisual({ item }: { item: InventoryItem }) {
-  if (["axe", "pickaxe", "spear", "sword", "bow", "pistol", "food"].includes(item)) {
+  if (["axe", "pickaxe", "spear", "sword", "bow", "pistol"].includes(item)) {
     return <ToolGlyph type={item as Tool} />;
   }
   if (isBuildKind(item)) {
@@ -2233,7 +2735,9 @@ export default function Game() {
     const loop = (now: number) => {
       const dt = Math.min(0.035, (now - last) / 1000);
       last = now;
-      if (game.started && !game.dead) updateGame(game, dt);
+      if (game.started && !game.dead) {
+        updateGame(game, dt, canvas.clientWidth, canvas.clientHeight);
+      }
       drawWorld(context, canvas, game);
       if (now - lastHud > 120) {
         lastHud = now;
@@ -2256,6 +2760,7 @@ export default function Game() {
         event.preventDefault();
         game.keys.add(key);
       }
+      if (key === "shift") game.keys.add(key);
       if (event.repeat) return;
       if (key === "e") interact(game);
       if (key === " " || key === "f") {
@@ -2279,6 +2784,8 @@ export default function Game() {
     const up = (event: KeyboardEvent) => game.keys.delete(event.key.toLowerCase());
     const releasePrimary = () => {
       game.mouseHeld = false;
+      game.buildDrag = false;
+      game.lastBuildCell = null;
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -2319,26 +2826,27 @@ export default function Game() {
     game.pointer.worldX = game.camera.x + (x - rect.width / 2) / game.zoom;
     game.pointer.worldY = game.camera.y + (y - rect.height / 2) / game.zoom;
     game.pointer.active = true;
+    if (game.mouseHeld && game.buildMode && (event.shiftKey || game.keys.has("shift"))) {
+      game.buildDrag = true;
+      primaryAction(game, true);
+      refresh();
+    }
   };
 
   const craft = (recipe: Recipe) => {
-    if (!canAfford(game, recipe.cost)) {
-      notify(game, "Not enough materials for " + recipe.name + ".");
+    if (recipe.requiresBench && !nearCraftingBench(game)) {
+      notify(game, "Stand near a placed Crafting Bench to make " + recipe.name + ".");
       refresh();
       return;
     }
-    if (
-      (recipe.id === "spear" && game.gear.spear) ||
-      (recipe.id === "sword" && game.gear.sword) ||
-      (recipe.id === "bow" && game.gear.bow) ||
-      (recipe.id === "pistol" && game.gear.pistol) ||
-      (recipe.id === "copperArmor" && game.gear.armor !== "none") ||
-      (recipe.id === "ironArmor" && (game.gear.armor === "iron" || game.gear.armor === "blacksteel")) ||
-      (recipe.id === "blacksteelArmor" && game.gear.armor === "blacksteel") ||
-      (recipe.id === "ironAxe" && game.gear.ironAxe) ||
-      (recipe.id === "ironPick" && game.gear.ironPick)
-    ) {
+    if (recipe.owned?.(game)) {
       notify(game, recipe.name + " already crafted.");
+      refresh();
+      return;
+    }
+    if (!canAfford(game, recipe.cost)) {
+      notify(game, "Not enough materials for " + recipe.name + ".");
+      refresh();
       return;
     }
     pay(game, recipe.cost);
@@ -2349,20 +2857,14 @@ export default function Game() {
 
   const chooseBuild = (kind: BuildKind) => {
     if (game.kits[kind] <= 0) {
-      const data = BUILD_DATA[kind];
-      if (!canAfford(game, data.cost)) {
-        notify(game, "Not enough materials for " + data.name + ".");
-        refresh();
-        return;
-      }
-      pay(game, data.cost);
-      game.kits[kind] += data.makes;
-      ensureItemListed(game, kind);
+      notify(game, "Craft " + BUILD_DATA[kind].name + " in the Craft menu first.");
+      refresh();
+      return;
     }
     game.buildMode = kind;
     game.selected = "build";
     setPanel(null);
-    notify(game, BUILD_DATA[kind].name + " selected — aim at the grid and press E.");
+    notify(game, BUILD_DATA[kind].name + " selected — click once, or hold Shift and drag for a row.");
     refresh();
     canvasRef.current?.focus();
   };
@@ -2399,7 +2901,7 @@ export default function Game() {
         key={area + index}
         className={"inventory-slot" + (area === "hotbar" && game.selectedSlot === index ? " active" : "") + (isMoving ? " moving" : "")}
         draggable={movable && Boolean(item)}
-        aria-label={(area === "hotbar" ? "Hotbar " + (index === 9 ? 0 : index + 1) + ": " : "Inventory: ") + itemLabel(item)}
+        aria-label={(area === "hotbar" ? "Hotbar " + (index === 9 ? 0 : index + 1) + ": " : "Inventory: ") + itemLabel(item, game)}
         onDragStart={() => item && setMoveSource(address)}
         onDragOver={(event) => movable && event.preventDefault()}
         onDrop={(event) => {
@@ -2417,7 +2919,7 @@ export default function Game() {
       >
         <kbd>{area === "hotbar" ? (index === 9 ? "0" : index + 1) : ""}</kbd>
         {item ? <ItemVisual item={item} /> : <span className="empty-slot" />}
-        {item && <span className="slot-name">{itemLabel(item)}</span>}
+        {item && <span className="slot-name">{itemLabel(item, game)}</span>}
         {item && itemCount(game, item) > 1 && <b className="stack-count">{itemCount(game, item)}</b>}
       </button>
     );
@@ -2430,24 +2932,24 @@ export default function Game() {
         ? "Stone Spear"
         : game.selected === "bow"
           ? "Hunting Bow · " + game.resources.arrows + " arrows"
-          : game.selected === "pistol"
+      : game.selected === "pistol"
             ? "Scrap Pistol · " + game.resources.bullets + " bullets"
       : game.selected === "pickaxe"
-        ? game.gear.ironPick
-          ? "Iron Pickaxe"
-          : "Stone Pickaxe"
+        ? itemLabel("pickaxe", game)
         : game.selected === "axe"
-          ? game.gear.ironAxe
-            ? "Iron Axe"
-            : "Stone Axe"
-          : game.selected === "food"
-            ? "Food"
+          ? itemLabel("axe", game)
+          : isFoodItem(game.selected)
+            ? itemLabel(game.selected, game) + " · " + game.resources[game.selected]
             : game.buildMode
               ? BUILD_DATA[game.buildMode].name
-              : itemLabel(game.hotbar[game.selectedSlot]);
+              : itemLabel(game.hotbar[game.selectedSlot], game);
   const prompt = nearbyPrompt(game);
-  const promptKey = prompt.startsWith("TOOL") ? "E / HOLD LMB" : "E";
-  const promptText = prompt.replace(/^(E|TOOL) · /, "");
+  const promptKey = prompt.startsWith("TOOL")
+    ? "HOLD LMB"
+    : prompt.startsWith("BUILD")
+      ? "LMB / SHIFT+DRAG"
+      : "E";
+  const promptText = prompt.replace(/^(E|TOOL|BUILD) · /, "");
   const messageVisible = game.messageUntil > 0;
   const phase = isNight(game) ? "NIGHT" : "DAY";
 
@@ -2462,17 +2964,23 @@ export default function Game() {
         onPointerLeave={() => {
           game.pointer.active = false;
           game.mouseHeld = false;
+          game.buildDrag = false;
+          game.lastBuildCell = null;
         }}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           pointerMove(event);
           event.currentTarget.setPointerCapture(event.pointerId);
           game.mouseHeld = true;
+          game.buildDrag = event.shiftKey;
+          game.lastBuildCell = null;
           primaryAction(game);
           refresh();
         }}
         onPointerUp={(event) => {
           game.mouseHeld = false;
+          game.buildDrag = false;
+          game.lastBuildCell = null;
           if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
         }}
         onContextMenu={(event) => event.preventDefault()}
@@ -2494,10 +3002,10 @@ export default function Game() {
           <div className={"phase-chip " + phase.toLowerCase()}>{phase}</div>
         </section>
 
-        <div className="brand-pill"><span>H</span><strong>HALFLIGHT</strong><small>{game.realm === "cave" ? "THE CAVES" : inForest(game.player.x, game.player.y) ? "THE BLACKWOOD" : "THE MEADOW"}</small></div>
+        <div className="brand-pill"><span>H</span><strong>HALFLIGHT</strong><small>{caveForRealm(game.realm)?.name.toUpperCase() || (inForest(game.player.x, game.player.y) ? "THE BLACKWOOD" : "THE MEADOW")}</small></div>
 
         <section className="resource-strip" aria-label="Resources">
-          {MATERIALS.filter((material) => ["wood", "stone", "granite", "iron", "copper", "berries"].includes(material.id)).map((material) => (
+          {MATERIALS.filter((material) => ["wood", "stone", "iron", "copper", "aetherium", "berries"].includes(material.id)).map((material) => (
             <div key={material.id} title={material.name}>
               <span className={"resource-mark mark-" + material.id}>{material.icon}</span>
               <b>{game.resources[material.id]}</b>
@@ -2522,7 +3030,7 @@ export default function Game() {
 
       {messageVisible && <div className="game-toast">{game.message}</div>}
       {prompt && <div className="interact-prompt"><kbd>{promptKey}</kbd><span>{promptText}</span></div>}
-      {game.buildMode && <div className="build-mode-banner"><b>GRID BUILD</b><span>{BUILD_DATA[game.buildMode].name} · {game.kits[game.buildMode]} ready</span><button onClick={() => { game.buildMode = null; game.selected = "axe"; refresh(); }}>Cancel <kbd>Esc</kbd></button></div>}
+      {game.buildMode && <div className="build-mode-banner"><b>GRID BUILD</b><span>{BUILD_DATA[game.buildMode].name} · {game.kits[game.buildMode]} ready</span><button onClick={() => { game.buildMode = null; game.selected = "hands"; refresh(); }}>Cancel <kbd>Esc</kbd></button></div>}
 
       <nav className="hotbar" aria-label="Equipment hotbar">
         {game.hotbar.map((_, index) => inventorySlot("hotbar", index, false))}
@@ -2536,6 +3044,7 @@ export default function Game() {
         <span><kbd>WASD</kbd> Move</span>
         <span><kbd>E</kbd> Interact</span>
         <span><kbd>HOLD LMB</kbd> Use tool</span>
+        <span><kbd>SHIFT+DRAG</kbd> Multi-build</span>
         <span><kbd>C</kbd> Craft</span>
       </aside>
 
@@ -2575,14 +3084,20 @@ export default function Game() {
           className="touch-attack"
           onPointerDown={() => {
             game.mouseHeld = true;
+            game.buildDrag = true;
+            game.lastBuildCell = null;
             primaryAction(game);
             refresh();
           }}
           onPointerUp={() => {
             game.mouseHeld = false;
+            game.buildDrag = false;
+            game.lastBuildCell = null;
           }}
           onPointerLeave={() => {
             game.mouseHeld = false;
+            game.buildDrag = false;
+            game.lastBuildCell = null;
           }}
         >Hold tool</button>
       </div>
@@ -2591,13 +3106,13 @@ export default function Game() {
         <div className="panel-scrim" onPointerDown={() => setPanel(null)}>
           <aside className="game-panel" onPointerDown={(event) => event.stopPropagation()}>
             <header>
-              <div><small>SURVIVAL KIT</small><h2>{panel === "inventory" ? "Backpack" : panel === "craft" ? "Crafting Bench" : "Grid Building"}</h2></div>
+              <div><small>SURVIVAL KIT</small><h2>{panel === "inventory" ? "Backpack" : panel === "craft" ? "Crafting" : "Ready Pieces"}</h2></div>
               <button onClick={() => setPanel(null)} aria-label="Close panel">×</button>
             </header>
             <nav className="panel-tabs">
               <button className={panel === "inventory" ? "active" : ""} onClick={() => setPanel("inventory")}>Inventory <kbd>I</kbd></button>
               <button className={panel === "craft" ? "active" : ""} onClick={() => setPanel("craft")}>Craft <kbd>C</kbd></button>
-              <button className={panel === "build" ? "active" : ""} onClick={() => setPanel("build")}>Build <kbd>Q</kbd></button>
+              <button className={panel === "build" ? "active" : ""} onClick={() => setPanel("build")}>Ready pieces <kbd>Q</kbd></button>
             </nav>
             <div className="panel-content">
               {panel === "inventory" && (
@@ -2614,29 +3129,24 @@ export default function Game() {
                   <div className="free-inventory inventory-hotbar-row">
                     {game.hotbar.map((_, index) => inventorySlot("hotbar", index))}
                   </div>
-                  <div className="taming-tip"><span>♥</span><div><b>Taming wildlife</b><p>Move Food onto the hotbar, equip it, and feed bears, boars, deer, rabbits, foxes, or wolves three times with E.</p></div></div>
+                  <div className="taming-tip"><span>♥</span><div><b>Taming wildlife</b><p>Move berries, mushrooms, or meat onto the hotbar, equip one, and feed an animal three times with E.</p></div></div>
                 </>
               )}
               {panel === "craft" && (
                 <>
-                  <p className="panel-intro">Turn gathered stone and cave metal into better tools and weapons.</p>
+                  <div className="inventory-help bench-status">
+                    <b>{nearCraftingBench(game) ? "Crafting Bench in range" : "Hand crafting"}</b>
+                    <span>{nearCraftingBench(game) ? "Advanced tools, weapons, and construction pieces are unlocked." : "Craft starter tools and a bench. Place the bench, then stand near it for advanced recipes."}</span>
+                  </div>
                   <div className="recipe-list">
                     {CRAFT_RECIPES.map((recipe) => {
-                      const owned =
-                        (recipe.id === "spear" && game.gear.spear) ||
-                        (recipe.id === "sword" && game.gear.sword) ||
-                        (recipe.id === "bow" && game.gear.bow) ||
-                        (recipe.id === "pistol" && game.gear.pistol) ||
-                        (recipe.id === "copperArmor" && game.gear.armor !== "none") ||
-                        (recipe.id === "ironArmor" && (game.gear.armor === "iron" || game.gear.armor === "blacksteel")) ||
-                        (recipe.id === "blacksteelArmor" && game.gear.armor === "blacksteel") ||
-                        (recipe.id === "ironAxe" && game.gear.ironAxe) ||
-                        (recipe.id === "ironPick" && game.gear.ironPick);
+                      const owned = Boolean(recipe.owned?.(game));
+                      const needsBench = Boolean(recipe.requiresBench && !nearCraftingBench(game));
                       return (
                         <article key={recipe.id}>
                           <div className="recipe-badge">{recipe.name.slice(0, 2).toUpperCase()}</div>
-                          <div><h3>{recipe.name}</h3><p>{recipe.detail}</p><small>{costLabel(recipe.cost)}</small></div>
-                          <button disabled={!canAfford(game, recipe.cost) || owned} onClick={() => craft(recipe)}>{owned ? "Owned" : "Craft"}</button>
+                          <div><h3>{recipe.name}</h3><p>{recipe.detail}</p><small>{costLabel(recipe.cost)}{recipe.requiresBench ? " · bench" : ""}</small></div>
+                          <button disabled={!canAfford(game, recipe.cost) || owned || needsBench} onClick={() => craft(recipe)}>{owned ? "Owned" : needsBench ? "Need bench" : "Craft"}</button>
                         </article>
                       );
                     })}
@@ -2645,15 +3155,15 @@ export default function Game() {
               )}
               {panel === "build" && (
                 <>
-                  <p className="panel-intro">Everything snaps to a 48px grid. Craft or select a piece, aim near your character, then press E to place it.</p>
+                  <p className="panel-intro">These are completed pieces from your inventory. Craft more in the Craft menu, then place them on the 48px grid.</p>
                   <div className="build-grid">
                     {BUILD_ORDER.map((kind) => {
                       const data = BUILD_DATA[kind];
                       return (
                         <article key={kind}>
                           <div className={"build-badge build-" + kind}>{data.icon}</div>
-                          <div><h3>{data.name}</h3><p>{data.detail}</p><small>{costLabel(data.cost)}</small></div>
-                          <footer><span>{game.kits[kind]} ready</span><button disabled={game.kits[kind] <= 0 && !canAfford(game, data.cost)} onClick={() => chooseBuild(kind)}>{game.kits[kind] > 0 ? "Place" : "Craft + place"}</button></footer>
+                          <div><h3>{data.name}</h3><p>{data.detail}</p><small>Crafted pieces only</small></div>
+                          <footer><span>{game.kits[kind]} ready</span><button disabled={game.kits[kind] <= 0} onClick={() => chooseBuild(kind)}>{game.kits[kind] > 0 ? "Place" : "Not crafted"}</button></footer>
                         </article>
                       );
                     })}

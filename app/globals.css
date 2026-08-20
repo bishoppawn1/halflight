@@ -222,6 +222,7 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .mark-copper { background: #c9794d; }
 .mark-coal { background: #313b3b; }
 .mark-sulfur { color: #303225; background: #dccd49; }
+.mark-aetherium { color: #16333b; background: #69dbe7; box-shadow: 0 0 8px rgba(105,219,231,.55); }
 .mark-fiber { background: #69a754; }
 .mark-food { background: #d85d53; }
 .mark-berries { background: #c94f58; }
@@ -461,11 +462,11 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 }
 
 .tool-pickaxe b {
-  left: 7px;
-  top: 2px;
-  width: 28px;
-  height: 13px;
-  border-top: 5px solid #b9c5bf;
+  left: 6px;
+  top: 1px;
+  width: 27px;
+  height: 30px;
+  border-right: 6px solid #b9c5bf;
   border-radius: 50%;
   transform: rotate(-9deg);
 }
@@ -508,8 +509,9 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .tool-food b { left: 18px; top: 8px; }
 .tool-bow i { left: 8px; top: 3px; width: 25px; height: 30px; border: 4px solid #9d653d; border-left-color: transparent; border-radius: 50%; background: transparent; transform: none; }
 .tool-bow b { left: 17px; top: 4px; width: 2px; height: 28px; background: #e5ddc7; transform: none; }
-.tool-pistol i { left: 8px; top: 8px; width: 29px; height: 12px; border: 3px solid #2d3838; border-radius: 4px; background: #758387; transform: none; }
-.tool-pistol b { left: 12px; top: 18px; width: 11px; height: 15px; border: 3px solid #3f322a; border-radius: 3px; background: #795238; transform: skew(-8deg); }
+.tool-pistol i { left: 4px; top: 6px; width: 33px; height: 13px; border: 3px solid #2d3838; border-radius: 3px 7px 4px 3px; background: linear-gradient(#91a0a3 0 42%, #657477 43% 100%); transform: none; }
+.tool-pistol i:after { content: ""; position: absolute; right: 4px; top: 3px; width: 8px; height: 4px; border-radius: 1px; background: #30393b; }
+.tool-pistol b { left: 10px; top: 17px; width: 14px; height: 17px; border: 3px solid #3f322a; border-radius: 2px 3px 5px 4px; background: #795238; clip-path: polygon(5% 0, 100% 0, 78% 100%, 22% 100%); transform: skew(-8deg); }
 .tool-build i { left: 16px; top: 8px; height: 28px; transform: rotate(40deg); }
 .tool-build b { left: 7px; top: 3px; width: 26px; height: 13px; border: 2px solid #3b413f; border-radius: 4px; background: #d1a04d; transform: rotate(10deg); }
 .tool-pack i { left: 5px; top: 10px; width: 28px; height: 23px; border: 3px solid #3c302b; border-radius: 8px; background: #a66b42; transform: none; }
@@ -796,8 +798,11 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .build-fireTrap { color: #4b2519; border-color: #ad573c; background: #ef9a45; }
 .build-turret { color: #202d32; border-color: #61747d; background: #aab9be; }
 .build-roof,
-.build-wall,
+.build-woodWall,
 .build-door { color: #fff4db; border-color: #5b382b; background: #955a3e; }
+.build-stoneWall { color: #20352f; border-color: #596861; background: #aeb9b2; }
+.build-metalWall { color: #eef8f5; border-color: #344348; background: #68777b; }
+.build-craftingBench { color: #fff4db; border-color: #503226; background: #b77a45; }
 
 .start-card {
   position: absolute;

@@ -12,11 +12,14 @@ The GitHub Pages deployment is available at:
 ## Controls
 
 - WASD or arrow keys — move
-- Hold left mouse — continuously chop, mine, attack, fire, or place
-- E — gather once, interact, tame, eat, enter caves, open gates, or confirm grid placement
+- Mouse position — aim the equipped tool independently of movement
+- Hold left mouse — continuously chop, mine, attack, or fire
+- Left click — place one selected building piece
+- Shift + left-drag — place selected building pieces across multiple grid cells
+- E — interact, tame, eat, enter caves, open gates, or confirm grid placement
 - Space or F — attack
 - 1–9 or 0 — select one of 10 hotbar slots
-- Q — build menu
+- Q — ready building pieces
 - C — crafting menu
 - I or B — open the free 30-slot inventory
 - + / - or mouse wheel — zoom
@@ -24,6 +27,11 @@ The GitHub Pages deployment is available at:
 Move tools, weapons, resources, food, and ready building pieces freely between
 the backpack and hotbar by dragging them, or by selecting a source and then a
 destination slot.
+
+Craft starter tools and a Crafting Bench from the Craft menu. After placing the
+bench, stand near it to unlock advanced tools, weapons, ammunition, and wood,
+stone, or metal construction pieces. Construction recipes create stacks in the
+inventory; they never place a piece automatically.
 
 ## Local development
 
