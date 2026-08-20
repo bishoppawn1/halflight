@@ -74,7 +74,7 @@ or door can be crossed.
 | Left click in build mode | Place one ready building piece |
 | Hold `Shift` and left-drag | Place ready pieces across each valid grid cell crossed |
 | Right click in build mode | Cancel placement without using a ready piece |
-| `E` | Context action: eat, feed, harvest, operate, enter/exit, or place once |
+| `E` | Context action: eat, feed, harvest, open treasure, operate, enter/exit, or place once |
 | `Space` or `F` | Attack once |
 | `1`–`9`, `0` | Select hotbar slots 1 through 10 |
 | `Q` | Open or close ready building pieces |
@@ -95,29 +95,34 @@ Inventory and hotbar moves use the two-tap flow.
 
 ## 5. World and time
 
-The Meadow and the connected Deepways cave system are separate 5,200 by 3,800
-world spaces.
+The Meadow and the connected cave system are separate 5,200 by 3,800 world
+spaces. The caves and their chambers are deliberately unnamed; entrances,
+exits, prompts, and the location display identify them only as caves.
 
 - **The Meadow** contains open grassland, dense patches of harvestable wild
   grass, eight scattered iron and copper deposits, three cave entrances, one
   rare Aetherium deposit, and the Blackwood.
 - **The Blackwood** is a large, visibly darker forest biome filled with closely
   spaced oak, pine, and birch trees, forage, bears, and other wildlife.
-- **Granite Hollow** is rich in granite and ordinary rock, with some coal and
+- One chamber is rich in granite and ordinary rock, with some coal and
   mushrooms.
-- **Iron Delve** concentrates iron and copper, with some coal, granite, and
-  rare Aetherium.
-- **Sulfur Grotto** concentrates sulfur and coal, with mushrooms and some
-  copper.
+- One chamber concentrates iron and copper, with some coal, granite, and rare
+  Aetherium.
+- One chamber concentrates sulfur and coal, with mushrooms and some copper.
 
-Granite Hollow, Iron Delve, and Sulfur Grotto are large chambers within the same
-underground realm. Visible, solid rock walls enclose each chamber, and broad
-tunnels connect all three through the central Deepways hub. Each chamber keeps
-its own terrain palette and resource mix, but creatures and placed buildings
-share one connected cave system. Each chamber has an exit to its matching
-Meadow entrance, so the player can enter through one cave, cross the tunnels,
-and leave through another. Ore seams are intentionally sparse among the much
-more common ordinary rock.
+The three large, unnamed chambers share one underground realm. Visible, solid
+rock walls enclose each chamber, and broad tunnels connect all three through a
+central hub. Each chamber keeps its own terrain palette and resource mix, but
+creatures and placed buildings share the connected cave system. Each chamber
+has an exit to its matching Meadow entrance, so the player can enter through
+one cave, cross the tunnels, and leave through another. Ore seams are
+intentionally sparse among the much more common ordinary rock.
+
+At the start of each run, one random chamber contains a one-use treasure cache
+and one random chamber contains a giant cave guardian. The two selections are
+independent, so a chamber can contain the cache, the guardian, both, or neither.
+Opening the cache with `E` awards 4 granite, 5 iron, 4 copper, 3 coal, 3 sulfur,
+and 2 Aetherium. Its opened chest remains visible.
 
 The three tree species and every rock are drawn from directly overhead. A tree
 crown covers the same circular area used for its collision and pointer target.
@@ -315,6 +320,11 @@ damage if its path intersects a creature.
 Wildlife drops meat and hide. Brutes drop iron, wraiths drop sulfur, and maws
 drop 2 iron and 2 sulfur. Every creature defeated by the player, a tame, or a
 trap increases the threat count.
+
+The cave guardian is an oversized maw with 240 health, 34 speed, 22 contact
+damage, and a 240-unit sense radius. Defeating it awards the maw's normal drop
+plus 5 iron, 5 sulfur, and 3 Aetherium, for a total of 7 iron, 7 sulfur, and 3
+Aetherium.
 
 ## 11. Wildlife and taming
 

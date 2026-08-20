@@ -243,7 +243,6 @@ const FOREST_RY = 1500;
 
 interface CaveDefinition {
   id: CaveZone;
-  name: string;
   entranceX: number;
   entranceY: number;
   undergroundX: number;
@@ -257,7 +256,6 @@ interface CaveDefinition {
 const CAVES: CaveDefinition[] = [
   {
     id: "granite",
-    name: "Granite Hollow",
     entranceX: 4720,
     entranceY: 480,
     undergroundX: 860,
@@ -269,7 +267,6 @@ const CAVES: CaveDefinition[] = [
   },
   {
     id: "iron",
-    name: "Iron Delve",
     entranceX: 4420,
     entranceY: 3260,
     undergroundX: 4300,
@@ -281,7 +278,6 @@ const CAVES: CaveDefinition[] = [
   },
   {
     id: "sulfur",
-    name: "Sulfur Grotto",
     entranceX: 650,
     entranceY: 470,
     undergroundX: 2580,
@@ -1569,7 +1565,7 @@ function attack(game: GameState) {
     let angle = Math.atan2(dy, dx) - game.player.dir;
     while (angle > Math.PI) angle -= Math.PI * 2;
     while (angle < -Math.PI) angle += Math.PI * 2;
-    if (distance < range && Math.abs(angle) < 1.15) {
+    if (distance < range + Math.max(0, creatureRadius(creature) - 20) && Math.abs(angle) < 1.15) {
       creature.hp -= damage;
       creature.angry = true;
       creature.x += Math.cos(game.player.dir) * 22;
@@ -1607,6 +1603,12 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
     addMaterial(game, "iron", 2);
     addMaterial(game, "sulfur", 2);
   }
+  if (creature.boss) {
+    addMaterial(game, "iron", 5);
+    addMaterial(game, "sulfur", 5);
+    addMaterial(game, "aetherium", 3);
+    notify(game, "Cave guardian defeated · 7 iron · 7 sulfur · 3 Aetherium", 4500);
+  }
 }
 
 function updateProjectiles(game: GameState, dt: number) {
@@ -1623,7 +1625,7 @@ function updateProjectiles(game: GameState, dt: number) {
         creature.realm === projectile.realm &&
         creature.hp > 0 &&
         !creature.tame &&
-        Math.hypot(creature.x - projectile.x, creature.y - projectile.y) < (creature.kind === "maw" || creature.kind === "bear" ? 38 : 28),
+        Math.hypot(creature.x - projectile.x, creature.y - projectile.y) < creatureRadius(creature) + 11,
     );
     if (target) {
       target.hp -= projectile.damage;
@@ -1751,7 +1753,7 @@ function updateCreatures(game: GameState, dt: number) {
         creature.structureHitAt = now;
       }
     }
-    if (chasing && !creature.tame && playerDistance < 43 && now - creature.hitAt > 850) {
+    if (chasing && !creature.tame && playerDistance < creatureRadius(creature) + 24 && now - creature.hitAt > 850) {
       const armorReduction = game.gear.armor === "blacksteel" ? 0.55 : game.gear.armor === "iron" ? 0.35 : game.gear.armor === "copper" ? 0.18 : 0;
       const received = creature.damage * (1 - armorReduction);
       game.player.hp -= received;
@@ -2670,7 +2672,7 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
 }
 
 function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
-  const scale = creature.kind === "brute" ? 1.28 : creature.kind === "bear" ? 1.2 : creature.kind === "rabbit" ? 0.68 : creature.kind === "boar" ? 0.92 : 1;
+  const scale = creature.boss ? 1.82 : creature.kind === "brute" ? 1.28 : creature.kind === "bear" ? 1.2 : creature.kind === "rabbit" ? 0.68 : creature.kind === "boar" ? 0.92 : 1;
   ctx.save();
   ctx.translate(creature.x, creature.y + Math.sin(now / 230 + creature.phase) * 2);
   ctx.scale(scale, scale);
@@ -2833,6 +2835,12 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     }
   }
   ctx.rotate(-creature.dir);
+  if (creature.boss) {
+    ctx.fillStyle = "#f0bd59";
+    ctx.font = "900 10px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("CAVE GUARDIAN", 0, -51);
+  }
   if (isAnimal(creature.kind)) {
     if (creature.tame) {
       ctx.fillStyle = "#ef6b67";
@@ -2853,6 +2861,73 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     ctx.fillStyle = "#e45e55";
     roundedRect(ctx, -22, -39, 44 * Math.max(0, creature.hp / creature.maxHp), 5, 3);
     ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawTreasure(ctx: CanvasRenderingContext2D, treasure: CaveTreasure, now: number) {
+  const shimmer = 0.65 + Math.sin(now / 220 + treasure.id) * 0.25;
+  ctx.save();
+  ctx.translate(treasure.x, treasure.y);
+  ctx.fillStyle = "rgba(8,15,13,.38)";
+  ctx.beginPath();
+  ctx.ellipse(4, 21, 39, 17, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (!treasure.opened) {
+    ctx.globalAlpha = shimmer;
+    ctx.fillStyle = "#f7d86b";
+    for (const [x, y, size] of [[-31, -25, 4], [28, -18, 3], [4, -35, 3]] as const) {
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + size, y);
+      ctx.lineTo(x, y + size);
+      ctx.lineTo(x - size, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = treasure.opened ? "#735037" : "#a96b38";
+  ctx.strokeStyle = "#41291f";
+  ctx.lineWidth = 4;
+  roundedRect(ctx, -32, -7, 64, 38, 7);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#d3a944";
+  ctx.fillRect(-32, 7, 64, 7);
+  if (treasure.opened) {
+    ctx.save();
+    ctx.translate(0, -8);
+    ctx.rotate(-0.16);
+    ctx.fillStyle = "#815331";
+    roundedRect(ctx, -32, -17, 64, 17, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = "#f1cb58";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 23, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = "#b9793f";
+    roundedRect(ctx, -32, -23, 64, 24, 12);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,.18)";
+    roundedRect(ctx, -25, -18, 50, 7, 4);
+    ctx.fill();
+  }
+  ctx.fillStyle = "#f0c95a";
+  ctx.strokeStyle = "#5e4726";
+  ctx.lineWidth = 2;
+  roundedRect(ctx, -7, 7, 14, 18, 3);
+  ctx.fill();
+  ctx.stroke();
+  if (!treasure.opened) {
+    ctx.fillStyle = "#f4d98c";
+    ctx.font = "900 10px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("TREASURE", 0, -35);
   }
   ctx.restore();
 }
@@ -3230,7 +3305,6 @@ function drawCave(
   x: number,
   y: number,
   exit: boolean,
-  label: string,
 ) {
   ctx.save();
   ctx.translate(x, y);
@@ -3258,7 +3332,7 @@ function drawCave(
   ctx.fillStyle = exit ? "#d4b256" : "#e7d6a5";
   ctx.font = "bold 13px Arial";
   ctx.textAlign = "center";
-  ctx.fillText(exit ? "EXIT · " + label.toUpperCase() : label.toUpperCase(), 0, -51);
+  ctx.fillText(exit ? "EXIT" : "CAVE", 0, -51);
   ctx.restore();
 }
 
@@ -3341,15 +3415,7 @@ function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
       ctx.closePath();
       ctx.fill();
     }
-    ctx.fillStyle = "rgba(231,222,184,.34)";
-    ctx.font = "900 30px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(cave.name.toUpperCase(), cave.undergroundX, cave.undergroundY - cave.chamberRadius + 105);
   }
-  ctx.fillStyle = "rgba(218,226,216,.25)";
-  ctx.font = "900 26px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("THE DEEPWAYS", CAVE_HUB.x, CAVE_HUB.y + 12);
 }
 
 function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile) {
@@ -3515,11 +3581,11 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   }
   if (!inCave) {
     CAVES.forEach((entrance) =>
-      drawCave(ctx, entrance.entranceX, entrance.entranceY, false, entrance.name),
+      drawCave(ctx, entrance.entranceX, entrance.entranceY, false),
     );
   } else {
     CAVES.forEach((exit) =>
-      drawCave(ctx, exit.undergroundX, exit.undergroundY, true, exit.name),
+      drawCave(ctx, exit.undergroundX, exit.undergroundY, true),
     );
   }
 
@@ -3543,6 +3609,11 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
         drawResourceHealth(ctx, node);
       },
     });
+  });
+  game.treasures.forEach((treasure) => {
+    if (treasure.realm === game.realm && onScreen(treasure.x, treasure.y)) {
+      drawables.push({ y: treasure.y, draw: () => drawTreasure(ctx, treasure, performance.now()) });
+    }
   });
   visibleBuildings
     .filter((building) => building.kind !== "floor" && building.kind !== "roof")
@@ -3612,12 +3683,13 @@ function nearbyPrompt(game: GameState) {
   }
   const entrance = nearbyCaveEntrance(game);
   const currentCave = nearbyCaveExit(game);
-  if (entrance) return "E · Enter " + entrance.name;
+  if (entrance) return "E · Enter cave";
   if (
     currentCave
   ) {
-    return "E · Exit " + currentCave.name;
+    return "E · Exit cave";
   }
+  if (nearestTreasure(game, 92)) return "E · Open treasure cache";
   const building = game.buildings.find(
     (item) =>
       item.realm === game.realm &&
@@ -4309,7 +4381,7 @@ export default function Game() {
           <div className={"phase-chip " + phase.toLowerCase()}>{phase}</div>
         </section>
 
-        <div className="brand-pill"><span>H</span><strong>HALFLIGHT</strong><small>{game.realm === "caveSystem" ? caveAreaAt(game.player.x, game.player.y).name.toUpperCase() : inForest(game.player.x, game.player.y) ? "THE BLACKWOOD" : "THE MEADOW"}</small></div>
+        <div className="brand-pill"><span>H</span><strong>HALFLIGHT</strong><small>{game.realm === "caveSystem" ? "THE CAVES" : inForest(game.player.x, game.player.y) ? "THE BLACKWOOD" : "THE MEADOW"}</small></div>
 
         <section className="resource-strip" aria-label="Resources">
           {MATERIALS.filter((material) => ["wood", "stone", "iron", "copper", "aetherium", "berries"].includes(material.id)).map((material) => (

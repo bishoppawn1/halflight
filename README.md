@@ -16,7 +16,7 @@ The GitHub Pages deployment is available at:
 - Hold left mouse — continuously chop, mine, attack, or fire
 - Left click — place one selected building piece
 - Shift + left-drag — place selected building pieces across multiple grid cells
-- E — interact, tame, eat, rest at bedrolls, enter caves, open gates and chests, or confirm grid placement
+- E — interact, tame, eat, rest at bedrolls, enter caves, open gates, chests, and treasure caches, or confirm grid placement
 - Space or F — attack
 - 1–9 or 0 — select one of 10 hotbar slots
 - Q — ready building pieces
@@ -43,6 +43,9 @@ per day, while Standing Torches and Campfires create permanent pools of light.
 At night and underground, the world beyond those light pools is hidden. Damaged
 resources show their remaining health, and crop plots show a live growth percent.
 Night waves continue without a cap and spawn at random valid points across the map.
+The caves have no individual names. Each run hides a treasure cache in one
+random cave chamber and an oversized guardian in another; both can appear in
+the same chamber.
 
 ## Local development
 
