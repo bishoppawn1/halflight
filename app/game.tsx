@@ -3945,161 +3945,272 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: GameState) {
 }
 
 function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind: BirdKind, now: number) {
-  const style: Record<BirdKind, { body: string; light: string; outline: string; length: number; width: number; headX: number; headLength: number; headWidth: number }> = {
-    crow: { body: "#28323a", light: "#617886", outline: "#11191e", length: 25, width: 12, headX: 20, headLength: 11, headWidth: 10 },
-    owl: { body: "#806847", light: "#c7ad76", outline: "#3d3328", length: 26, width: 18, headX: 21, headLength: 14, headWidth: 16 },
-    turkey: { body: "#704b39", light: "#bd7747", outline: "#342720", length: 32, width: 20, headX: 28, headLength: 12, headWidth: 11 },
-  };
-  const { body, light, outline, length, width, headX, headLength, headWidth } = style[kind];
   const escaping = ANIMAL_DATA[kind].flying && creature.angry && !creature.tame;
+  const wingCycle = now / (escaping ? 105 : 135) + creature.phase;
+  const flap = (Math.sin(wingCycle) + 1) / 2;
+  const wingSweep = escaping ? Math.cos(wingCycle) * 12 : 0;
+  let collarX = 14;
+  let collarHalfWidth = 10;
 
-  if (kind === "turkey") {
-    ctx.fillStyle = "#8e5339";
+  if (kind === "crow") {
+    const outline = "#0d171b";
+    const wingReach = 42 + flap * 10;
+    ctx.lineJoin = "round";
     ctx.strokeStyle = outline;
     ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(-length + 5, -width * 0.7);
-    ctx.quadraticCurveTo(-length - 34, -width * 1.75, -length - 45, 0);
-    ctx.quadraticCurveTo(-length - 34, width * 1.75, -length + 5, width * 0.7);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = "#d49255";
-    ctx.lineWidth = 3;
-    for (const side of [-1, -0.5, 0, 0.5, 1]) {
+
+    ctx.fillStyle = "#1b272e";
+    for (const side of [-1, 0, 1]) {
       ctx.beginPath();
-      ctx.moveTo(-length + 1, 0);
-      ctx.lineTo(-length - 38, side * width * 1.18);
+      ctx.moveTo(-17, side * 4 - 5);
+      ctx.lineTo(-39, side * 10 - 7);
+      ctx.lineTo(-31, side * 9 + 5);
+      ctx.lineTo(-15, side * 4 + 5);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
     }
-    ctx.strokeStyle = "#3d2b25";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(-length - 34, -width * 1.04);
-    ctx.quadraticCurveTo(-length - 45, 0, -length - 34, width * 1.04);
-    ctx.stroke();
-  } else if (escaping) {
-    const flap = Math.sin(now / 115 + creature.phase);
-    const sweep = flap * (kind === "owl" ? 16 : 19);
-    const reach = (kind === "owl" ? 46 : 42) + Math.cos(now / 115 + creature.phase) * 4;
     for (const side of [-1, 1]) {
-      const tipX = 4 + sweep;
-      ctx.fillStyle = body;
-      ctx.strokeStyle = outline;
-      ctx.lineWidth = 4;
-      ctx.lineJoin = "round";
+      const s = side;
+      const wingGradient = ctx.createLinearGradient(-10, 0, 10, s * wingReach);
+      wingGradient.addColorStop(0, "#26343c");
+      wingGradient.addColorStop(1, "#405966");
+      ctx.fillStyle = wingGradient;
       ctx.beginPath();
-      ctx.moveTo(-13, side * 4);
-      if (kind === "owl") {
-        ctx.bezierCurveTo(-18 + sweep * 0.2, side * 19, tipX - 12, side * (reach - 3), tipX, side * reach);
-        ctx.bezierCurveTo(tipX + 13, side * (reach - 5), 17 + sweep * 0.25, side * 18, 5, side * 7);
-      } else {
-        ctx.bezierCurveTo(-18 + sweep * 0.2, side * 16, tipX - 11, side * (reach * 0.72), tipX, side * reach);
-        ctx.lineTo(tipX - 6, side * (reach * 0.72));
-        ctx.lineTo(tipX + 4, side * (reach * 0.79));
-        ctx.lineTo(tipX - 4, side * (reach * 0.51));
-        ctx.lineTo(tipX + 5, side * (reach * 0.56));
-        ctx.bezierCurveTo(10 + sweep * 0.2, side * 19, 4, side * 8, -4, side * 5);
-      }
+      ctx.moveTo(-11, s * 5);
+      ctx.bezierCurveTo(-20, s * 16, -10 + wingSweep * 0.35, s * (wingReach - 8), 5 + wingSweep, s * wingReach);
+      ctx.lineTo(10 + wingSweep, s * (wingReach - 12));
+      ctx.lineTo(17 + wingSweep, s * (wingReach - 5));
+      ctx.lineTo(15 + wingSweep * 0.78, s * (wingReach - 20));
+      ctx.lineTo(23 + wingSweep * 0.72, s * (wingReach - 13));
+      ctx.lineTo(16 + wingSweep * 0.42, s * 18);
+      ctx.bezierCurveTo(12 + wingSweep * 0.25, s * 10, 4, s * 5, -3, s * 4);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      ctx.strokeStyle = light;
-      ctx.globalAlpha = kind === "crow" ? 0.55 : 0.68;
-      ctx.lineWidth = 2.4;
-      for (const featherOffset of [0, 7, 14]) {
+      ctx.strokeStyle = "rgba(128,159,172,.6)";
+      ctx.lineWidth = 2.2;
+      for (const feather of [0, 1, 2]) {
         ctx.beginPath();
-        ctx.moveTo(-5 + featherOffset * 0.35, side * 9);
-        ctx.lineTo(tipX + featherOffset * 0.32, side * Math.max(17, reach - featherOffset));
+        ctx.moveTo(-3 + feather * 5, s * 10);
+        ctx.quadraticCurveTo(1 + feather * 4 + wingSweep * 0.2, s * 24, 6 + feather * 5 + wingSweep, s * (wingReach - feather * 9));
         ctx.stroke();
       }
-      ctx.globalAlpha = 1;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 4;
     }
-  }
 
-  ctx.fillStyle = body;
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.ellipse(-3, 0, length, width, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = light;
-  ctx.globalAlpha = kind === "turkey" ? 0.72 : 0.36;
-  for (const side of [-1, 1]) {
+    const bodyGradient = ctx.createLinearGradient(-28, -8, 28, 8);
+    bodyGradient.addColorStop(0, "#172229");
+    bodyGradient.addColorStop(0.55, "#344650");
+    bodyGradient.addColorStop(1, "#1c292f");
+    ctx.fillStyle = bodyGradient;
     ctx.beginPath();
-    ctx.ellipse(-5, side * width * 0.38, length * (kind === "turkey" ? 0.62 : 0.42), width * 0.32, side * 0.08, 0, Math.PI * 2);
+    ctx.ellipse(-2, 0, 27, 13, 0, 0, Math.PI * 2);
     ctx.fill();
-  }
-  ctx.globalAlpha = 1;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(117,153,167,.55)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(-5, 0, 18, 4.05, 5.37);
+    ctx.stroke();
 
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(-length * 0.72, 0);
-  ctx.lineTo(length * 0.32, 0);
-  ctx.stroke();
-  if (kind === "turkey") {
-    ctx.strokeStyle = "rgba(237,175,91,.68)";
-    for (const x of [-19, -13, -7]) {
+    ctx.fillStyle = "#222f36";
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(21, 0, 12, 10.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#8daab3";
+    for (const side of [-1, 1]) {
       ctx.beginPath();
-      ctx.moveTo(x, -width * 0.7);
-      ctx.lineTo(x - 2, width * 0.7);
-      ctx.stroke();
-    }
-  } else if (kind === "owl") {
-    ctx.fillStyle = "rgba(61,51,40,.45)";
-    for (const [x, y] of [[-11, -7], [-2, 7], [7, -6]] as const) {
-      ctx.beginPath();
-      ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+      ctx.arc(24, side * 5.2, 2.1, 0, Math.PI * 2);
       ctx.fill();
     }
-  }
-
-  ctx.fillStyle = kind === "owl" ? light : body;
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.ellipse(headX, 0, headLength, headWidth, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = kind === "crow" ? "#8498a2" : kind === "owl" ? "#ead6a5" : "#bd7747";
-  ctx.beginPath();
-  ctx.ellipse(headX + headLength * 0.18, 0, headLength * 0.56, headWidth * 0.6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#171a19";
-  for (const side of [-1, 1]) {
+    ctx.fillStyle = "#10171a";
     ctx.beginPath();
-    ctx.arc(headX + headLength * 0.22, side * headWidth * 0.42, kind === "owl" ? 2.6 : 2, 0, Math.PI * 2);
+    ctx.moveTo(30, -4.2);
+    ctx.lineTo(44, 0);
+    ctx.lineTo(30, 4.2);
+    ctx.closePath();
     ctx.fill();
-  }
+    ctx.stroke();
+    collarX = 12;
+    collarHalfWidth = 10;
+  } else if (kind === "owl") {
+    const outline = "#3a3026";
+    const wingReach = 44 + flap * 8;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 4;
 
-  ctx.fillStyle = kind === "turkey" || kind === "owl" ? "#d99a3f" : "#171d20";
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(headX + headLength - 2, -4);
-  ctx.lineTo(headX + headLength + (kind === "crow" ? 15 : 10), 0);
-  ctx.lineTo(headX + headLength - 2, 4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  if (kind === "turkey") {
-    ctx.fillStyle = "#b94335";
+    ctx.fillStyle = "#745f42";
+    for (const side of [-1, 0, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(-29, side * 7, 17, 6.5, side * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    for (const side of [-1, 1]) {
+      const s = side;
+      const wingGradient = ctx.createLinearGradient(-8, 0, 4, s * wingReach);
+      wingGradient.addColorStop(0, "#806a49");
+      wingGradient.addColorStop(1, "#b09563");
+      ctx.fillStyle = wingGradient;
+      ctx.beginPath();
+      ctx.moveTo(-12, s * 5);
+      ctx.bezierCurveTo(-27, s * 18, -19 + wingSweep * 0.35, s * (wingReach - 3), 1 + wingSweep, s * wingReach);
+      ctx.bezierCurveTo(17 + wingSweep, s * (wingReach - 1), 24 + wingSweep * 0.55, s * 27, 15 + wingSweep * 0.28, s * 13);
+      ctx.quadraticCurveTo(8, s * 5, -2, s * 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(234,213,166,.7)";
+      ctx.lineWidth = 2.5;
+      for (const feather of [0, 1, 2, 3]) {
+        ctx.beginPath();
+        ctx.moveTo(-5 + feather * 5, s * 10);
+        ctx.quadraticCurveTo(-6 + feather * 6 + wingSweep * 0.2, s * 26, -3 + feather * 6 + wingSweep, s * (wingReach - feather * 6));
+        ctx.stroke();
+      }
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 4;
+    }
+
+    ctx.fillStyle = "#745f43";
     ctx.beginPath();
-    ctx.ellipse(headX + headLength * 0.72, 6, 3.5, 7, -0.25, 0, Math.PI * 2);
+    ctx.ellipse(-2, 0, 27, 18, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(214,188,132,.72)";
+    for (const [x, y, radius] of [[-15, -7, 3], [-7, 7, 2.7], [3, -8, 2.4], [8, 6, 2.8]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = "#c5aa73";
+    ctx.strokeStyle = outline;
+    ctx.beginPath();
+    ctx.moveTo(12, -13);
+    ctx.lineTo(19, -21);
+    ctx.lineTo(23, -13);
+    ctx.quadraticCurveTo(37, -9, 37, 0);
+    ctx.quadraticCurveTo(37, 9, 23, 13);
+    ctx.lineTo(19, 21);
+    ctx.lineTo(12, 13);
+    ctx.quadraticCurveTo(7, 0, 12, -13);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ead9ad";
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(24, side * 6, 8, 6.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#20211d";
+      ctx.beginPath();
+      ctx.arc(26, side * 6, 3.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ead9ad";
+    }
+    ctx.fillStyle = "#d69a3f";
+    ctx.beginPath();
+    ctx.moveTo(33, -3.5);
+    ctx.lineTo(43, 0);
+    ctx.lineTo(33, 3.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    collarX = 10;
+    collarHalfWidth = 13;
+  } else {
+    const outline = "#38271f";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 3.5;
+    for (let feather = -4; feather <= 4; feather++) {
+      const angle = feather * 0.18;
+      ctx.save();
+      ctx.translate(-16, 0);
+      ctx.rotate(angle);
+      ctx.fillStyle = feather % 2 === 0 ? "#9f5f3e" : "#7f4937";
+      ctx.beginPath();
+      ctx.ellipse(-27, 0, 30, 8.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "#dda05b";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-35, -5.8);
+      ctx.lineTo(-35, 5.8);
+      ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 3.5;
+    }
+
+    ctx.fillStyle = "#6d4633";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(-1, 0, 32, 21, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = "#b87345";
+      ctx.beginPath();
+      ctx.ellipse(-5, side * 9, 21, 7.5, side * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "#e0a45f";
+      ctx.lineWidth = 2.4;
+      for (const stripe of [-12, -4, 4]) {
+        ctx.beginPath();
+        ctx.moveTo(stripe, side * 4);
+        ctx.lineTo(stripe - 2, side * 14);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 4;
+    }
+
+    ctx.fillStyle = "#5f7880";
+    ctx.beginPath();
+    ctx.ellipse(27, 0, 15, 9.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#171b1a";
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(31, side * 4.4, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#d9a044";
+    ctx.beginPath();
+    ctx.moveTo(38, -4);
+    ctx.lineTo(49, 0);
+    ctx.lineTo(38, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#b64035";
+    ctx.beginPath();
+    ctx.ellipse(36, 7, 4.5, 9, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    collarX = 14;
+    collarHalfWidth = 13;
   }
 
   if (creature.tame) {
     ctx.strokeStyle = "#f1bf4f";
     ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.moveTo(13, -width * 0.78);
-    ctx.lineTo(13, width * 0.78);
+    ctx.moveTo(collarX, -collarHalfWidth);
+    ctx.lineTo(collarX, collarHalfWidth);
     ctx.stroke();
   }
 }
@@ -4402,11 +4513,11 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
         : creature.kind === "rabbit"
           ? 0.78
           : creature.kind === "crow"
-            ? 0.72
+            ? 0.88
             : creature.kind === "owl"
-              ? 0.86
+              ? 0.94
               : creature.kind === "turkey"
-                ? 0.95
+                ? 1
                 : creature.kind === "raccoon" || creature.kind === "boar"
                   ? 0.92
                   : 1;
@@ -5166,6 +5277,35 @@ function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
   }
 }
 
+function traceOrganicWaterPath(
+  ctx: CanvasRenderingContext2D,
+  water: WaterBody,
+  scale: number,
+  variation: number,
+) {
+  const points = Array.from({ length: 40 }, (_, index) => {
+    const angle = (index / 40) * Math.PI * 2;
+    const wobble = 1 +
+      Math.sin(angle * 3 + variation * 1.7) * 0.045 +
+      Math.sin(angle * 5 - variation * 0.9) * 0.026 +
+      Math.sin(angle * 7 + variation * 0.6) * 0.012;
+    return {
+      x: Math.cos(angle) * water.rx * scale * wobble,
+      y: Math.sin(angle) * water.ry * scale * wobble,
+    };
+  });
+  const first = points[0];
+  const last = points[points.length - 1];
+  ctx.beginPath();
+  ctx.moveTo((last.x + first.x) / 2, (last.y + first.y) / 2);
+  for (let index = 0; index < points.length; index++) {
+    const point = points[index];
+    const next = points[(index + 1) % points.length];
+    ctx.quadraticCurveTo(point.x, point.y, (point.x + next.x) / 2, (point.y + next.y) / 2);
+  }
+  ctx.closePath();
+}
+
 function drawMeadowTerrain(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = "#91c66b";
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
@@ -5192,42 +5332,108 @@ function drawMeadowTerrain(ctx: CanvasRenderingContext2D) {
     ctx.fill();
   }
 
-  for (const water of WATER_BODIES) {
+  for (const [waterIndex, water] of WATER_BODIES.entries()) {
     ctx.save();
     ctx.translate(water.x, water.y);
     ctx.rotate(water.rotation);
 
-    ctx.fillStyle = "#6ea99e";
-    ctx.strokeStyle = "#477f79";
-    ctx.lineWidth = 10;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, water.rx, water.ry, 0, 0, Math.PI * 2);
+    traceOrganicWaterPath(ctx, water, 1.035, waterIndex + 1);
+    ctx.fillStyle = "#638b61";
+    ctx.strokeStyle = "#466f5c";
+    ctx.lineWidth = 14;
     ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = "rgba(197,231,209,.42)";
-    ctx.lineWidth = 4;
-    ctx.setLineDash([28, 20]);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, water.rx * 0.82, water.ry * 0.8, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.fillStyle = "#294f58";
-    ctx.strokeStyle = "#1f4049";
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, water.rx * water.deepScale, water.ry * water.deepScale, 0, 0, Math.PI * 2);
+    const shallowGradient = ctx.createLinearGradient(-water.rx, -water.ry, water.rx, water.ry);
+    shallowGradient.addColorStop(0, "#82c4b8");
+    shallowGradient.addColorStop(0.48, "#5ca49f");
+    shallowGradient.addColorStop(1, "#438a8d");
+    traceOrganicWaterPath(ctx, water, 0.99, waterIndex + 1.35);
+    ctx.fillStyle = shallowGradient;
+    ctx.strokeStyle = "#3f7d76";
+    ctx.lineWidth = 6;
     ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = "rgba(122,178,174,.32)";
-    ctx.lineWidth = 3;
-    for (const offset of [-0.28, 0, 0.28]) {
+    const deepGradient = ctx.createLinearGradient(-water.rx * 0.5, -water.ry * 0.5, water.rx * 0.5, water.ry * 0.5);
+    deepGradient.addColorStop(0, "#367b82");
+    deepGradient.addColorStop(0.55, "#245d69");
+    deepGradient.addColorStop(1, "#173f50");
+    traceOrganicWaterPath(ctx, water, water.deepScale, waterIndex + 6.4);
+    ctx.fillStyle = deepGradient;
+    ctx.strokeStyle = "rgba(27,77,83,.72)";
+    ctx.lineWidth = 5;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.save();
+    traceOrganicWaterPath(ctx, water, 0.98, waterIndex + 1.35);
+    ctx.clip();
+    for (let ripple = 0; ripple < 13; ripple++) {
+      const angle = seeded(ripple, 310 + waterIndex * 17) * Math.PI * 2;
+      const distance = 0.18 + seeded(ripple, 311 + waterIndex * 17) * 0.7;
+      const x = Math.cos(angle) * water.rx * distance;
+      const y = Math.sin(angle) * water.ry * distance;
+      const length = 18 + seeded(ripple, 312 + waterIndex * 17) * 34;
+      ctx.strokeStyle = ripple % 3 === 0 ? "rgba(196,235,222,.46)" : "rgba(143,207,198,.38)";
+      ctx.lineWidth = 2.5 + seeded(ripple, 313 + waterIndex * 17) * 1.7;
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(-water.rx * water.deepScale * 0.56, water.ry * water.deepScale * offset);
-      ctx.quadraticCurveTo(0, water.ry * water.deepScale * (offset - 0.12), water.rx * water.deepScale * 0.56, water.ry * water.deepScale * offset);
+      ctx.moveTo(x - length / 2, y);
+      ctx.quadraticCurveTo(x, y - 5 - ripple % 3, x + length / 2, y);
       ctx.stroke();
+    }
+
+    for (let pad = 0; pad < 5 + waterIndex * 2; pad++) {
+      const angle = seeded(pad, 390 + waterIndex * 19) * Math.PI * 2;
+      const distance = 0.7 + seeded(pad, 391 + waterIndex * 19) * 0.2;
+      const x = Math.cos(angle) * water.rx * distance;
+      const y = Math.sin(angle) * water.ry * distance;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle * 0.35);
+      ctx.fillStyle = pad % 2 ? "#527f55" : "#64965e";
+      ctx.strokeStyle = "#3f6e4b";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 11 + pad % 3, 6.5 + pad % 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(211,229,174,.55)";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(9, -2);
+      ctx.stroke();
+      if (pad === 1) {
+        ctx.fillStyle = "#e7c8d2";
+        for (const petalAngle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+          ctx.beginPath();
+          ctx.arc(Math.cos(petalAngle) * 3, Math.sin(petalAngle) * 3, 2.7, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+
+    for (let reed = 0; reed < 8 + waterIndex * 2; reed++) {
+      const angle = seeded(reed, 460 + waterIndex * 23) * Math.PI * 2;
+      const x = Math.cos(angle) * water.rx * 0.96;
+      const y = Math.sin(angle) * water.ry * 0.96;
+      const height = 15 + seeded(reed, 461 + waterIndex * 23) * 14;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.strokeStyle = reed % 2 ? "#466f45" : "#527e4d";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      for (const spread of [-5, 0, 5]) {
+        ctx.beginPath();
+        ctx.moveTo(0, spread);
+        ctx.quadraticCurveTo(7, spread * 0.5, height, spread - 4);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
     ctx.restore();
 

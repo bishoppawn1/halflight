@@ -128,7 +128,9 @@ identify them only as caves.
 - **Birch Grove** is a broad southeastern woodland dominated by birches.
 - **Stillwater**, **Eastmere**, and the **Low Marsh** have pale, traversable
   shallows surrounding dark, impassable deep water. Natural resources do not
-  generate inside either water depth.
+  generate inside either water depth. Their smoothly irregular shorelines use
+  layered shallow-to-deep color, scattered curved ripples, sparse reeds, and
+  occasional lily pads instead of perfect concentric rings or dashed markings.
 - One chamber is rich in granite and ordinary rock, with some coal and
   mushrooms.
 - One chamber concentrates iron and copper, with some coal, granite, and rare
@@ -460,7 +462,10 @@ away, both wings extend outside its body and flap forward and backward until it
 stops fleeing. Wild turkeys remain on the ground and carry their tail in a
 visible fan. Flying birds range farther from their home
 point and visibly bob above their softer shadow; all three bird species retain a
-body-and-head overhead shape.
+body-and-head overhead shape. Crows have angular blue-black primary feathers and
+a fanned tail, owls have broad rounded speckled wings and a pale facial disk,
+and turkeys have layered copper wing panels, a banded scalloped tail fan, a
+blue-gray head, and a red wattle.
 Wildlife follows smooth roaming paths and turns progressively instead of
 snapping back and forth when it reaches a roaming target or returns home.
 
