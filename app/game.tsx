@@ -681,10 +681,22 @@ function addMaterial(game: GameState, material: Material, amount: number) {
   if (game.resources[material] > 0) ensureItemListed(game, material);
 }
 
+function removeDepletedMaterialStacks(game: GameState) {
+  const isDepleted = (item: InventoryItem | null) =>
+    item !== null && isMaterial(item) && game.resources[item] <= 0;
+  const selectedStackDepleted = isDepleted(game.hotbar[game.selectedSlot]);
+  if (!selectedStackDepleted && !game.hotbar.some(isDepleted) && !game.inventory.some(isDepleted)) return;
+  game.hotbar = game.hotbar.map((item) => (isDepleted(item) ? null : item));
+  game.inventory = game.inventory.map((item) => (isDepleted(item) ? null : item));
+  if (selectedStackDepleted) selectSlot(game, game.selectedSlot);
+}
+
 function consumeSelectedFood(game: GameState) {
   if (!isFoodItem(game.selected) || game.resources[game.selected] <= 0) return null;
-  game.resources[game.selected] -= 1;
-  return game.selected;
+  const food = game.selected;
+  game.resources[food] -= 1;
+  removeDepletedMaterialStacks(game);
+  return food;
 }
 
 function isTree(kind: ResourceKind) {
@@ -1235,6 +1247,7 @@ function pay(game: GameState, cost: Partial<Record<Material, number>>) {
   Object.entries(cost).forEach(([key, value]) => {
     game.resources[key as Material] -= value || 0;
   });
+  removeDepletedMaterialStacks(game);
 }
 
 function spawnNightWave(game: GameState) {
@@ -2023,6 +2036,7 @@ function attack(game: GameState) {
       return;
     }
     game.resources[ammo] -= 1;
+    removeDepletedMaterialStacks(game);
     game.player.attackReady = now + profile.cooldown;
     game.player.swing = profile.animationSeconds;
     game.attackFlash = {
@@ -5132,7 +5146,7 @@ function nearbyPrompt(game: GameState) {
     const chance = Math.round(ANIMAL_DATA[creature.kind].tameChance * 100);
     return "E · Feed " + animalLureFood(creature.kind) + " to " + creature.kind + " · " + chance + "% tame chance";
   }
-  if (isFoodItem(game.selected)) return "E · Eat " + game.selected;
+  if (isFoodItem(game.selected) && game.resources[game.selected] > 0) return "E · Eat " + game.selected;
   const node = nearestNode(game, 92);
   if (node) {
     if (isTree(node.kind)) return "TOOL · " + (game.selected === "hands" ? "Punch " : "Chop ") + node.kind + (game.selected === "hands" ? "" : " with Axe");
@@ -5684,7 +5698,7 @@ export default function Game() {
       if (amount <= 0) return;
       storage[material] = (storage[material] ?? 0) + amount;
       game.resources[material] = 0;
-      selectSlot(game, game.selectedSlot);
+      removeDepletedMaterialStacks(game);
       notify(game, "Stored " + amount + " " + material + ".");
     } else {
       const amount = storage[material] ?? 0;
@@ -5757,7 +5771,7 @@ export default function Game() {
         <kbd>{area === "hotbar" ? (index === 9 ? "0" : index + 1) : ""}</kbd>
         {item ? <ItemVisual item={item} game={game} /> : <span className="empty-slot" />}
         {item && <span className="slot-name">{itemLabel(item, game)}</span>}
-        {item && itemCount(game, item) > 1 && <b className="stack-count">{itemCount(game, item)}</b>}
+        {item && (isMaterial(item) || itemCount(game, item) > 1) && <b className="stack-count">{itemCount(game, item)}</b>}
         {item && isDurableTool(item) && (
           <span className="tool-durability" title={activeToolDurability(game, item) + " active durability · " + durableToolCount(game, item) + (durableToolCount(game, item) === 1 ? " copy" : " copies")}>
             <i style={{ width: (activeToolDurability(game, item) / DURABLE_TOOL_DATA[item].maxDurability) * 100 + "%" }} />

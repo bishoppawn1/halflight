@@ -99,6 +99,10 @@ Every newly acquired item or material uses the first open hotbar slot when
 possible, then the first open backpack slot.
 Multiple copies of the same durable axe or pickaxe share one inventory slot and
 display their copy count on that slot.
+Every material stack displays its exact quantity, including a quantity of one.
+When a material reaches zero, its hotbar or backpack slot becomes empty
+immediately. If that material was selected food, the player switches to hands
+and the stale eating prompt disappears.
 
 Touch players receive a directional pad, an **Interact** button, a **Build**
 button, and a holdable **Tool** button. Holding the touch tool also supports continuous building.
