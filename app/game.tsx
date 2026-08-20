@@ -3062,10 +3062,6 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
   ctx.lineTo(tool === "spear" || tool === "sword" ? 49 : 39, 0);
   ctx.stroke();
   if (durableTool?.family === "axe") {
-    ctx.save();
-    ctx.translate(35, 0);
-    ctx.rotate(Math.PI / 2);
-    ctx.translate(-35, 0);
     const tier = durableTool.tier;
     const headColor = tier === "wood" ? "#a66b3e" : tier === "stone" ? "#858f89" : tier === "iron" ? "#b8c6c3" : "#63dae7";
     const edgeColor = tier === "wood" ? "#e0b06a" : tier === "stone" ? "#c3cbc7" : tier === "iron" ? "#f3f7f5" : "#d7fcff";
@@ -3077,38 +3073,40 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     }
     ctx.beginPath();
     if (tier === "wood") {
-      ctx.moveTo(30, -11);
-      ctx.lineTo(40, -10);
-      ctx.quadraticCurveTo(48, -12, 54, -17);
-      ctx.quadraticCurveTo(59, 0, 54, 17);
-      ctx.quadraticCurveTo(48, 11, 40, 10);
-      ctx.lineTo(30, 11);
+      ctx.moveTo(29, -5);
+      ctx.lineTo(29, -13);
+      ctx.quadraticCurveTo(25, -18, 19, -24);
+      ctx.quadraticCurveTo(35, -32, 52, -24);
+      ctx.quadraticCurveTo(46, -17, 41, -12);
+      ctx.lineTo(41, -5);
     } else if (tier === "stone") {
-      ctx.moveTo(30, -16);
-      ctx.lineTo(39, -15);
-      ctx.lineTo(54, -24);
-      ctx.lineTo(59, -16);
-      ctx.lineTo(57, 16);
-      ctx.lineTo(53, 23);
-      ctx.lineTo(39, 14);
-      ctx.lineTo(30, 16);
+      ctx.moveTo(29, -5);
+      ctx.lineTo(28, -14);
+      ctx.lineTo(18, -25);
+      ctx.lineTo(25, -32);
+      ctx.lineTo(51, -29);
+      ctx.lineTo(57, -22);
+      ctx.lineTo(43, -12);
+      ctx.lineTo(41, -5);
     } else if (tier === "iron") {
-      ctx.moveTo(29, -17);
-      ctx.lineTo(39, -16);
-      ctx.quadraticCurveTo(51, -19, 58, -27);
-      ctx.quadraticCurveTo(65, 0, 57, 26);
-      ctx.quadraticCurveTo(50, 18, 39, 15);
-      ctx.lineTo(29, 17);
+      ctx.moveTo(29, -5);
+      ctx.lineTo(28, -14);
+      ctx.quadraticCurveTo(22, -19, 15, -26);
+      ctx.quadraticCurveTo(35, -37, 57, -26);
+      ctx.quadraticCurveTo(49, -18, 42, -12);
+      ctx.lineTo(41, -5);
     } else {
-      ctx.moveTo(28, -18);
-      ctx.lineTo(39, -17);
-      ctx.lineTo(55, -30);
-      ctx.lineTo(61, -22);
-      ctx.lineTo(58, -9);
-      ctx.lineTo(64, 0);
-      ctx.lineTo(56, 29);
-      ctx.lineTo(39, 16);
-      ctx.lineTo(28, 18);
+      ctx.moveTo(28, -5);
+      ctx.lineTo(27, -15);
+      ctx.lineTo(15, -24);
+      ctx.lineTo(21, -31);
+      ctx.lineTo(33, -29);
+      ctx.lineTo(39, -36);
+      ctx.lineTo(56, -28);
+      ctx.lineTo(62, -20);
+      ctx.lineTo(49, -13);
+      ctx.lineTo(42, -11);
+      ctx.lineTo(41, -5);
     }
     ctx.closePath();
     ctx.fillStyle = headColor;
@@ -3119,23 +3117,30 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     if (tier === "stone") {
-      ctx.moveTo(54, -24);
-      ctx.lineTo(59, -16);
-      ctx.lineTo(57, 16);
-      ctx.lineTo(53, 23);
+      ctx.moveTo(18, -25);
+      ctx.lineTo(25, -32);
+      ctx.lineTo(51, -29);
+      ctx.lineTo(57, -22);
+    } else if (tier === "aetherium") {
+      ctx.moveTo(15, -24);
+      ctx.lineTo(21, -31);
+      ctx.lineTo(33, -29);
+      ctx.lineTo(39, -36);
+      ctx.lineTo(56, -28);
+      ctx.lineTo(62, -20);
     } else {
-      ctx.moveTo(tier === "aetherium" ? 55 : tier === "iron" ? 58 : 54, tier === "aetherium" ? -30 : tier === "iron" ? -27 : -17);
-      ctx.quadraticCurveTo(tier === "aetherium" ? 65 : tier === "iron" ? 65 : 59, 0, tier === "aetherium" ? 56 : tier === "iron" ? 57 : 54, tier === "aetherium" ? 29 : tier === "iron" ? 26 : 17);
+      ctx.moveTo(tier === "iron" ? 15 : 19, tier === "iron" ? -26 : -24);
+      ctx.quadraticCurveTo(35, tier === "iron" ? -37 : -32, tier === "iron" ? 57 : 52, tier === "iron" ? -26 : -24);
     }
     ctx.stroke();
     if (tier === "wood") {
       ctx.strokeStyle = "#d6b15f";
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(30, -8);
-      ctx.lineTo(39, 6);
-      ctx.moveTo(30, -2);
-      ctx.lineTo(38, 12);
+      ctx.moveTo(28, -11);
+      ctx.lineTo(42, -5);
+      ctx.moveTo(30, -16);
+      ctx.lineTo(44, -10);
       ctx.stroke();
     }
     ctx.fillStyle = "#4a3329";
@@ -3144,7 +3149,6 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     roundedRect(ctx, 31, -6, 10, 12, 3);
     ctx.fill();
     ctx.stroke();
-    ctx.restore();
   } else if (durableTool?.family === "pickaxe") {
     const tier = durableTool.tier;
     const headColor = tier === "wood" ? "#a66b3e" : tier === "stone" ? "#858f89" : tier === "iron" ? "#b8c6c3" : "#63dae7";
@@ -3494,7 +3498,27 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
   const { body, light, length, width, headX, headLength, headWidth } = style[kind];
   const outline = kind === "rabbit" ? "#56544e" : "#3e322c";
 
-  if (kind === "wolf") {
+  if (kind === "fox") {
+    ctx.fillStyle = body;
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 4;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(-length + 3, -width * 0.55);
+    ctx.bezierCurveTo(-length - 14, -width * 1.4, -length - 38, -width * 0.95, -length - 42, -width * 0.2);
+    ctx.bezierCurveTo(-length - 44, width * 0.65, -length - 24, width * 1.15, -length + 2, width * 0.48);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#f4d7ad";
+    ctx.beginPath();
+    ctx.moveTo(-length - 34, -width * 0.82);
+    ctx.bezierCurveTo(-length - 45, -width * 0.5, -length - 47, width * 0.18, -length - 40, width * 0.55);
+    ctx.bezierCurveTo(-length - 34, width * 0.9, -length - 26, width * 0.94, -length - 21, width * 0.72);
+    ctx.bezierCurveTo(-length - 27, width * 0.18, -length - 28, -width * 0.34, -length - 34, -width * 0.82);
+    ctx.closePath();
+    ctx.fill();
+  } else if (kind === "wolf") {
     ctx.fillStyle = body;
     ctx.strokeStyle = outline;
     ctx.lineWidth = 4;
@@ -3605,6 +3629,26 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
       ctx.ellipse(earX + 1, earY, 13.5, 2.2, rotation, 0, Math.PI * 2);
       ctx.fill();
     }
+  } else if (kind === "fox") {
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = body;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(headX - 8, side * (headWidth * 0.38));
+      ctx.lineTo(headX - 10, side * (headWidth + 9));
+      ctx.lineTo(headX + 4, side * (headWidth * 0.82));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#6f3b2d";
+      ctx.beginPath();
+      ctx.moveTo(headX - 6, side * (headWidth * 0.66));
+      ctx.lineTo(headX - 7, side * (headWidth + 4));
+      ctx.lineTo(headX + 1, side * (headWidth * 0.82));
+      ctx.closePath();
+      ctx.fill();
+    }
   } else if (kind === "wolf") {
     for (const side of [-1, 1]) {
       ctx.fillStyle = body;
@@ -3667,7 +3711,20 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
   ctx.arc(headX + headLength * 0.2, -headWidth * 0.42, 2.1, 0, Math.PI * 2);
   ctx.arc(headX + headLength * 0.2, headWidth * 0.42, 2.1, 0, Math.PI * 2);
   ctx.fill();
-  if (kind === "wolf") {
+  if (kind === "fox") {
+    ctx.fillStyle = "#1d201e";
+    ctx.beginPath();
+    ctx.ellipse(headX + headLength * 0.96, 0, 3.4, 4.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(107,54,39,.72)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(headX - 3, -headWidth * 0.72);
+    ctx.lineTo(headX + headLength * 0.5, -headWidth * 0.32);
+    ctx.moveTo(headX - 3, headWidth * 0.72);
+    ctx.lineTo(headX + headLength * 0.5, headWidth * 0.32);
+    ctx.stroke();
+  } else if (kind === "wolf") {
     ctx.fillStyle = "#171a19";
     ctx.beginPath();
     ctx.ellipse(headX + headLength * 0.92, 0, 3.7, 4.6, 0, 0, Math.PI * 2);
@@ -5046,18 +5103,18 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
     };
     const palette = colors[material];
     const axeHead: Record<ToolTier, string> = {
-      none: "M22 8 L34 10 Q41 9 46 4 Q51 20 44 35 Q39 29 33 28 L22 31 Z",
-      wood: "M23 9 L34 10 L42 5 L47 8 Q50 20 44 34 L34 28 L23 30 Z",
-      stone: "M21 7 L34 10 L44 3 L50 10 L47 32 L43 36 L34 28 L22 32 Z",
-      iron: "M21 7 L34 10 Q42 8 47 2 Q52 20 44 37 Q39 30 33 28 L21 32 Z",
-      aetherium: "M20 8 L34 10 L45 1 L50 7 L47 16 L52 22 L43 38 L34 28 L20 33 Z",
+      none: "M28 17 L22 13 L8 20 Q14 8 25 2 L32 14 L37 18 L35 26 L29 27 Z",
+      wood: "M28 17 L23 14 L10 20 Q15 10 25 4 L32 14 L37 18 L34 26 L29 27 Z",
+      stone: "M28 17 L21 13 L7 20 L11 11 L24 2 L32 14 L38 18 L35 27 L29 27 Z",
+      iron: "M28 17 L21 12 Q10 13 4 20 Q12 7 25 1 L32 14 L38 18 L35 27 L29 27 Z",
+      aetherium: "M28 17 L20 12 L5 20 L10 10 L19 8 L24 0 L31 7 L32 14 L39 18 L35 28 L29 27 Z",
     };
     const axeEdge: Record<ToolTier, string> = {
-      none: "M46 4 Q51 20 44 35",
-      wood: "M42 5 Q50 19 44 34",
-      stone: "M44 3 L50 10 L47 32 L43 36",
-      iron: "M47 2 Q52 20 44 37",
-      aetherium: "M45 1 L50 7 L47 16 L52 22 L43 38",
+      none: "M8 20 Q14 8 25 2",
+      wood: "M10 20 Q15 10 25 4",
+      stone: "M7 20 L11 11 L24 2",
+      iron: "M4 20 Q12 7 25 1",
+      aetherium: "M5 20 L10 10 L19 8 L24 0",
     };
     const pickCurve = material === "wood" ? "M5 21 Q25 8 47 16" : material === "stone" ? "M4 22 Q25 6 48 16" : material === "aetherium" ? "M3 23 Q25 4 49 15" : "M4 22 Q25 5 48 15";
     return (
@@ -5066,11 +5123,11 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
           <path d="M9 46 L31 21" stroke="#4b3025" strokeWidth="9" strokeLinecap="round" />
           <path d="M10 44 L30 22" stroke="#b47745" strokeWidth="4.5" strokeLinecap="round" />
           {type === "axe" ? (
-            <g transform="rotate(90 31 21)">
+            <g>
               <path d={axeHead[material]} fill={palette.head} stroke={palette.outline} strokeWidth="2.5" strokeLinejoin="round" />
               <path d={axeEdge[material]} fill="none" stroke={palette.edge} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               <rect x="27" y="16" width="8" height="10" rx="2.5" fill="#4b342a" stroke="#ead5a8" strokeWidth="1.4" transform="rotate(2 31 21)" />
-              {material === "wood" && <path d="M23 20 L35 29 M23 25 L33 33" fill="none" stroke="#e0bb6b" strokeWidth="2.2" strokeLinecap="round" />}
+              {material === "wood" && <path d="M26 16 L36 25 M27 12 L38 20" fill="none" stroke="#e0bb6b" strokeWidth="2.2" strokeLinecap="round" />}
             </g>
           ) : (
             <>

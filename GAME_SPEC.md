@@ -58,7 +58,8 @@ wing markings inside that torso, while ground animals use coat markings. Legs
 are omitted because they would not be clearly visible from this camera height.
 Deer have large, branched antlers and visible side ears; wolves have a broad
 head, triangular ears, a defined muzzle, and a bushy tail; rabbits have two
-long, splayed ears. These defining features remain prominent at gameplay zoom.
+long, splayed ears; foxes have pointed ears, a narrow muzzle, and a large bushy
+tail with a pale tip. These defining features remain prominent at gameplay zoom.
 Animals are never represented as a front-facing or side-profile face, and
 creatures turn their whole overhead body in their direction of travel.
 
