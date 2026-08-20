@@ -487,6 +487,14 @@ const BUILD_ORDER: BuildKind[] = [
 const ANIMAL_KINDS: AnimalKind[] = ["bear", "boar", "deer", "rabbit", "fox", "wolf", "raccoon", "crow", "owl", "turkey"];
 const BIRD_KINDS: BirdKind[] = ["crow", "owl", "turkey"];
 const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "wraith", "maw"];
+const MONSTER_ATTACK_REACH: Record<MonsterKind, number> = {
+  shade: 76,
+  crawler: 82,
+  brute: 88,
+  wraith: 108,
+  maw: 96,
+};
+const BOSS_ATTACK_REACH_BONUS = 18;
 const MAX_TAMED_ANIMALS = 5;
 const ANIMAL_LURE_DISTANCE = 360;
 const WARY_ESCAPE_DISTANCE = 520;
@@ -1111,7 +1119,7 @@ function makeGame(): GameState {
     y: guardianPoint.y,
     hp: 240,
     maxHp: 240,
-    speed: 34,
+    speed: 50,
     damage: 22,
     fed: 0,
     tame: false,
@@ -1312,11 +1320,11 @@ function spawnNightWave(game: GameState) {
     }
     if (!spawnPoint) continue;
     const baseStats: Record<MonsterKind, { hp: number; hpScale: number; speed: number; damage: number }> = {
-      shade: { hp: 28, hpScale: 8, speed: 66, damage: 7 },
-      crawler: { hp: 23, hpScale: 6, speed: 91, damage: 6 },
-      brute: { hp: 54, hpScale: 13, speed: 45, damage: 12 },
-      wraith: { hp: 42, hpScale: 10, speed: 73, damage: 10 },
-      maw: { hp: 92, hpScale: 17, speed: 39, damage: 17 },
+      shade: { hp: 28, hpScale: 8, speed: 84, damage: 7 },
+      crawler: { hp: 23, hpScale: 6, speed: 116, damage: 6 },
+      brute: { hp: 54, hpScale: 13, speed: 60, damage: 12 },
+      wraith: { hp: 42, hpScale: 10, speed: 96, damage: 10 },
+      maw: { hp: 92, hpScale: 17, speed: 56, damage: 17 },
     };
     const stats = baseStats[kind];
     const hp = stats.hp + game.day * stats.hpScale;
@@ -1707,6 +1715,49 @@ function lightLineIsClear(
   return visibleDistance >= distance - 0.75;
 }
 
+function monsterAttackLineIsClear(
+  game: GameState,
+  realm: Realm,
+  sourceX: number,
+  sourceY: number,
+  targetX: number,
+  targetY: number,
+) {
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const distance = Math.hypot(dx, dy);
+  if (distance < 1) return true;
+  const occluders = collectLightOccluders(game, realm, sourceX, sourceY, distance);
+  for (const building of game.buildings) {
+    if (
+      building.realm !== realm ||
+      !isSolidBuilding(building) ||
+      isLightBlockingBuilding(building)
+    ) continue;
+    const center = buildingWorldCenter(building);
+    const halfSize = buildingHalfSize(building.kind);
+    const buildingDx = Math.max(Math.abs(center.x - sourceX) - halfSize, 0);
+    const buildingDy = Math.max(Math.abs(center.y - sourceY) - halfSize, 0);
+    if (Math.hypot(buildingDx, buildingDy) > distance) continue;
+    occluders.push({
+      shape: "rectangle",
+      x: center.x,
+      y: center.y,
+      halfWidth: halfSize,
+      halfHeight: halfSize,
+    });
+  }
+  const attackDistance = lightRayDistance(
+    realm,
+    sourceX,
+    sourceY,
+    Math.atan2(dy, dx),
+    distance,
+    occluders,
+  );
+  return attackDistance >= distance - 0.75;
+}
+
 function normalizeLightAngle(angle: number) {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
@@ -1799,6 +1850,13 @@ function creatureRadius(creature: Creature) {
   if (creature.kind === "owl") return 17;
   if (creature.kind === "turkey") return 22;
   return 20;
+}
+
+function creatureAttackReach(creature: Creature) {
+  if (isMonster(creature.kind)) {
+    return MONSTER_ATTACK_REACH[creature.kind] + (creature.boss ? BOSS_ATTACK_REACH_BONUS : 0);
+  }
+  return creatureRadius(creature) + 24;
 }
 
 function releasePrimaryInput(game: GameState) {
@@ -2590,7 +2648,20 @@ function updateCreatures(game: GameState, dt: number) {
     const dx = targetX - creature.x;
     const dy = targetY - creature.y;
     const distance = Math.max(1, Math.hypot(dx, dy));
-    const stopDistance = movement === "follow" ? 58 : movement === "lure" ? 52 : movement === "chase" ? 30 : 2;
+    const attackReach = creatureAttackReach(creature);
+    const needsAttackPathCheck = attackingPlayer && isMonster(creature.kind) && playerDistance <= attackReach + 24;
+    const attackPathClear = !needsAttackPathCheck || monsterAttackLineIsClear(
+      game,
+      creature.realm,
+      creature.x,
+      creature.y,
+      game.player.x,
+      game.player.y,
+    );
+    const chaseStopDistance = isMonster(creature.kind) && attackPathClear
+      ? Math.max(30, attackReach - 12)
+      : 30;
+    const stopDistance = movement === "follow" ? 58 : movement === "lure" ? 52 : movement === "chase" ? chaseStopDistance : 2;
     const shouldMove = distance > stopDistance;
     if (shouldMove) {
       const slowFactor = now < creature.slowUntil ? 0.42 : 1;
@@ -2620,7 +2691,7 @@ function updateCreatures(game: GameState, dt: number) {
         creature.structureHitAt = now;
       }
     }
-    if (attackingPlayer && playerDistance < creatureRadius(creature) + 24 && now - creature.hitAt > CREATURE_ATTACK_COOLDOWN_MS) {
+    if (attackingPlayer && attackPathClear && playerDistance < attackReach && now - creature.hitAt > CREATURE_ATTACK_COOLDOWN_MS) {
       const armorReduction = game.gear.armor === "blacksteel" ? 0.55 : game.gear.armor === "iron" ? 0.35 : game.gear.armor === "copper" ? 0.18 : 0;
       const received = creature.damage * (1 - armorReduction);
       game.player.hp -= received;

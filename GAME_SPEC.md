@@ -415,19 +415,21 @@ thrust animation; axes, pickaxes, swords, and improvised attacks use arcs.
 | Deconstruction hammer | 3 | 78 | 750 ms |
 | Hands, food, or build tool | 3 | 78 | 600 ms |
 
-Hostile creatures can land contact damage at most once every 1.25 seconds and
-can damage a blocking structure at most once every 1.2 seconds. Tamed companions
-can attack a nearby horror once every 1.1 seconds.
+Night monsters and the cave guardian can land attacks from their listed reach
+only with an unobstructed line to the player. Their attacks, along with contact
+attacks from aggressive wildlife, can deal damage at most once every 1.25
+seconds. Monsters can damage a blocking structure at most once every 1.2
+seconds. Tamed companions can attack a nearby horror once every 1.1 seconds.
 
 Wildlife drops species-specific amounts of meat and hide; birds provide meat
 but no hide. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2
 sulfur. Every creature defeated by the player, a tame, or a trap increases the
 threat count.
 
-The cave guardian is an oversized maw with 240 health, 34 speed, 22 contact
-damage, and a 240-unit sense radius. Defeating it awards the maw's normal drop
-plus 5 iron, 5 sulfur, and 3 Aetherium, for a total of 7 iron, 7 sulfur, and 3
-Aetherium.
+The cave guardian is an oversized maw with 240 health, 50 speed, 22 damage, a
+114-unit attack reach, and a 240-unit sense radius. Defeating it awards the
+maw's normal drop plus 5 iron, 5 sulfur, and 3 Aetherium, for a total of 7 iron,
+7 sulfur, and 3 Aetherium.
 
 ## 11. Wildlife and taming
 
@@ -506,21 +508,23 @@ rejected. A 30-unit safety margin keeps the monster's body fully outside the
 visible light pool. Darkness behind a light blocker is not protected. Destroyed
 lights and unfinished blueprints provide no spawn protection.
 
-| Monster | Earliest night | Base health | Health per day | Base speed | Base damage | Sense radius |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Shade | 1 | 28 | 8 | 66 | 7 | 320 |
-| Crawler | 2 | 23 | 6 | 91 | 6 | 390 |
-| Brute | 2 | 54 | 13 | 45 | 12 | 270 |
-| Wraith | 4 | 42 | 10 | 73 | 10 | 440 |
-| Maw | 5 | 92 | 17 | 39 | 17 | 240 |
+| Monster | Earliest night | Base health | Health per day | Base speed | Base damage | Attack reach | Sense radius |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Shade | 1 | 28 | 8 | 84 | 7 | 76 | 320 |
+| Crawler | 2 | 23 | 6 | 116 | 6 | 82 | 390 |
+| Brute | 2 | 54 | 13 | 60 | 12 | 88 | 270 |
+| Wraith | 4 | 42 | 10 | 96 | 10 | 108 | 440 |
+| Maw | 5 | 92 | 17 | 56 | 17 | 96 | 240 |
 
 Every monster has a round main body surrounded by animated tentacles. Body size,
 tentacle count and thickness, color, eyes, horns, and tooth patterns distinguish
 shades, crawlers, brutes, wraiths, and maws. Monsters initially prowl instead of
 knowing the player's location. They chase after sensing the player or being
-attacked, then return to prowling after the player moves beyond 1.8 times that
-monster's sense radius. Any surviving ordinary night-wave monsters disappear
-at dawn before the next day begins.
+attacked, stop at their extended attack reach when the path is clear, and close
+the distance when terrain or a structure blocks the attack. They return to
+prowling after the player moves beyond 1.8 times that monster's sense radius.
+Any surviving ordinary night-wave monsters disappear at dawn before the next
+day begins.
 
 ## 13. Current scope
 
