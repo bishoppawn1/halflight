@@ -377,7 +377,7 @@ their respawn until that footprint is clear.
 | Wire Snare | 5 fiber, 2 copper | 2 | 45 | 8 damage and 58% slow for 2.6 seconds |
 | Fire Trap | 4 stone, 3 coal, 2 sulfur | 1 | 70 | 18 damage in a wide area; 3.2-second cooldown |
 | Scrap Turret | 6 wood, 7 iron, 5 copper | 1 | 95 | 12 damage within 360 units every 700 ms |
-| Crop Plot | 2 wood, 2 fiber, 1 seed | 1 | 45 | Single-use 2×2 field that produces berries and seeds |
+| Crop Plot | 2 wood, 1 seed | 1 | 45 | Single-use 2×2 field that produces berries and seeds |
 
 Crop plots mature in 300 seconds and display only their current whole-number
 percentage, such as `59%`, without a repeated growth label. A mature harvest

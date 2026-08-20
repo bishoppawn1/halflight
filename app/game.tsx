@@ -487,7 +487,7 @@ const BUILD_DATA: Record<
   snare: { name: "Wire Snare", detail: "Hurts and slows monsters", icon: "SN", cost: { fiber: 5, copper: 2 }, makes: 2, hp: 45 },
   fireTrap: { name: "Fire Trap", detail: "Burns a wide area", icon: "FT", cost: { stone: 4, coal: 3, sulfur: 2 }, makes: 1, hp: 70 },
   turret: { name: "Scrap Turret", detail: "Automatically shoots monsters", icon: "TU", cost: { wood: 6, iron: 7, copper: 5 }, makes: 1, hp: 95 },
-  crop: { name: "Crop Plot", detail: "Grows berries over time", icon: "CP", cost: { wood: 2, fiber: 2, seeds: 1 }, makes: 1, hp: 45 },
+  crop: { name: "Crop Plot", detail: "Grows berries over time", icon: "CP", cost: { wood: 2, seeds: 1 }, makes: 1, hp: 45 },
 };
 
 const BUILD_ORDER: BuildKind[] = [
