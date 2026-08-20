@@ -146,8 +146,8 @@ only 96 units of close night vision; Standing Torches, Campfires, and Fire Traps
 reveal 225, 410, and 115 units respectively. Caves remain dark at every time of
 day and give the player 112 units of close vision before placed lights extend it.
 
-A full cycle lasts 110 seconds: 55 seconds of day and 55 seconds of night. The
-first run begins partway through daylight, leaving about 37 seconds before
+A full cycle lasts 240 seconds: 120 seconds of day and 120 seconds of night. The
+first run begins partway through daylight, leaving about 82 seconds before
 night 1. At dawn, the day counter increases and up to 12 health is restored.
 All ordinary night-wave monsters disappear at dawn. The cave guardian is a
 permanent cave encounter and is not removed by the day transition.
@@ -180,17 +180,18 @@ pointer is slightly off, the tool's aim ray is tested against the complete
 footprints of nearby resources and the first intersected footprint is selected.
 Pointer coordinates stay synchronized while the camera moves.
 
-| Tool tier | Node durability removed and per-hit yield | Cooldown | Access |
-| --- | ---: | ---: | --- |
-| Wood | 1 | 400 ms | Trees and ordinary rock |
-| Stone | 2 | 400 ms | Trees, granite, iron, copper, coal, and sulfur |
-| Iron | 3 | 400 ms | All deposits, including Aetherium |
-| Aetherium | 5 | 400 ms | All deposits |
+| Tool tier | Node durability removed per hit | Axe cooldown | Pickaxe cooldown | Access |
+| --- | ---: | ---: | ---: | --- |
+| Wood | 1 | 700 ms | 820 ms | Trees and ordinary rock |
+| Stone | 2 | 760 ms | 860 ms | Trees, granite, iron, copper, coal, and sulfur |
+| Iron | 3 | 700 ms | 800 ms | All deposits, including Aetherium |
+| Aetherium | 5 | 620 ms | 700 ms | All deposits |
 
-Forage uses a 300 ms cooldown. A tool awards the material for every durability
-point it removes, so higher tiers gather several hits' yield at once. Tool
-tiers never accelerate the swing rate; their advantage is increased node
-damage and access to stronger deposits.
+Each equipped item has one shared action cooldown. An axe or pickaxe uses the
+same cooldown against a resource node and a creature, and changing targets does
+not bypass that timer. Forage also uses the selected item's cooldown but does
+not play its attack animation. Higher tiers remove more node durability per hit
+and give access to stronger deposits.
 
 Every axe and pickaxe tier is a separate inventory item. Crafting a Stone
 Pickaxe, for example, does not remove or alter an owned Wood Pickaxe. Tools lose
@@ -353,20 +354,24 @@ thrust animation; axes, pickaxes, swords, and improvised attacks use arcs.
 
 | Item | Damage | Range | Cooldown |
 | --- | ---: | ---: | ---: |
-| Wood axe | 7 | 78 | 560 ms |
-| Stone axe | 9 | 78 | 620 ms |
-| Iron axe | 14 | 78 | 580 ms |
-| Aetherium axe | 22 | 78 | 500 ms |
-| Wood pickaxe | 5 | 78 | 660 ms |
-| Stone pickaxe | 7 | 78 | 700 ms |
-| Iron pickaxe | 11 | 78 | 640 ms |
-| Aetherium pickaxe | 18 | 78 | 560 ms |
-| Stone spear | 17 | 102 | 460 ms |
-| Iron sword | 25 | 102 | 330 ms |
-| Hunting bow | 18 | 520 | 620 ms |
-| Scrap pistol | 34 | 640 | 280 ms |
-| Deconstruction hammer | 3 | 78 | 600 ms |
-| Hands, food, or build tool | 3 | 78 | 430 ms |
+| Wood axe | 7 | 78 | 700 ms |
+| Stone axe | 9 | 78 | 760 ms |
+| Iron axe | 14 | 78 | 700 ms |
+| Aetherium axe | 22 | 78 | 620 ms |
+| Wood pickaxe | 5 | 78 | 820 ms |
+| Stone pickaxe | 7 | 78 | 860 ms |
+| Iron pickaxe | 11 | 78 | 800 ms |
+| Aetherium pickaxe | 18 | 78 | 700 ms |
+| Stone spear | 17 | 102 | 620 ms |
+| Iron sword | 25 | 102 | 480 ms |
+| Hunting bow | 18 | 520 | 780 ms |
+| Scrap pistol | 34 | 640 | 460 ms |
+| Deconstruction hammer | 3 | 78 | 750 ms |
+| Hands, food, or build tool | 3 | 78 | 600 ms |
+
+Hostile creatures can land contact damage at most once every 1.25 seconds and
+can damage a blocking structure at most once every 1.2 seconds. Tamed companions
+can attack a nearby horror once every 1.1 seconds.
 
 Wildlife drops species-specific amounts of meat and hide; birds provide meat
 but no hide. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2

@@ -249,9 +249,12 @@ interface Recipe {
 const WORLD_W = 5200;
 const WORLD_H = 3800;
 const GRID = 48;
-const DAY_SECONDS = 110;
+const DAY_SECONDS = 240;
 const LOW_HEALTH_THRESHOLD = 30;
 const LOW_HUNGER_THRESHOLD = 25;
+const COMPANION_ATTACK_COOLDOWN_MS = 1100;
+const CREATURE_ATTACK_COOLDOWN_MS = 1250;
+const CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS = 1200;
 const CONSTRUCTION_SECONDS = 1.5;
 const DECONSTRUCTION_SECONDS = 2.25;
 const BUILDING_HALF_SIZE = 23;
@@ -516,26 +519,26 @@ interface AttackProfile {
 const BASIC_ATTACK: AttackProfile = {
   damage: 3,
   range: 78,
-  cooldown: 430,
-  animationSeconds: 0.2,
+  cooldown: 600,
+  animationSeconds: 0.32,
   arc: 0.8,
   style: "slash",
 };
 
 const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
-  woodAxe: { damage: 7, range: 78, cooldown: 560, animationSeconds: 0.26, arc: 1.05, style: "slash" },
-  stoneAxe: { damage: 9, range: 78, cooldown: 620, animationSeconds: 0.3, arc: 1.05, style: "slash" },
-  ironAxe: { damage: 14, range: 78, cooldown: 580, animationSeconds: 0.28, arc: 1.05, style: "slash" },
-  aetheriumAxe: { damage: 22, range: 78, cooldown: 500, animationSeconds: 0.24, arc: 1.05, style: "slash" },
-  woodPickaxe: { damage: 5, range: 78, cooldown: 660, animationSeconds: 0.32, arc: 0.85, style: "slash" },
-  stonePickaxe: { damage: 7, range: 78, cooldown: 700, animationSeconds: 0.34, arc: 0.85, style: "slash" },
-  ironPickaxe: { damage: 11, range: 78, cooldown: 640, animationSeconds: 0.31, arc: 0.85, style: "slash" },
-  aetheriumPickaxe: { damage: 18, range: 78, cooldown: 560, animationSeconds: 0.27, arc: 0.85, style: "slash" },
-  hammer: { damage: 3, range: 78, cooldown: 600, animationSeconds: 0.29, arc: 0.9, style: "slash" },
-  spear: { damage: 17, range: 102, cooldown: 460, animationSeconds: 0.25, arc: 0.38, style: "thrust" },
-  sword: { damage: 25, range: 102, cooldown: 330, animationSeconds: 0.2, arc: 1.15, style: "slash" },
-  bow: { damage: 18, range: 520, cooldown: 620, animationSeconds: 0.3, arc: 0, style: "shot" },
-  pistol: { damage: 34, range: 640, cooldown: 280, animationSeconds: 0.14, arc: 0, style: "shot" },
+  woodAxe: { damage: 7, range: 78, cooldown: 700, animationSeconds: 0.36, arc: 1.05, style: "slash" },
+  stoneAxe: { damage: 9, range: 78, cooldown: 760, animationSeconds: 0.4, arc: 1.05, style: "slash" },
+  ironAxe: { damage: 14, range: 78, cooldown: 700, animationSeconds: 0.38, arc: 1.05, style: "slash" },
+  aetheriumAxe: { damage: 22, range: 78, cooldown: 620, animationSeconds: 0.34, arc: 1.05, style: "slash" },
+  woodPickaxe: { damage: 5, range: 78, cooldown: 820, animationSeconds: 0.42, arc: 0.85, style: "slash" },
+  stonePickaxe: { damage: 7, range: 78, cooldown: 860, animationSeconds: 0.44, arc: 0.85, style: "slash" },
+  ironPickaxe: { damage: 11, range: 78, cooldown: 800, animationSeconds: 0.41, arc: 0.85, style: "slash" },
+  aetheriumPickaxe: { damage: 18, range: 78, cooldown: 700, animationSeconds: 0.38, arc: 0.85, style: "slash" },
+  hammer: { damage: 3, range: 78, cooldown: 750, animationSeconds: 0.4, arc: 0.9, style: "slash" },
+  spear: { damage: 17, range: 102, cooldown: 620, animationSeconds: 0.34, arc: 0.38, style: "thrust" },
+  sword: { damage: 25, range: 102, cooldown: 480, animationSeconds: 0.3, arc: 1.15, style: "slash" },
+  bow: { damage: 18, range: 520, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
+  pistol: { damage: 34, range: 640, cooldown: 460, animationSeconds: 0.24, arc: 0, style: "shot" },
 };
 
 function attackProfile(tool: Tool) {
@@ -1612,7 +1615,6 @@ function interact(game: GameState) {
 
 const TOOL_TIER_RANK: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 4 };
 const TOOL_POWER: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 5 };
-const TOOL_COOLDOWN: Record<ToolTier, number> = { none: 450, wood: 400, stone: 400, iron: 400, aetherium: 400 };
 
 function wearTool(game: GameState, tool: DurableTool) {
   const remaining = Math.max(0, game.gear.toolDurability[tool] - 1);
@@ -1626,10 +1628,11 @@ function wearTool(game: GameState, tool: DurableTool) {
 
 function harvestNode(game: GameState, node: ResourceNode) {
   const now = performance.now();
-  if (now < game.player.useReady || game.dead || !game.started) return;
+  if (now < game.player.useReady || now < game.player.attackReady || game.dead || !game.started) return;
   const tree = isTree(node.kind);
   const mining = isMineable(node.kind);
   const selectedTool = durableToolInfo(game.selected);
+  const profile = attackProfile(game.selected);
   if (tree && selectedTool?.family !== "axe") {
     notify(game, "Put an axe in the selected hotbar slot.", 900);
     game.player.useReady = now + 450;
@@ -1656,8 +1659,8 @@ function harvestNode(game: GameState, node: ResourceNode) {
   const power = tree || mining ? TOOL_POWER[tier] : 1;
   const hits = Math.min(power, node.hp);
   node.hp -= power;
-  game.player.swing = 0.24;
-  game.player.useReady = now + (tree || mining ? TOOL_COOLDOWN[tier] : 300);
+  game.player.swing = tree || mining ? profile.animationSeconds : 0;
+  game.player.attackReady = now + profile.cooldown;
   const gains: string[] = [];
   const gain = (material: Material, amount: number) => {
     addMaterial(game, material, amount);
@@ -1969,7 +1972,7 @@ function updateCreatures(game: GameState, dt: number) {
         targetX = enemy.x;
         targetY = enemy.y;
         const enemyDistance = Math.hypot(enemy.x - creature.x, enemy.y - creature.y);
-        if (enemyDistance < 45 && now - creature.hitAt > 800) {
+        if (enemyDistance < 45 && now - creature.hitAt > COMPANION_ATTACK_COOLDOWN_MS) {
           enemy.hp -= ANIMAL_DATA[creature.kind as AnimalKind].companionDamage;
           creature.hitAt = now;
           if (enemy.hp <= 0) awardCreatureDrop(game, enemy);
@@ -2041,12 +2044,12 @@ function updateCreatures(game: GameState, dt: number) {
       const pace = creature.speed * paceMultiplier * slowFactor;
       creature.dir = Math.atan2(dy, dx);
       const blocker = moveCreatureWithBuildings(game, creature, dx, dy, distance, pace * dt);
-      if (blocker && isMonster(creature.kind) && now - creature.structureHitAt > 800) {
+      if (blocker && isMonster(creature.kind) && now - creature.structureHitAt > CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS) {
         blocker.hp -= creature.damage;
         creature.structureHitAt = now;
       }
     }
-    if (attackingPlayer && playerDistance < creatureRadius(creature) + 24 && now - creature.hitAt > 850) {
+    if (attackingPlayer && playerDistance < creatureRadius(creature) + 24 && now - creature.hitAt > CREATURE_ATTACK_COOLDOWN_MS) {
       const armorReduction = game.gear.armor === "blacksteel" ? 0.55 : game.gear.armor === "iron" ? 0.35 : game.gear.armor === "copper" ? 0.18 : 0;
       const received = creature.damage * (1 - armorReduction);
       game.player.hp -= received;
