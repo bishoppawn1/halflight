@@ -2436,54 +2436,56 @@ function drawTree(ctx: CanvasRenderingContext2D, node: ResourceNode) {
 
   if (node.kind === "pine") {
     const whorls = [
-      { radius: 1, points: 15, inner: 0.58, rotation: 0.04, fill: "#153c31" },
-      { radius: 0.74, points: 13, inner: 0.55, rotation: 0.19, fill: "#246044" },
-      { radius: 0.45, points: 10, inner: 0.52, rotation: 0.34, fill: "#3d7b50" },
+      { radius: 1, points: 16, inner: 0.82, rotation: -0.05, fill: "#123c30" },
+      { radius: 0.96, points: 15, inner: 0.8, rotation: 0.17, fill: "#19513a" },
+      { radius: 0.88, points: 14, inner: 0.79, rotation: -0.18, fill: "#226344" },
+      { radius: 0.68, points: 12, inner: 0.76, rotation: 0.24, fill: "#30764a" },
+      { radius: 0.45, points: 10, inner: 0.74, rotation: -0.28, fill: "#4a8b55" },
     ];
     whorls.forEach((whorl, index) => {
       radialCrownPath(ctx, radius * whorl.radius, whorl.points, whorl.inner, whorl.rotation, node.id * 17 + index * 41);
       ctx.fillStyle = whorl.fill;
-      ctx.strokeStyle = index === 0 ? "#0e2d26" : "rgba(13,47,34,.8)";
-      ctx.lineWidth = index === 0 ? 4 : 2.5;
+      ctx.strokeStyle = index === 0 ? "#0d3027" : "rgba(12,51,36,.7)";
+      ctx.lineWidth = index === 0 ? 3.5 : 2;
       ctx.fill();
       ctx.stroke();
     });
-    ctx.strokeStyle = "rgba(157,194,119,.32)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 12; i++) {
-      const angle = (Math.PI * 2 * i) / 12 + 0.1;
+    ctx.strokeStyle = "rgba(174,210,132,.3)";
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 16; i++) {
+      const angle = (Math.PI * 2 * i) / 16 + 0.08;
       ctx.beginPath();
-      ctx.moveTo(Math.cos(angle) * radius * 0.16, Math.sin(angle) * radius * 0.16);
-      ctx.lineTo(Math.cos(angle) * radius * 0.78, Math.sin(angle) * radius * 0.78);
+      ctx.moveTo(Math.cos(angle) * radius * 0.28, Math.sin(angle) * radius * 0.28);
+      ctx.lineTo(Math.cos(angle) * radius * 0.73, Math.sin(angle) * radius * 0.73);
       ctx.stroke();
     }
-    ctx.fillStyle = "#a7c577";
+    ctx.fillStyle = "#6da45d";
     ctx.beginPath();
-    ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius * 0.13, 0, Math.PI * 2);
     ctx.fill();
   } else if (node.kind === "birch") {
-    radialCrownPath(ctx, radius, 12, 0.77, 0.06, node.id * 19);
-    ctx.fillStyle = "#285d3b";
-    ctx.strokeStyle = "#17452f";
-    ctx.lineWidth = 4;
+    ctx.fillStyle = "#397744";
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.76, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
 
-    ctx.strokeStyle = "rgba(231,228,203,.7)";
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 9; i++) {
-      const angle = (Math.PI * 2 * i) / 9 + seeded(node.id, i + 312) * 0.28;
-      const distance = radius * (0.45 + seeded(node.id + i, 319) * 0.25);
+    for (let i = 0; i < 13; i++) {
+      const angle = (Math.PI * 2 * i) / 13 + seeded(node.id, i + 312) * 0.14;
+      const distance = radius * (0.6 + seeded(node.id + i, 319) * 0.06);
+      const clusterRadius = radius * (0.26 + seeded(node.id + i, 334) * 0.055);
+      ctx.fillStyle = i % 3 === 0 ? "#a6d96c" : i % 3 === 1 ? "#69af50" : "#84c45a";
+      ctx.strokeStyle = "rgba(37,91,51,.72)";
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(angle) * distance, Math.sin(angle) * distance);
+      ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance, clusterRadius, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
     }
-    for (let i = 0; i < 12; i++) {
-      const angle = (Math.PI * 2 * i) / 12 + seeded(node.id, i + 325) * 0.22;
-      const distance = i < 3 ? radius * 0.25 : radius * (0.45 + seeded(node.id + i, 330) * 0.28);
-      const clusterRadius = radius * (0.18 + seeded(node.id + i, 334) * 0.09);
-      ctx.fillStyle = i % 3 === 0 ? "#9ccf68" : i % 3 === 1 ? "#68ad50" : "#82be58";
+    for (let i = 0; i < 7; i++) {
+      const angle = (Math.PI * 2 * i) / 7 + 0.26;
+      const distance = i === 6 ? 0 : radius * 0.27;
+      const clusterRadius = radius * (i === 6 ? 0.34 : 0.3);
+      ctx.fillStyle = i % 3 === 0 ? "#9bd269" : i % 3 === 1 ? "#78bb55" : "#8fc85d";
       ctx.strokeStyle = "rgba(38,91,52,.72)";
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -2491,45 +2493,57 @@ function drawTree(ctx: CanvasRenderingContext2D, node: ResourceNode) {
       ctx.fill();
       ctx.stroke();
     }
-    ctx.fillStyle = "#eee7d1";
-    ctx.strokeStyle = "#675f52";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = "#5b544a";
-    ctx.lineWidth = 2;
-    for (const y of [-4, 1, 5]) {
+    ctx.strokeStyle = "rgba(237,245,194,.5)";
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8 + 0.18;
+      const distance = radius * (0.31 + (i % 2) * 0.2);
+      const tangent = angle + Math.PI / 2;
       ctx.beginPath();
-      ctx.moveTo(-6 + Math.abs(y) * 0.4, y);
-      ctx.lineTo(y === 1 ? 6 : 3, y + 1);
+      ctx.moveTo(
+        Math.cos(angle) * distance - Math.cos(tangent) * radius * 0.055,
+        Math.sin(angle) * distance - Math.sin(tangent) * radius * 0.055,
+      );
+      ctx.lineTo(
+        Math.cos(angle) * distance + Math.cos(tangent) * radius * 0.055,
+        Math.sin(angle) * distance + Math.sin(tangent) * radius * 0.055,
+      );
       ctx.stroke();
     }
   } else {
-    radialCrownPath(ctx, radius, 14, 0.78, 0, node.id * 23);
     ctx.fillStyle = "#194a36";
-    ctx.strokeStyle = "#123b2d";
-    ctx.lineWidth = 5;
-    ctx.fill();
-    ctx.stroke();
-    const clusters = [
-      [-0.35, -0.22, 0.42], [0.34, -0.2, 0.4], [-0.28, 0.34, 0.4],
-      [0.32, 0.32, 0.42], [0, -0.02, 0.49],
-    ] as const;
-    clusters.forEach(([x, y, size], index) => {
-      ctx.fillStyle = index === 4 ? "#4f9454" : index % 2 ? "#34764a" : "#2a6842";
-      ctx.beginPath();
-      ctx.arc(x * radius, y * radius, size * radius, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.fillStyle = "#84583b";
-    ctx.strokeStyle = "#4c3528";
-    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius * 0.82, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
+
+    for (let i = 0; i < 11; i++) {
+      const angle = (Math.PI * 2 * i) / 11 + seeded(node.id, i + 360) * 0.12;
+      const distance = radius * (0.55 + seeded(node.id + i, 367) * 0.07);
+      const clusterRadius = radius * (0.32 + seeded(node.id + i, 374) * 0.055);
+      ctx.fillStyle = i % 3 === 0 ? "#2d6b43" : i % 3 === 1 ? "#397c49" : "#27613e";
+      ctx.strokeStyle = "rgba(19,65,43,.72)";
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance, clusterRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    for (let i = 0; i < 7; i++) {
+      const angle = (Math.PI * 2 * i) / 7 + 0.2;
+      const distance = i === 6 ? 0 : radius * 0.28;
+      ctx.fillStyle = i === 6 ? "#4f9454" : i % 2 ? "#3e824d" : "#34764a";
+      ctx.strokeStyle = "rgba(29,88,52,.62)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance, radius * (i === 6 ? 0.38 : 0.35), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(144,190,102,.24)";
+    ctx.beginPath();
+    ctx.arc(-radius * 0.13, -radius * 0.16, radius * 0.2, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
 }

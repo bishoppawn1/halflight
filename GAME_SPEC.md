@@ -129,9 +129,11 @@ Opening the cache with `E` awards 4 granite, 5 iron, 4 copper, 3 coal, 3 sulfur,
 and 2 Aetherium. Its opened chest remains visible.
 
 The three tree species and every rock are drawn from directly overhead. Pines
-have layered, pointed needle whorls; birches have airy bright leaf clusters with
-a visible white, dark-marked trunk; and oaks retain a broad, lobed crown. A tree
-crown covers the same circular area used for its collision and pointer target.
+use overlapping jagged needle whorls at different angles, giving the full crown
+a circular silhouette. Birches use airy, bright leaf clusters and oaks use a
+broad arrangement of overlapping rounded lobes. No tree exposes a trunk tip
+through or beyond its crown. A tree crown covers the same circular area used for
+its collision and pointer target.
 Mineable nodes are multi-boulder patches whose visible spread matches their
 collision and pointer footprint. Small, medium, and huge patches are visibly
 different at a glance. Several connected medium and huge ordinary-rock patches
