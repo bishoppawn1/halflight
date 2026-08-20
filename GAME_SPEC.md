@@ -106,7 +106,7 @@ The Meadow and the connected cave system are separate 5,200 by 3,800 world
 spaces. The caves and their chambers are deliberately unnamed; entrances,
 exits, prompts, and the location display identify them only as caves.
 
-- **The Meadow** contains open grassland, dense patches of harvestable wild
+- **The Meadow** contains open grassland, sparse clumps of harvestable wild
   grass, eight scattered iron and copper deposits, scattered ordinary rock with
   occasional huge outcrops, three cave entrances, one rare Aetherium deposit,
   and the Blackwood.
@@ -194,8 +194,9 @@ the camera moves.
 Each equipped item has one shared action cooldown. An axe or pickaxe uses the
 same cooldown against a resource node and a creature, and changing targets does
 not bypass that timer. Forage also uses the selected item's cooldown but does
-not play its attack animation. Higher tiers remove more node durability per hit
-and give access to stronger deposits.
+not play its attack animation. Wild grass is the only natural source of fiber.
+Higher tiers remove more node durability per hit and give access to stronger
+deposits.
 
 Every axe and pickaxe tier is a separate inventory item. Crafting a Stone
 Pickaxe, for example, does not remove or alter an owned Wood Pickaxe. Tools lose
@@ -220,9 +221,9 @@ no numeric durability text until it is depleted or fully respawned.
 
 | Node | Durability | World drops on depletion |
 | --- | ---: | --- |
-| Oak | 8 | 16 wood and 2 fiber |
-| Pine | 6 | 6 wood and 6 fiber |
-| Birch | 5 | 5 wood and 1 fiber |
+| Oak | 8 | 16 wood |
+| Pine | 6 | 6 wood |
+| Birch | 5 | 5 wood |
 | Stone | 6 | 6 stone |
 | Granite | 9 | 9 granite |
 | Iron ore | 8 | 8 iron |

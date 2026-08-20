@@ -793,13 +793,13 @@ function makeGame(): GameState {
     const y = 110 + seeded(i, 2) * (WORLD_H - 220);
     const roll = i % 16;
     const kind: ResourceKind =
-      roll === 0 ? "berryBush" : roll === 1 || roll === 2 ? "grass" : roll === 3 ? "granite" : roll === 4 || roll === 5 ? "rock" : roll === 6 ? "birch" : roll === 7 ? "mushroom" : i % 2 ? "oak" : "pine";
+      roll === 0 ? "berryBush" : roll === 1 ? "grass" : roll === 3 ? "granite" : roll === 4 || roll === 5 ? "rock" : roll === 6 ? "birch" : roll === 7 ? "mushroom" : i % 2 ? "oak" : "pine";
     if (!inForest(x, y) || !isTree(kind)) {
       addNode(kind, "meadow", x, y, isMineable(kind) ? depositSize(i, 15) : "medium");
     }
   }
 
-  for (let i = 0; i < 170; i++) {
+  for (let i = 0; i < 48; i++) {
     addNode(
       "grass",
       "meadow",
@@ -807,8 +807,8 @@ function makeGame(): GameState {
       70 + seeded(i, 122) * (WORLD_H - 140),
     );
   }
-  for (let i = 0; i < 28; i++) {
-    const angle = (i / 28) * Math.PI * 2 + seeded(i, 126) * 0.3;
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2 + seeded(i, 126) * 0.3;
     const distance = 115 + seeded(i, 127) * 235;
     addNode("grass", "meadow", SPAWN_X + Math.cos(angle) * distance, SPAWN_Y + Math.sin(angle) * distance);
   }
@@ -837,7 +837,7 @@ function makeGame(): GameState {
     const radius = Math.sqrt(seeded(i, 42));
     const x = FOREST_X + Math.cos(angle) * FOREST_RX * radius;
     const y = FOREST_Y + Math.sin(angle) * FOREST_RY * radius;
-    const kind: ResourceKind = i % 13 === 0 ? "berryBush" : i % 17 === 0 ? "mushroom" : i % 11 === 0 ? "grass" : i % 3 === 0 ? "pine" : i % 3 === 1 ? "oak" : "birch";
+    const kind: ResourceKind = i % 13 === 0 ? "berryBush" : i % 17 === 0 ? "mushroom" : i % 29 === 0 ? "grass" : i % 3 === 0 ? "pine" : i % 3 === 1 ? "oak" : "birch";
     const tooClose = isTree(kind) && nodes.some((node) => node.realm === "meadow" && isTree(node.kind) && Math.hypot(node.x - x, node.y - y) < 82);
     if (!tooClose) addNode(kind, "meadow", x, y);
   }
@@ -1730,9 +1730,8 @@ function resourceNodeLabel(kind: ResourceKind) {
 }
 
 function resourceNodeLoot(node: ResourceNode): [Material, number][] {
-  if (node.kind === "oak") return [["wood", node.maxHp * 2], ["fiber", 2]];
-  if (node.kind === "pine") return [["wood", node.maxHp], ["fiber", node.maxHp]];
-  if (node.kind === "birch") return [["wood", node.maxHp], ["fiber", 1]];
+  if (node.kind === "oak") return [["wood", node.maxHp * 2]];
+  if (node.kind === "pine" || node.kind === "birch") return [["wood", node.maxHp]];
   if (node.kind === "rock") return [["stone", node.maxHp]];
   if (node.kind === "granite") return [["granite", node.maxHp]];
   if (node.kind === "ironOre") return [["iron", node.maxHp]];
