@@ -2577,188 +2577,89 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: GameState) {
 
 function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
   const kind = creature.kind as AnimalKind;
-  const animalColor: Record<AnimalKind, string> = {
-    bear: "#77513c",
-    boar: "#9a6444",
-    deer: "#b57a48",
-    rabbit: "#b9b6aa",
-    fox: "#d36f3d",
-    wolf: "#697773",
+  const style: Record<AnimalKind, { body: string; light: string; length: number; width: number; headX: number; headLength: number; headWidth: number }> = {
+    bear: { body: "#77513c", light: "#a97857", length: 34, width: 23, headX: 27, headLength: 18, headWidth: 16 },
+    boar: { body: "#9a6444", light: "#bd7b56", length: 31, width: 19, headX: 27, headLength: 18, headWidth: 14 },
+    deer: { body: "#b57a48", light: "#d39a63", length: 30, width: 14, headX: 29, headLength: 15, headWidth: 10 },
+    rabbit: { body: "#b9b6aa", light: "#ded9cd", length: 24, width: 15, headX: 21, headLength: 12, headWidth: 11 },
+    fox: { body: "#d36f3d", light: "#f0b27d", length: 29, width: 15, headX: 27, headLength: 15, headWidth: 12 },
+    wolf: { body: "#697773", light: "#9aa4a0", length: 31, width: 17, headX: 28, headLength: 16, headWidth: 13 },
   };
-  const lightColor: Record<AnimalKind, string> = {
-    bear: "#a97857",
-    boar: "#bd7b56",
-    deer: "#d39a63",
-    rabbit: "#ded9cd",
-    fox: "#e69a67",
-    wolf: "#9aa4a0",
-  };
-  const body = animalColor[kind];
-  const light = lightColor[kind];
+  const { body, light, length, width, headX, headLength, headWidth } = style[kind];
   const outline = kind === "rabbit" ? "#56544e" : "#3e322c";
-  const bodyLength = kind === "bear" ? 31 : kind === "rabbit" ? 21 : kind === "deer" ? 27 : 28;
-  const bodyWidth = kind === "bear" ? 21 : kind === "boar" ? 18 : kind === "rabbit" ? 13 : kind === "deer" ? 13 : 15;
 
   ctx.fillStyle = body;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 4;
-
-  // Tails and legs sit beneath the torso, just as they would be seen from overhead.
-  if (kind === "fox" || kind === "wolf") {
-    ctx.beginPath();
-    ctx.moveTo(-19, -7);
-    ctx.bezierCurveTo(-34, -20, -48, -15, -43, -3);
-    ctx.bezierCurveTo(-38, 8, -27, 9, -18, 5);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    if (kind === "fox") {
-      ctx.fillStyle = "#eee2cf";
-      ctx.beginPath();
-      ctx.ellipse(-42, -7, 8, 6, -0.45, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = body;
-    }
-  } else if (kind === "rabbit") {
-    ctx.fillStyle = "#eee9dc";
-    ctx.beginPath();
-    ctx.arc(-23, 0, 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = body;
-  } else if (kind === "deer") {
-    ctx.fillStyle = "#eee4d0";
-    ctx.beginPath();
-    ctx.moveTo(-25, 0);
-    ctx.lineTo(-15, -7);
-    ctx.lineTo(-15, 7);
-    ctx.closePath();
-    ctx.fill();
-  } else {
-    ctx.beginPath();
-    ctx.arc(-bodyLength + 1, 0, kind === "bear" ? 6 : 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  for (const [x, y] of [[-12, -bodyWidth], [11, -bodyWidth], [-12, bodyWidth], [11, bodyWidth]] as const) {
-    ctx.beginPath();
-    ctx.ellipse(x, y, kind === "rabbit" ? 8 : 10, kind === "rabbit" ? 4 : 5, x < 0 ? -0.2 : 0.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
   ctx.beginPath();
-  ctx.ellipse(-2, 0, bodyLength, bodyWidth, 0, 0, Math.PI * 2);
+  ctx.ellipse(-3, 0, length, width, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+
   ctx.fillStyle = light;
-  ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = 0.48;
   ctx.beginPath();
-  ctx.ellipse(-4, -bodyWidth * 0.25, bodyLength * 0.62, bodyWidth * 0.34, 0, Math.PI, Math.PI * 2);
+  ctx.ellipse(-7, -width * 0.3, length * 0.62, width * 0.32, 0, Math.PI, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  if (kind === "rabbit") {
-    ctx.fillStyle = body;
-    for (const y of [-7, 7]) {
+  if (kind === "deer") {
+    ctx.fillStyle = "rgba(239,214,165,.72)";
+    for (const [x, y] of [[-12, -6], [-2, 7], [9, -5]] as const) {
       ctx.beginPath();
-      ctx.ellipse(33, y, 16, 5, y * 0.015, 0, Math.PI * 2);
+      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#d8a7a0";
-      ctx.beginPath();
-      ctx.ellipse(35, y, 10, 2, y * 0.015, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = body;
     }
+  } else if (kind === "boar") {
+    ctx.strokeStyle = "rgba(77,48,37,.6)";
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(20, 0, 12, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(-21, 0);
+    ctx.lineTo(10, 0);
     ctx.stroke();
-  } else if (kind === "fox" || kind === "wolf") {
+  }
+
+  ctx.fillStyle = body;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 4;
+  if (kind === "fox" || kind === "wolf") {
     ctx.fillStyle = body;
     ctx.beginPath();
-    ctx.moveTo(39, 0);
-    ctx.lineTo(20, -14);
-    ctx.lineTo(14, -8);
-    ctx.lineTo(14, 8);
-    ctx.lineTo(20, 14);
+    ctx.moveTo(headX + headLength, 0);
+    ctx.lineTo(headX - headLength * 0.6, -headWidth);
+    ctx.lineTo(headX - headLength, 0);
+    ctx.lineTo(headX - headLength * 0.6, headWidth);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    for (const y of [-11, 11]) {
-      ctx.beginPath();
-      ctx.moveTo(20, y);
-      ctx.lineTo(13, y * 1.75);
-      ctx.lineTo(29, y * 1.15);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
-    ctx.fillStyle = kind === "fox" ? "#eee2cf" : light;
-    ctx.beginPath();
-    ctx.moveTo(39, 0);
-    ctx.lineTo(29, -5);
-    ctx.lineTo(29, 5);
-    ctx.closePath();
-    ctx.fill();
   } else {
-    const headX = kind === "deer" ? 31 : kind === "boar" ? 25 : 23;
-    const headLength = kind === "deer" ? 15 : kind === "boar" ? 17 : 15;
-    const headWidth = kind === "bear" ? 14 : kind === "boar" ? 13 : 11;
-    ctx.fillStyle = body;
-    if (kind === "deer") {
-      ctx.beginPath();
-      ctx.ellipse(18, 0, 17, 8, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
     ctx.beginPath();
     ctx.ellipse(headX, 0, headLength, headWidth, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    for (const y of [-headWidth, headWidth]) {
-      ctx.beginPath();
-      ctx.ellipse(headX - 2, y, kind === "bear" ? 7 : 9, kind === "bear" ? 6 : 4, y * 0.025, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    ctx.fillStyle = light;
-    ctx.beginPath();
-    ctx.ellipse(headX + headLength - 4, 0, kind === "boar" ? 9 : 7, kind === "boar" ? 8 : 7, 0, 0, Math.PI * 2);
-    ctx.fill();
-    if (kind === "deer") {
-      ctx.strokeStyle = "#6a472f";
-      ctx.lineWidth = 3;
-      for (const side of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(33, side * 8);
-        ctx.lineTo(45, side * 17);
-        ctx.lineTo(53, side * 15);
-        ctx.moveTo(44, side * 16);
-        ctx.lineTo(47, side * 25);
-        ctx.stroke();
-      }
-    }
   }
 
+  ctx.fillStyle = light;
+  ctx.beginPath();
+  ctx.ellipse(headX + headLength * 0.38, 0, headLength * 0.48, headWidth * 0.55, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = "#20211f";
   ctx.beginPath();
-  ctx.arc(kind === "rabbit" ? 25 : 31, -5, 2.2, 0, Math.PI * 2);
-  ctx.arc(kind === "rabbit" ? 25 : 31, 5, 2.2, 0, Math.PI * 2);
+  ctx.arc(headX + headLength * 0.2, -headWidth * 0.42, 2.1, 0, Math.PI * 2);
+  ctx.arc(headX + headLength * 0.2, headWidth * 0.42, 2.1, 0, Math.PI * 2);
   ctx.fill();
   if (creature.tame) {
     ctx.strokeStyle = "#f1bf4f";
     ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.moveTo(15, -bodyWidth * 0.85);
-    ctx.lineTo(15, bodyWidth * 0.85);
+    ctx.moveTo(15, -width * 0.78);
+    ctx.lineTo(15, width * 0.78);
     ctx.stroke();
   }
 }
 
 function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
-  const scale = creature.boss ? 1.82 : creature.kind === "brute" ? 1.28 : creature.kind === "bear" ? 1.2 : creature.kind === "rabbit" ? 0.68 : creature.kind === "boar" ? 0.92 : 1;
+  const scale = creature.boss ? 1.82 : creature.kind === "brute" ? 1.28 : creature.kind === "bear" ? 1.2 : creature.kind === "rabbit" ? 0.78 : creature.kind === "boar" ? 0.92 : 1;
   ctx.save();
   ctx.translate(creature.x, creature.y + Math.sin(now / 230 + creature.phase) * 2);
   ctx.scale(scale, scale);

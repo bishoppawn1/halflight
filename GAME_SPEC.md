@@ -52,10 +52,10 @@ Axes always use one broad, offset chopping blade. Pickaxes use a narrow,
 double-ended head so the two tool families remain distinct at gameplay scale.
 
 Every world object and creature is presented from directly overhead. Wildlife
-uses a complete body silhouette with a visible torso, head, legs, and species
-details such as ears, antlers, or a tail; animals are never represented as a
-front-facing or side-profile face. Creatures turn their whole overhead body in
-their direction of travel.
+uses a clean two-part silhouette made from a torso and head. Legs are omitted
+because they would not be clearly visible from this camera height. Animals are
+never represented as a front-facing or side-profile face, and creatures turn
+their whole overhead body in their direction of travel.
 
 The player moves at 190 world units per second. Trees and mineable deposits use
 their full visible top-down footprint as solid hitboxes. Movement slides along
@@ -332,8 +332,8 @@ Twenty-four animals are distributed around the Blackwood at the start. Common
 prey greatly outnumber the larger and stronger species:
 
 Each species is drawn as a full overhead animal rather than an animal face.
-Body proportions, paws or hooves, ears, tails, antlers, and markings distinguish
-the species while it turns and moves.
+Body and head proportions, color, and contained markings distinguish the
+species without visible legs or other small exterior details.
 
 | Animal | Starting population | Health | Speed | Contact damage | Behavior / notice distance | Tame chance per berry |
 | --- | ---: | ---: | ---: | ---: | --- | ---: |
