@@ -73,6 +73,7 @@ or door can be crossed.
 | Hold left mouse | Repeatedly gather, attack, fire, or start hammer deconstruction at the item's cooldown |
 | Left click in build mode | Place one ready building piece |
 | Hold `Shift` and left-drag | Place ready pieces across each valid grid cell crossed |
+| Right click in build mode | Cancel placement without using a ready piece |
 | `E` | Context action: eat, feed, harvest, operate, enter/exit, or place once |
 | `Space` or `F` | Attack once |
 | `1`–`9`, `0` | Select hotbar slots 1 through 10 |
