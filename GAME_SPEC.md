@@ -56,7 +56,8 @@ Every world object and creature is presented from directly overhead. Wildlife
 uses a clean silhouette made from a torso and head. Airborne crows and owls have
 compact folded wings and visible beaks until they flee; their escape animation
 extends both wings beyond the torso and sweeps them forward and backward in a
-fast flap. Grounded wild turkeys have a broad fan tail, beak, and red wattle.
+fast flap. Grounded wild turkeys have a broad fan tail, beak, and a small red
+wattle attached beneath the base of the beak.
 Ground animals use coat markings. Legs are
 omitted because they would not be clearly visible from this camera height.
 Deer have large, branched antlers and visible side ears; wolves have a broad
@@ -465,10 +466,12 @@ away, both wings extend outside its body and flap forward and backward until it
 stops fleeing. Wild turkeys remain on the ground and carry their tail in a
 visible fan. Flying birds range farther from their home
 point and visibly bob above their softer shadow; all three bird species retain a
-body-and-head overhead shape. Crows have angular blue-black primary feathers and
-a fanned tail, owls have broad rounded speckled wings and a pale facial disk,
-and turkeys have layered copper wing panels, a banded scalloped tail fan, a
-blue-gray head, and a red wattle.
+body-and-head overhead shape. Crows and owls are compact, turkeys are only
+slightly larger, and all three are noticeably smaller than the ground mammals.
+Crows have angular blue-black primary feathers and a fanned tail, owls have
+broad rounded speckled wings and a pale facial disk, and turkeys have layered
+copper wing panels, a banded scalloped tail fan, a blue-gray head, and a small
+attached red throat wattle.
 Wildlife follows smooth roaming paths and turns progressively instead of
 snapping back and forth when it reaches a roaming target or returns home.
 

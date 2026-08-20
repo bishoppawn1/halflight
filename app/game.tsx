@@ -4246,9 +4246,16 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = "#b64035";
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.ellipse(36, 7, 4.5, 9, -0.3, 0, Math.PI * 2);
+    ctx.moveTo(32, 4.5);
+    ctx.bezierCurveTo(36, 3.8, 40.5, 6, 40.5, 9);
+    ctx.bezierCurveTo(40.2, 12.5, 36.5, 13.8, 33.5, 10.5);
+    ctx.bezierCurveTo(31.5, 8.2, 30.7, 5.8, 32, 4.5);
+    ctx.closePath();
     ctx.fill();
+    ctx.stroke();
     collarX = 14;
     collarHalfWidth = 13;
   }
@@ -4561,11 +4568,11 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
         : creature.kind === "rabbit"
           ? 0.78
           : creature.kind === "crow"
-            ? 0.88
+            ? 0.52
             : creature.kind === "owl"
-              ? 0.94
+              ? 0.54
               : creature.kind === "turkey"
-                ? 1
+                ? 0.58
                 : creature.kind === "raccoon" || creature.kind === "boar"
                   ? 0.92
                   : 1;
