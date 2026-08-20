@@ -19,7 +19,7 @@ complete run.
    mushrooms, and rare Aetherium.
 4. Craft tools, armor, melee weapons, bows, guns, ammunition, and healing.
 5. Build a shelter, crops, barriers, automated defenses, and multiple traps.
-6. Feed wild animals three times to tame them as companions.
+6. Lure wildlife with berries and make chance-based taming attempts.
 7. Survive an increasingly large night wave, recover at dawn, and continue.
 
 ## 3. New-run state
@@ -328,27 +328,40 @@ Aetherium.
 
 ## 11. Wildlife and taming
 
-Twenty-four animals are distributed around the Blackwood at the start:
+Twenty-four animals are distributed around the Blackwood at the start. Common
+prey greatly outnumber the larger and stronger species:
 
 Each species is drawn as a full overhead animal rather than an animal face.
 Body proportions, paws or hooves, ears, tails, antlers, and markings distinguish
 the species while it turns and moves.
 
-| Animal | Health | Speed | Contact damage | Aggro distance |
-| --- | ---: | ---: | ---: | ---: |
-| Bear | 70 | 48 | 9 | 135 |
-| Boar | 44 | 55 | 6 | 90 |
-| Deer | 36 | 74 | 4 | 62 |
-| Rabbit | 18 | 84 | 2 | 62 |
-| Fox | 30 | 78 | 4 | 62 |
-| Wolf | 50 | 70 | 8 | 120 |
+| Animal | Starting population | Health | Speed | Contact damage | Behavior / notice distance | Tame chance per berry |
+| --- | ---: | ---: | ---: | ---: | --- | ---: |
+| Rabbit | 10 | 18 | 84 | 0 | Flees within 110 | 60% |
+| Deer | 7 | 36 | 74 | 0 | Flees within 150 | 42% |
+| Fox | 3 | 30 | 78 | 0 | Flees within 125 | 32% |
+| Boar | 2 | 44 | 55 | 6 | Attacks within 90 | 24% |
+| Wolf | 1 | 50 | 70 | 8 | Attacks within 120 | 16% |
+| Bear | 1 | 70 | 48 | 9 | Attacks within 135 | 10% |
 
-Wild animals become angry when approached without berries, mushrooms, or meat
-equipped, or when attacked, and stop chasing beyond 340 units. Feed an animal
-three times to tame it. Each feeding consumes one item of the selected food.
-Tamed animals follow the
-player, cannot be hit by the player, seek night monsters within 230 units, and
-attack at close range.
+Selecting berries lures wild animals from up to 360 units away and suppresses
+aggression while the berries remain selected and available. Without that lure,
+bears, boars, and wolves attack within their notice distance and stop chasing
+beyond 340 units. Rabbits, deer, and foxes never deal contact damage: they flee
+when approached or attacked, remain frightened for five seconds after a hit,
+and return to their original territory once safe. Other disengaged wildlife
+also returns to its original territory.
+
+Pressing `E` near a lured animal consumes one berry and makes one independent
+taming roll. Failed attempts leave the animal wild, so the lower success rates
+make larger and stronger companions require more berries on average. The player
+can have at most five tamed companions. Tamed animals follow the player, cannot
+be hit by the player, seek night monsters within 230 units, and attack at close
+range.
+
+Defeated wild animals leave their population slot empty for 120 seconds, then
+respawn at their original territory with full health and no prior taming
+attempts.
 
 ## 12. Endless night progression
 
