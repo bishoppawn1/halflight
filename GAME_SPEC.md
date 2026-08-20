@@ -63,8 +63,7 @@ their full visible top-down footprint as solid hitboxes. Movement slides along
 their edges so the dense forest remains navigable. The player does not collide
 with forage nodes or creatures. Completed walls, fences, gates, doors, benches,
 chests, and other solid structures block the player and creatures; an open gate
-or door can be crossed. Connected natural stone ridges also block both the
-player and creatures until enough of their rock segments are mined away.
+or door can be crossed.
 
 ## 4. Controls and inventory
 
@@ -103,9 +102,9 @@ spaces. The caves and their chambers are deliberately unnamed; entrances,
 exits, prompts, and the location display identify them only as caves.
 
 - **The Meadow** contains open grassland, dense patches of harvestable wild
-  grass, eight scattered iron and copper deposits, occasional long natural
-  stone ridges, three cave entrances, one rare Aetherium deposit, and the
-  Blackwood.
+  grass, eight scattered iron and copper deposits, scattered ordinary rock with
+  occasional huge outcrops, three cave entrances, one rare Aetherium deposit,
+  and the Blackwood.
 - **The Blackwood** is a large, visibly darker forest biome filled with closely
   spaced oak, pine, and birch trees, forage, bears, and other wildlife.
 - One chamber is rich in granite and ordinary rock, with some coal and
@@ -134,10 +133,10 @@ a circular silhouette. Birches use airy, bright leaf clusters and oaks use a
 broad arrangement of overlapping rounded lobes. No tree exposes a trunk tip
 through or beyond its crown. A tree crown covers the same circular area used for
 its collision and pointer target.
-Mineable nodes are multi-boulder patches whose visible spread matches their
-collision and pointer footprint. Small, medium, and huge patches are visibly
-different at a glance. Several connected medium and huge ordinary-rock patches
-form each occasional natural stone ridge in the Meadow.
+Each mineable node is one solid, faceted outcrop whose visible spread matches
+its collision and pointer footprint. Small, medium, and huge outcrops are
+visibly different at a glance and remain individually scattered; world
+generation never chains separate deposits into a line.
 
 At night, the Meadow is almost completely opaque beyond light. The player has
 only 96 units of close night vision; Standing Torches, Campfires, and Fire Traps
@@ -398,7 +397,7 @@ species without visible legs or other small exterior details.
 | Wolf | 1 | Blackwood | 50 | 70 | 8 | Attacks within 120 | 16% | 14 | 2 meat, 1 hide |
 | Bear | 1 | Blackwood | 70 | 48 | 9 | Attacks within 135 | 10% | 16 | 4 meat, 2 hide |
 
-Crows and owls fly over trees, stone ridges, and player-built structures while
+Crows and owls fly over trees, mineable outcrops, and player-built structures while
 roaming, fleeing, following, or attacking. Wild turkeys remain on the ground.
 Flying birds range farther from their home point and visibly bob above their
 softer shadow; all three bird species retain a body-and-head overhead shape.
