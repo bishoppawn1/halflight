@@ -183,7 +183,10 @@ anywhere under its full visible footprint; the pointer does not need to touch
 the resource's center. If the pointer is slightly off, the tool's aim ray is
 tested against the complete footprints of nearby resources and the first
 intersected footprint is selected. Pointer coordinates stay synchronized while
-the camera moves.
+the camera moves. Once a held use starts on a resource, it stays locked to that
+resource despite camera movement until the player releases the control, moves
+out of range, or depletes it. Depleting the locked resource ends that held use
+instead of turning it into an unintended attack or selecting a different node.
 
 | Tool tier | Node durability removed per hit | Axe cooldown | Pickaxe cooldown | Access |
 | --- | ---: | ---: | ---: | --- |

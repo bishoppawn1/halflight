@@ -186,6 +186,11 @@ interface AttackFlash {
   duration: number;
 }
 
+type HeldAction =
+  | { kind: "resource"; nodeId: number }
+  | { kind: "free" }
+  | null;
+
 interface Player {
   x: number;
   y: number;
@@ -236,6 +241,7 @@ interface GameState {
   attackFlash: AttackFlash | null;
   keys: Set<string>;
   mouseHeld: boolean;
+  heldAction: HeldAction;
   buildDrag: boolean;
   lastBuildCell: string | null;
   pointer: { x: number; y: number; worldX: number; worldY: number; active: boolean };
@@ -1074,6 +1080,7 @@ function makeGame(): GameState {
     attackFlash: null,
     keys: new Set(),
     mouseHeld: false,
+    heldAction: null,
     buildDrag: false,
     lastBuildCell: null,
     pointer: { x: 0, y: 0, worldX: 0, worldY: 0, active: false },
@@ -1230,6 +1237,7 @@ function nearCraftingBench(game: GameState) {
 }
 
 function selectSlot(game: GameState, slot: number) {
+  releasePrimaryInput(game);
   const index = Math.max(0, Math.min(9, slot));
   game.selectedSlot = index;
   game.buildMode = null;
@@ -1463,12 +1471,22 @@ function creatureRadius(creature: Creature) {
   return 20;
 }
 
+function releasePrimaryInput(game: GameState) {
+  game.mouseHeld = false;
+  game.heldAction = null;
+  game.buildDrag = false;
+  game.lastBuildCell = null;
+}
+
+function resetTransientInput(game: GameState) {
+  releasePrimaryInput(game);
+  game.keys.clear();
+}
+
 function cancelBuildMode(game: GameState) {
   game.buildMode = null;
   game.selected = "hands";
-  game.mouseHeld = false;
-  game.buildDrag = false;
-  game.lastBuildCell = null;
+  releasePrimaryInput(game);
 }
 
 function previewCell(game: GameState) {
@@ -2039,14 +2057,36 @@ function primaryAction(game: GameState, repeated = false) {
     return;
   }
   if (game.selected === "hammer") {
+    if (game.mouseHeld && game.heldAction === null) game.heldAction = { kind: "free" };
     startDeconstruction(game);
+    return;
+  }
+  if (repeated && game.heldAction?.kind === "resource") {
+    const lockedNodeId = game.heldAction.nodeId;
+    const lockedNode = game.nodes.find(
+      (node) => node.id === lockedNodeId && node.realm === game.realm,
+    );
+    if (!lockedNode || lockedNode.hp <= 0) {
+      releasePrimaryInput(game);
+      return;
+    }
+    if (distanceToNodeFootprint(lockedNode, game.player.x, game.player.y) > 112) {
+      releasePrimaryInput(game);
+      return;
+    }
+    harvestNode(game, lockedNode);
+    if (lockedNode.hp <= 0) releasePrimaryInput(game);
     return;
   }
   const node = targetNode(game, 112);
   if (node) {
+    if (game.mouseHeld) game.heldAction = { kind: "resource", nodeId: node.id };
     harvestNode(game, node);
+    if (node.hp <= 0) releasePrimaryInput(game);
     return;
   }
+  if (game.mouseHeld && game.heldAction === null) game.heldAction = { kind: "free" };
+  if (repeated && game.heldAction?.kind !== "free") return;
   attack(game);
 }
 
@@ -5383,22 +5423,24 @@ export default function Game() {
       refresh();
     };
     const up = (event: KeyboardEvent) => game.keys.delete(event.key.toLowerCase());
-    const releasePrimary = () => {
-      game.mouseHeld = false;
-      game.buildDrag = false;
-      game.lastBuildCell = null;
+    const releasePrimary = () => releasePrimaryInput(game);
+    const resetInput = () => resetTransientInput(game);
+    const resetHiddenInput = () => {
+      if (document.visibilityState === "hidden") resetTransientInput(game);
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("pointerup", releasePrimary);
     window.addEventListener("pointercancel", releasePrimary);
-    window.addEventListener("blur", releasePrimary);
+    window.addEventListener("blur", resetInput);
+    document.addEventListener("visibilitychange", resetHiddenInput);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("pointerup", releasePrimary);
       window.removeEventListener("pointercancel", releasePrimary);
-      window.removeEventListener("blur", releasePrimary);
+      window.removeEventListener("blur", resetInput);
+      document.removeEventListener("visibilitychange", resetHiddenInput);
     };
   }, [game, refresh]);
 
@@ -5602,9 +5644,7 @@ export default function Game() {
         onPointerMove={pointerMove}
         onPointerLeave={() => {
           game.pointer.active = false;
-          game.mouseHeld = false;
-          game.buildDrag = false;
-          game.lastBuildCell = null;
+          releasePrimaryInput(game);
         }}
         onPointerDown={(event) => {
           if (event.button === 2) {
@@ -5616,20 +5656,22 @@ export default function Game() {
             return;
           }
           if (event.button !== 0) return;
+          event.currentTarget.focus({ preventScroll: true });
           pointerMove(event);
           event.currentTarget.setPointerCapture(event.pointerId);
           game.mouseHeld = true;
+          game.heldAction = null;
           game.buildDrag = event.shiftKey;
           game.lastBuildCell = null;
           primaryAction(game);
           refresh();
         }}
         onPointerUp={(event) => {
-          game.mouseHeld = false;
-          game.buildDrag = false;
-          game.lastBuildCell = null;
+          releasePrimaryInput(game);
           if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
         }}
+        onPointerCancel={() => releasePrimaryInput(game)}
+        onLostPointerCapture={() => releasePrimaryInput(game)}
         onContextMenu={(event) => event.preventDefault()}
         onWheel={(event) => {
           event.preventDefault();
@@ -5718,6 +5760,7 @@ export default function Game() {
             onPointerDown={() => holdMove("w", true)}
             onPointerUp={() => holdMove("w", false)}
             onPointerLeave={() => holdMove("w", false)}
+            onPointerCancel={() => holdMove("w", false)}
             aria-label="Move up"
           >↑</button>
           <button
@@ -5725,6 +5768,7 @@ export default function Game() {
             onPointerDown={() => holdMove("a", true)}
             onPointerUp={() => holdMove("a", false)}
             onPointerLeave={() => holdMove("a", false)}
+            onPointerCancel={() => holdMove("a", false)}
             aria-label="Move left"
           >←</button>
           <button
@@ -5732,6 +5776,7 @@ export default function Game() {
             onPointerDown={() => holdMove("d", true)}
             onPointerUp={() => holdMove("d", false)}
             onPointerLeave={() => holdMove("d", false)}
+            onPointerCancel={() => holdMove("d", false)}
             aria-label="Move right"
           >→</button>
           <button
@@ -5739,6 +5784,7 @@ export default function Game() {
             onPointerDown={() => holdMove("s", true)}
             onPointerUp={() => holdMove("s", false)}
             onPointerLeave={() => holdMove("s", false)}
+            onPointerCancel={() => holdMove("s", false)}
             aria-label="Move down"
           >↓</button>
         </div>
@@ -5758,21 +5804,15 @@ export default function Game() {
           className="touch-attack"
           onPointerDown={() => {
             game.mouseHeld = true;
+            game.heldAction = null;
             game.buildDrag = true;
             game.lastBuildCell = null;
             primaryAction(game);
             refresh();
           }}
-          onPointerUp={() => {
-            game.mouseHeld = false;
-            game.buildDrag = false;
-            game.lastBuildCell = null;
-          }}
-          onPointerLeave={() => {
-            game.mouseHeld = false;
-            game.buildDrag = false;
-            game.lastBuildCell = null;
-          }}
+          onPointerUp={() => releasePrimaryInput(game)}
+          onPointerLeave={() => releasePrimaryInput(game)}
+          onPointerCancel={() => releasePrimaryInput(game)}
         >Hold tool</button>
       </div>
 
