@@ -3419,7 +3419,7 @@ function drawDarkness(
   if (!light) return;
   light.setTransform(dpr, 0, 0, dpr, 0, 0);
   light.clearRect(0, 0, width, height);
-  light.fillStyle = inCave ? "rgba(2,6,9,.985)" : "rgba(4,7,18,.975)";
+  light.fillStyle = inCave ? "rgba(2,6,9,.93)" : "rgba(4,7,18,.975)";
   light.fillRect(0, 0, width, height);
   light.globalCompositeOperation = "destination-out";
 
@@ -3436,7 +3436,7 @@ function drawDarkness(
 
   const playerX = width / 2 + (game.player.x - game.camera.x) * scale;
   const playerY = height / 2 + (game.player.y - game.camera.y) * scale;
-  reveal(playerX, playerY, (inCave ? 112 : 96) * scale, 25 * scale);
+  reveal(playerX, playerY, (inCave ? 430 : 96) * scale, 25 * scale);
   game.buildings.forEach((building) => {
     if (building.realm !== game.realm || building.hp <= 0 || building.construction < 1) return;
     const radius = building.kind === "campfire" ? 410 : building.kind === "torch" ? 225 : building.kind === "fireTrap" ? 115 : 0;
