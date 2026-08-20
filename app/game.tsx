@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type CaveRealm = "caveSystem";
 type CaveZone = "granite" | "iron" | "sulfur";
 type Realm = "meadow" | CaveRealm;
+type ResourceSize = "small" | "medium" | "huge";
 type ResourceKind =
   | "oak"
   | "pine"
@@ -82,6 +83,8 @@ type AttackStyle = "slash" | "thrust" | "shot";
 interface ResourceNode {
   id: number;
   kind: ResourceKind;
+  size: ResourceSize;
+  ridgeId: number;
   realm: Realm;
   x: number;
   y: number;
@@ -584,26 +587,55 @@ function isMineable(kind: ResourceKind) {
   return ["rock", "granite", "ironOre", "copperOre", "coal", "sulfur", "aetherOre"].includes(kind);
 }
 
-function nodeRadius(kind: ResourceKind) {
-  if (kind === "oak") return 58;
-  if (kind === "pine") return 52;
-  if (kind === "birch") return 47;
-  if (kind === "granite") return 50;
-  if (isMineable(kind)) return 43;
-  if (kind === "berryBush") return 28;
-  return 22;
+const RESOURCE_SIZE_SCALE: Record<ResourceSize, number> = {
+  small: 0.68,
+  medium: 1,
+  huge: 1.62,
+};
+
+function nodeRadius(kind: ResourceKind, size: ResourceSize = "medium") {
+  const baseRadius = kind === "oak"
+    ? 58
+    : kind === "pine"
+      ? 52
+      : kind === "birch"
+        ? 47
+        : kind === "granite"
+          ? 50
+          : isMineable(kind)
+            ? 43
+            : kind === "berryBush"
+              ? 28
+              : 22;
+  return baseRadius * (isMineable(kind) ? RESOURCE_SIZE_SCALE[size] : 1);
 }
 
-function nodeHp(kind: ResourceKind) {
-  if (kind === "oak") return 8;
-  if (kind === "pine") return 6;
-  if (kind === "birch") return 5;
-  if (kind === "granite") return 9;
-  if (kind === "ironOre") return 8;
-  if (kind === "copperOre") return 7;
-  if (kind === "aetherOre") return 12;
-  if (kind === "rock" || kind === "coal" || kind === "sulfur") return 6;
-  return 1;
+function nodeHp(kind: ResourceKind, size: ResourceSize = "medium") {
+  const baseHp = kind === "oak"
+    ? 8
+    : kind === "pine"
+      ? 6
+      : kind === "birch"
+        ? 5
+        : kind === "granite"
+          ? 9
+          : kind === "ironOre"
+            ? 8
+            : kind === "copperOre"
+              ? 7
+              : kind === "aetherOre"
+                ? 12
+                : kind === "rock" || kind === "coal" || kind === "sulfur"
+                  ? 6
+                  : 1;
+  if (!isMineable(kind)) return baseHp;
+  const durabilityScale = size === "small" ? 0.6 : size === "huge" ? 2 : 1;
+  return Math.max(1, Math.round(baseHp * durabilityScale));
+}
+
+function depositSize(index: number, salt: number): ResourceSize {
+  const roll = seeded(index, salt);
+  return roll < 0.4 ? "small" : roll < 0.8 ? "medium" : "huge";
 }
 
 function pointToSegmentDistance(
@@ -683,8 +715,16 @@ function makeGame(): GameState {
   const guardianCave = CAVES[Math.floor(Math.random() * CAVES.length)];
   const treasurePoint = caveEncounterPoint(treasureCave, treasureCave.chamberRadius * 0.48, -95);
   const guardianPoint = caveEncounterPoint(guardianCave, guardianCave.chamberRadius * 0.38, 95);
-  const addNode = (kind: ResourceKind, realm: Realm, x: number, y: number) => {
+  const addNode = (
+    kind: ResourceKind,
+    realm: Realm,
+    x: number,
+    y: number,
+    size: ResourceSize = "medium",
+    ridgeId = 0,
+  ) => {
     const blocksMovement = isTree(kind) || isMineable(kind);
+    const radius = nodeRadius(kind, size);
     const clearSpawn = realm !== "meadow" || !blocksMovement || Math.hypot(x - SPAWN_X, y - SPAWN_Y) > 360;
     const clearExit =
       realm === "meadow" ||
@@ -692,7 +732,7 @@ function makeGame(): GameState {
     const clearCave =
       realm !== "meadow" ||
       CAVES.every((cave) => Math.hypot(x - cave.entranceX, y - cave.entranceY) > 210);
-    const insideCave = realm !== "caveSystem" || isCaveFloor(x, y, nodeRadius(kind) + 32);
+    const insideCave = realm !== "caveSystem" || isCaveFloor(x, y, radius + 32);
     const clearCaveNode =
       realm !== "caveSystem" ||
       !blocksMovement ||
@@ -700,16 +740,45 @@ function makeGame(): GameState {
         (node) =>
           node.realm !== realm ||
           !isMineable(node.kind) ||
-          Math.hypot(x - node.x, y - node.y) > nodeRadius(kind) + nodeRadius(node.kind) + 30,
+          Math.hypot(x - node.x, y - node.y) > radius + nodeRadius(node.kind, node.size) + 30,
       );
+    const clearRidge =
+      !blocksMovement ||
+      nodes.every((node) => {
+        if (node.realm !== realm || (!isTree(node.kind) && !isMineable(node.kind))) return true;
+        if (ridgeId > 0 && node.ridgeId === ridgeId) return true;
+        if (ridgeId === 0 && node.ridgeId === 0) return true;
+        return Math.hypot(x - node.x, y - node.y) > radius + nodeRadius(node.kind, node.size) + 24;
+      });
     const clearEncounter =
       realm !== "caveSystem" ||
-      (Math.hypot(x - treasurePoint.x, y - treasurePoint.y) > nodeRadius(kind) + 75 &&
-        Math.hypot(x - guardianPoint.x, y - guardianPoint.y) > nodeRadius(kind) + 95);
-    if (!clearSpawn || !clearExit || !clearCave || !insideCave || !clearCaveNode || !clearEncounter) return;
-    const hp = nodeHp(kind);
-    nodes.push({ id: id++, kind, realm, x, y, hp, maxHp: hp, respawnAt: 0 });
+      (Math.hypot(x - treasurePoint.x, y - treasurePoint.y) > radius + 75 &&
+        Math.hypot(x - guardianPoint.x, y - guardianPoint.y) > radius + 95);
+    if (!clearSpawn || !clearExit || !clearCave || !insideCave || !clearCaveNode || !clearRidge || !clearEncounter) return;
+    const hp = nodeHp(kind, size);
+    nodes.push({ id: id++, kind, size, ridgeId, realm, x, y, hp, maxHp: hp, respawnAt: 0 });
   };
+
+  const meadowRidges = [
+    { x: 3440, y: 620, angle: 0.22, segments: 5 },
+    { x: 3740, y: 1610, angle: -0.62, segments: 6 },
+    { x: 3200, y: 3140, angle: 0.14, segments: 5 },
+    { x: 4780, y: 2090, angle: 1.28, segments: 5 },
+  ];
+  meadowRidges.forEach((ridge, ridgeIndex) => {
+    for (let segment = 0; segment < ridge.segments; segment++) {
+      const offset = (segment - (ridge.segments - 1) / 2) * 102;
+      const size: ResourceSize = segment === 0 || segment === ridge.segments - 1 ? "medium" : "huge";
+      addNode(
+        "rock",
+        "meadow",
+        ridge.x + Math.cos(ridge.angle) * offset,
+        ridge.y + Math.sin(ridge.angle) * offset,
+        size,
+        ridgeIndex + 1,
+      );
+    }
+  });
 
   for (let i = 0; i < 210; i++) {
     const x = 110 + seeded(i, 1) * (WORLD_W - 220);
@@ -717,7 +786,9 @@ function makeGame(): GameState {
     const roll = i % 16;
     const kind: ResourceKind =
       roll === 0 ? "berryBush" : roll === 1 || roll === 2 ? "grass" : roll === 3 ? "granite" : roll === 4 || roll === 5 ? "rock" : roll === 6 ? "birch" : roll === 7 ? "mushroom" : i % 2 ? "oak" : "pine";
-    if (!inForest(x, y) || !isTree(kind)) addNode(kind, "meadow", x, y);
+    if (!inForest(x, y) || !isTree(kind)) {
+      addNode(kind, "meadow", x, y, isMineable(kind) ? depositSize(i, 15) : "medium");
+    }
   }
 
   for (let i = 0; i < 170; i++) {
@@ -734,11 +805,13 @@ function makeGame(): GameState {
     addNode("grass", "meadow", SPAWN_X + Math.cos(angle) * distance, SPAWN_Y + Math.sin(angle) * distance);
   }
   for (let i = 0; i < 8; i++) {
+    const size: ResourceSize = i % 3 === 0 ? "small" : i % 3 === 1 ? "medium" : "huge";
     addNode(
       i % 3 === 0 ? "copperOre" : "ironOre",
       "meadow",
       180 + seeded(i, 131) * (WORLD_W - 360),
       180 + seeded(i, 132) * (WORLD_H - 360),
+      size,
     );
   }
   for (let i = 0; i < 1; i++) {
@@ -747,6 +820,7 @@ function makeGame(): GameState {
       "meadow",
       280 + seeded(i, 137) * (WORLD_W - 560),
       280 + seeded(i, 138) * (WORLD_H - 560),
+      "huge",
     );
   }
 
@@ -778,6 +852,7 @@ function makeGame(): GameState {
         "caveSystem",
         cave.undergroundX + Math.cos(angle) * distance,
         cave.undergroundY + Math.sin(angle) * distance,
+        isMineable(kind) ? depositSize(i, 96 + caveIndex * 11) : "medium",
       );
     }
   }
@@ -1104,7 +1179,7 @@ function nearestNode(game: GameState, maxDistance: number) {
   let best = maxDistance;
   for (const node of game.nodes) {
     if (node.realm !== game.realm || node.hp <= 0) continue;
-    const distance = Math.hypot(node.x - game.player.x, node.y - game.player.y) - nodeRadius(node.kind);
+    const distance = Math.hypot(node.x - game.player.x, node.y - game.player.y) - nodeRadius(node.kind, node.size);
     if (distance < best) {
       best = distance;
       found = node;
@@ -1128,7 +1203,7 @@ function nearestTreasure(game: GameState, maxDistance: number) {
 }
 
 function distanceToNodeFootprint(node: ResourceNode, x: number, y: number, padding = 0) {
-  return Math.max(0, Math.hypot(node.x - x, node.y - y) - nodeRadius(node.kind) - padding);
+  return Math.max(0, Math.hypot(node.x - x, node.y - y) - nodeRadius(node.kind, node.size) - padding);
 }
 
 function rayEntryToNode(game: GameState, node: ResourceNode, padding = 10) {
@@ -1141,7 +1216,7 @@ function rayEntryToNode(game: GameState, node: ResourceNode, padding = 10) {
   const nodeX = node.x - game.player.x;
   const nodeY = node.y - game.player.y;
   const projection = nodeX * unitX + nodeY * unitY;
-  const radius = nodeRadius(node.kind) + padding;
+  const radius = nodeRadius(node.kind, node.size) + padding;
   if (projection < -radius) return null;
   const perpendicularSquared = nodeX * nodeX + nodeY * nodeY - projection * projection;
   if (perpendicularSquared > radius * radius) return null;
@@ -1251,7 +1326,7 @@ function validPlacement(game: GameState, kind: BuildKind, gx: number, gy: number
         node.realm === game.realm &&
         node.hp > 0 &&
         (isTree(node.kind) || isMineable(node.kind)) &&
-        Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind) + 24,
+        Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind, node.size) + 24,
     )
   ) return false;
   if (
@@ -1770,16 +1845,28 @@ function reviveNodes(game: GameState) {
   }
 }
 
+function ridgeBlocksCreature(game: GameState, realm: Realm, x: number, y: number, radius: number) {
+  return game.nodes.some(
+    (node) =>
+      node.realm === realm &&
+      node.ridgeId > 0 &&
+      node.hp > 0 &&
+      Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind, node.size) + radius,
+  );
+}
+
 function moveCreatureWithBuildings(game: GameState, creature: Creature, dx: number, dy: number, distance: number, step: number) {
   const radius = creatureRadius(creature);
   const nextX = Math.max(35, Math.min(WORLD_W - 35, creature.x + (dx / distance) * step));
   const nextY = Math.max(35, Math.min(WORLD_H - 35, creature.y + (dy / distance) * step));
   let blocker = blockingBuildingAt(game, creature.realm, nextX, creature.y, radius);
   const xInsideCave = creature.realm !== "caveSystem" || isCaveFloor(nextX, creature.y, radius + 4);
-  if (!blocker && xInsideCave) creature.x = nextX;
+  const xHitsRidge = ridgeBlocksCreature(game, creature.realm, nextX, creature.y, radius);
+  if (!blocker && !xHitsRidge && xInsideCave) creature.x = nextX;
   const yBlocker = blockingBuildingAt(game, creature.realm, creature.x, nextY, radius);
   const yInsideCave = creature.realm !== "caveSystem" || isCaveFloor(creature.x, nextY, radius + 4);
-  if (!yBlocker && yInsideCave) creature.y = nextY;
+  const yHitsRidge = ridgeBlocksCreature(game, creature.realm, creature.x, nextY, radius);
+  if (!yBlocker && !yHitsRidge && yInsideCave) creature.y = nextY;
   blocker ||= yBlocker;
   return blocker;
 }
@@ -1971,7 +2058,7 @@ function canStand(game: GameState, x: number, y: number) {
       node.realm === game.realm &&
       node.hp > 0 &&
       (isTree(node.kind) || isMineable(node.kind)) &&
-      Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind) + 19,
+      Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind, node.size) + 19,
   );
 }
 
@@ -2137,90 +2224,232 @@ function drawResourceHealth(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   ctx.restore();
 }
 
-function drawTree(ctx: CanvasRenderingContext2D, node: ResourceNode) {
-  ctx.save();
-  ctx.translate(node.x, node.y);
-  const radius = nodeRadius(node.kind);
-  ctx.fillStyle = "rgba(31,65,43,.2)";
+function radialCrownPath(
+  ctx: CanvasRenderingContext2D,
+  radius: number,
+  points: number,
+  innerRatio: number,
+  rotation: number,
+  seed: number,
+) {
   ctx.beginPath();
-  ctx.ellipse(7, 9, radius, radius * 0.82, 0, 0, Math.PI * 2);
-  ctx.fill();
-  const dark = node.kind === "pine" ? "#153d31" : node.kind === "birch" ? "#326b3f" : "#1c4b38";
-  const mid = node.kind === "pine" ? "#245b43" : node.kind === "birch" ? "#59a653" : "#2d7045";
-  const light = node.kind === "pine" ? "#397a50" : node.kind === "birch" ? "#83c665" : "#579855";
-  ctx.fillStyle = dark;
-  ctx.strokeStyle = "#15392d";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  for (let i = 0; i < 20; i++) {
-    const angle = (Math.PI * 2 * i) / 20;
-    const r = radius * (i % 2 ? 0.82 : 1);
-    const x = Math.cos(angle) * r;
-    const y = Math.sin(angle) * r;
+  for (let i = 0; i < points * 2; i++) {
+    const angle = rotation + (Math.PI * i) / points;
+    const jitter = 0.94 + seeded(seed + i, 301) * 0.1;
+    const distance = radius * (i % 2 === 0 ? jitter : innerRatio);
+    const x = Math.cos(angle) * distance;
+    const y = Math.sin(angle) * distance;
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
   ctx.closePath();
+}
+
+function drawTree(ctx: CanvasRenderingContext2D, node: ResourceNode) {
+  ctx.save();
+  ctx.translate(node.x, node.y);
+  const radius = nodeRadius(node.kind, node.size);
+  ctx.fillStyle = "rgba(20,43,32,.24)";
+  ctx.beginPath();
+  ctx.ellipse(7, 10, radius * 0.98, radius * 0.84, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.stroke();
-  const crowns = [[-0.3, -0.2, 0.48], [0.35, -0.12, 0.42], [-0.08, 0.36, 0.46], [0.08, 0.02, 0.54]];
-  crowns.forEach(([px, py, size], index) => {
+
+  if (node.kind === "pine") {
+    const whorls = [
+      { radius: 1, points: 15, inner: 0.58, rotation: 0.04, fill: "#153c31" },
+      { radius: 0.74, points: 13, inner: 0.55, rotation: 0.19, fill: "#246044" },
+      { radius: 0.45, points: 10, inner: 0.52, rotation: 0.34, fill: "#3d7b50" },
+    ];
+    whorls.forEach((whorl, index) => {
+      radialCrownPath(ctx, radius * whorl.radius, whorl.points, whorl.inner, whorl.rotation, node.id * 17 + index * 41);
+      ctx.fillStyle = whorl.fill;
+      ctx.strokeStyle = index === 0 ? "#0e2d26" : "rgba(13,47,34,.8)";
+      ctx.lineWidth = index === 0 ? 4 : 2.5;
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.strokeStyle = "rgba(157,194,119,.32)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 * i) / 12 + 0.1;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * radius * 0.16, Math.sin(angle) * radius * 0.16);
+      ctx.lineTo(Math.cos(angle) * radius * 0.78, Math.sin(angle) * radius * 0.78);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#a7c577";
     ctx.beginPath();
-    ctx.arc(px * radius, py * radius, size * radius, 0, Math.PI * 2);
-    ctx.fillStyle = index === 3 ? light : mid;
+    ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
     ctx.fill();
-  });
-  ctx.strokeStyle = "rgba(222,236,184,.32)";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(-radius * 0.13, -radius * 0.16, radius * 0.48, Math.PI * 1.05, Math.PI * 1.72);
-  ctx.stroke();
-  ctx.fillStyle = node.kind === "birch" ? "#e5dec8" : "#805438";
-  ctx.strokeStyle = "#493727";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(0, 0, 8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
+  } else if (node.kind === "birch") {
+    radialCrownPath(ctx, radius, 12, 0.77, 0.06, node.id * 19);
+    ctx.fillStyle = "#285d3b";
+    ctx.strokeStyle = "#17452f";
+    ctx.lineWidth = 4;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(231,228,203,.7)";
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 9; i++) {
+      const angle = (Math.PI * 2 * i) / 9 + seeded(node.id, i + 312) * 0.28;
+      const distance = radius * (0.45 + seeded(node.id + i, 319) * 0.25);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(angle) * distance, Math.sin(angle) * distance);
+      ctx.stroke();
+    }
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 * i) / 12 + seeded(node.id, i + 325) * 0.22;
+      const distance = i < 3 ? radius * 0.25 : radius * (0.45 + seeded(node.id + i, 330) * 0.28);
+      const clusterRadius = radius * (0.18 + seeded(node.id + i, 334) * 0.09);
+      ctx.fillStyle = i % 3 === 0 ? "#9ccf68" : i % 3 === 1 ? "#68ad50" : "#82be58";
+      ctx.strokeStyle = "rgba(38,91,52,.72)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance, clusterRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#eee7d1";
+    ctx.strokeStyle = "#675f52";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#5b544a";
+    ctx.lineWidth = 2;
+    for (const y of [-4, 1, 5]) {
+      ctx.beginPath();
+      ctx.moveTo(-6 + Math.abs(y) * 0.4, y);
+      ctx.lineTo(y === 1 ? 6 : 3, y + 1);
+      ctx.stroke();
+    }
+  } else {
+    radialCrownPath(ctx, radius, 14, 0.78, 0, node.id * 23);
+    ctx.fillStyle = "#194a36";
+    ctx.strokeStyle = "#123b2d";
+    ctx.lineWidth = 5;
+    ctx.fill();
+    ctx.stroke();
+    const clusters = [
+      [-0.35, -0.22, 0.42], [0.34, -0.2, 0.4], [-0.28, 0.34, 0.4],
+      [0.32, 0.32, 0.42], [0, -0.02, 0.49],
+    ] as const;
+    clusters.forEach(([x, y, size], index) => {
+      ctx.fillStyle = index === 4 ? "#4f9454" : index % 2 ? "#34764a" : "#2a6842";
+      ctx.beginPath();
+      ctx.arc(x * radius, y * radius, size * radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.fillStyle = "#84583b";
+    ctx.strokeStyle = "#4c3528";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
 function drawRock(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   ctx.save();
   ctx.translate(node.x, node.y);
-  const radius = nodeRadius(node.kind);
-  ctx.fillStyle = "rgba(31,65,43,.18)";
+  const radius = nodeRadius(node.kind, node.size);
+  const ore = ["ironOre", "copperOre", "coal", "sulfur", "aetherOre"].includes(node.kind);
+  const base = node.kind === "aetherOre"
+    ? "#394e5f"
+    : node.kind === "granite"
+      ? "#8e7778"
+      : node.kind === "coal"
+        ? "#343a3b"
+        : node.kind === "sulfur"
+          ? "#8b8050"
+          : ore
+            ? "#596877"
+            : "#718177";
+  const edge = node.kind === "aetherOre"
+    ? "#172c3a"
+    : node.kind === "granite"
+      ? "#624f53"
+      : node.kind === "coal"
+        ? "#1d2424"
+        : node.kind === "sulfur"
+          ? "#5c5638"
+          : ore
+            ? "#343a4b"
+            : "#4c6259";
+  const seam = node.kind === "aetherOre"
+    ? "#67e2f0"
+    : node.kind === "copperOre"
+      ? "#d77d50"
+      : node.kind === "coal"
+        ? "#151a1a"
+        : node.kind === "sulfur"
+          ? "#e0cb42"
+          : node.kind === "ironOre"
+            ? "#d3a95a"
+            : "#b5b7aa";
+  const boulderCount = node.size === "small" ? 3 : node.size === "huge" ? 9 : 5;
+  const ringDistance = node.size === "huge" ? 0.58 : node.size === "small" ? 0.44 : 0.5;
+  const boulderScale = node.size === "huge" ? 0.31 : node.size === "small" ? 0.43 : 0.39;
+
+  ctx.fillStyle = "rgba(20,37,30,.24)";
   ctx.beginPath();
-  ctx.ellipse(7, 11, radius, radius * 0.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(7, 11, radius, radius * 0.76, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = edge;
   ctx.beginPath();
-  ctx.moveTo(-radius, 8);
-  ctx.lineTo(-radius * 0.72, -radius * 0.58);
-  ctx.lineTo(-radius * 0.12, -radius);
-  ctx.lineTo(radius * 0.62, -radius * 0.67);
-  ctx.lineTo(radius, -radius * 0.08);
-  ctx.lineTo(radius * 0.72, radius * 0.72);
-  ctx.lineTo(-radius * 0.18, radius);
-  ctx.closePath();
-  const ore = node.kind === "ironOre" || node.kind === "copperOre" || node.kind === "coal" || node.kind === "sulfur" || node.kind === "aetherOre";
-  ctx.fillStyle = node.kind === "aetherOre" ? "#394e5f" : node.kind === "granite" ? "#8e7778" : node.kind === "coal" ? "#343a3b" : node.kind === "sulfur" ? "#8b8050" : ore ? "#596877" : "#718177";
-  ctx.strokeStyle = node.kind === "aetherOre" ? "#172c3a" : node.kind === "granite" ? "#624f53" : node.kind === "coal" ? "#1d2424" : node.kind === "sulfur" ? "#5c5638" : ore ? "#343a4b" : "#4c6259";
-  ctx.lineWidth = 6;
+  ctx.arc(0, 0, radius * 0.84, 0, Math.PI * 2);
   ctx.fill();
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-radius * 0.62, -radius * 0.28);
-  ctx.lineTo(-radius * 0.05, -radius * 0.72);
-  ctx.lineTo(radius * 0.36, -radius * 0.18);
-  ctx.closePath();
-  ctx.fillStyle = "#9aa99e";
-  ctx.fill();
-  if (ore) {
-    ctx.fillStyle = node.kind === "aetherOre" ? "#67e2f0" : node.kind === "copperOre" ? "#d77d50" : node.kind === "coal" ? "#151a1a" : node.kind === "sulfur" ? "#e0cb42" : "#d3a95a";
-    for (const [x, y] of [[-18, 2], [10, 14], [22, -13], [-2, -20]]) {
-      ctx.beginPath();
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fill();
+
+  for (let i = 0; i < boulderCount; i++) {
+    const isCenter = i === 0;
+    const angle = ((i - 1) / Math.max(1, boulderCount - 1)) * Math.PI * 2 + seeded(node.id, 351) * 0.6;
+    const distance = isCenter ? 0 : radius * ringDistance * (0.86 + seeded(node.id + i, 354) * 0.2);
+    const x = Math.cos(angle) * distance;
+    const y = Math.sin(angle) * distance;
+    const boulderRadius = radius * boulderScale * (0.88 + seeded(node.id + i, 358) * 0.22);
+    ctx.beginPath();
+    for (let point = 0; point < 8; point++) {
+      const pointAngle = (Math.PI * 2 * point) / 8;
+      const pointRadius = boulderRadius * (0.84 + seeded(node.id + i * 13 + point, 362) * 0.2);
+      const pointX = x + Math.cos(pointAngle) * pointRadius;
+      const pointY = y + Math.sin(pointAngle) * pointRadius;
+      if (point === 0) ctx.moveTo(pointX, pointY);
+      else ctx.lineTo(pointX, pointY);
+    }
+    ctx.closePath();
+    ctx.fillStyle = base;
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = Math.max(2, radius * 0.055);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(218,225,207,.3)";
+    ctx.beginPath();
+    ctx.moveTo(x - boulderRadius * 0.62, y - boulderRadius * 0.14);
+    ctx.lineTo(x - boulderRadius * 0.12, y - boulderRadius * 0.66);
+    ctx.lineTo(x + boulderRadius * 0.38, y - boulderRadius * 0.2);
+    ctx.closePath();
+    ctx.fill();
+    if (ore || node.kind === "granite") {
+      ctx.fillStyle = seam;
+      for (let fleck = 0; fleck < 2; fleck++) {
+        const fleckAngle = seeded(node.id + i * 7 + fleck, 369) * Math.PI * 2;
+        const fleckDistance = boulderRadius * seeded(node.id + i * 11 + fleck, 372) * 0.48;
+        ctx.beginPath();
+        ctx.arc(
+          x + Math.cos(fleckAngle) * fleckDistance,
+          y + Math.sin(fleckAngle) * fleckDistance,
+          Math.max(2, boulderRadius * 0.13),
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
     }
   }
   ctx.restore();

@@ -62,7 +62,8 @@ their full visible top-down footprint as solid hitboxes. Movement slides along
 their edges so the dense forest remains navigable. The player does not collide
 with forage nodes or creatures. Completed walls, fences, gates, doors, benches,
 chests, and other solid structures block the player and creatures; an open gate
-or door can be crossed.
+or door can be crossed. Connected natural stone ridges also block both the
+player and creatures until enough of their rock segments are mined away.
 
 ## 4. Controls and inventory
 
@@ -100,8 +101,9 @@ spaces. The caves and their chambers are deliberately unnamed; entrances,
 exits, prompts, and the location display identify them only as caves.
 
 - **The Meadow** contains open grassland, dense patches of harvestable wild
-  grass, eight scattered iron and copper deposits, three cave entrances, one
-  rare Aetherium deposit, and the Blackwood.
+  grass, eight scattered iron and copper deposits, occasional long natural
+  stone ridges, three cave entrances, one rare Aetherium deposit, and the
+  Blackwood.
 - **The Blackwood** is a large, visibly darker forest biome filled with closely
   spaced oak, pine, and birch trees, forage, bears, and other wildlife.
 - One chamber is rich in granite and ordinary rock, with some coal and
@@ -124,9 +126,14 @@ independent, so a chamber can contain the cache, the guardian, both, or neither.
 Opening the cache with `E` awards 4 granite, 5 iron, 4 copper, 3 coal, 3 sulfur,
 and 2 Aetherium. Its opened chest remains visible.
 
-The three tree species and every rock are drawn from directly overhead. A tree
+The three tree species and every rock are drawn from directly overhead. Pines
+have layered, pointed needle whorls; birches have airy bright leaf clusters with
+a visible white, dark-marked trunk; and oaks retain a broad, lobed crown. A tree
 crown covers the same circular area used for its collision and pointer target.
-Rocks and ore deposits are intentionally much larger than in the original map.
+Mineable nodes are multi-boulder patches whose visible spread matches their
+collision and pointer footprint. Small, medium, and huge patches are visibly
+different at a glance. Several connected medium and huge ordinary-rock patches
+form each occasional natural stone ridge in the Meadow.
 
 At night, the Meadow is almost completely opaque beyond light. The player has
 only 96 units of close night vision; Standing Torches, Campfires, and Fire Traps
@@ -210,6 +217,19 @@ durability as a current/maximum number until it is depleted or fully respawned.
 | Berry bush | 1 | 3 berries and 1 seed | — |
 | Wild grass | 1 | 2 fiber and 1 seed | — |
 | Mushrooms | 1 | 2 mushrooms | — |
+
+The durability values above are the base values for medium mineable deposits.
+Every mineable material appears in three patch sizes:
+
+| Deposit size | Footprint radius | Maximum durability |
+| --- | ---: | ---: |
+| Small | 68% of base | 60% of base, rounded to the nearest whole point |
+| Medium | 100% of base | 100% of base |
+| Huge | 162% of base | 200% of base |
+
+New maps contain all three sizes. Patch size changes collision, pointer
+targeting, build clearance, and total available material; the material awarded
+for each durability point removed does not change.
 
 ## 8. Crafting and equipment
 
