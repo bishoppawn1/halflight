@@ -445,6 +445,11 @@ Each monster's position is sampled independently from valid points across the
 current realm, at least 360 units from the player. Waves do not form a ring or
 otherwise distribute themselves evenly around the player.
 
+Night-wave spawn candidates inside the player's close-vision radius or the
+light radius of a completed Standing Torch, Campfire, or Fire Trap are rejected.
+A 30-unit safety margin keeps the monster's body fully outside the visible light
+pool. Destroyed lights and unfinished blueprints provide no spawn protection.
+
 | Monster | Earliest night | Base health | Health per day | Base speed | Base damage | Sense radius |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Shade | 1 | 28 | 8 | 66 | 7 | 320 |

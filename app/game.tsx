@@ -265,6 +265,13 @@ const LOW_HUNGER_THRESHOLD = 25;
 const COMPANION_ATTACK_COOLDOWN_MS = 1100;
 const CREATURE_ATTACK_COOLDOWN_MS = 1250;
 const CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS = 1200;
+const PLAYER_LIGHT_RADIUS: Record<Realm, number> = { meadow: 96, caveSystem: 112 };
+const BUILDING_LIGHT_RADIUS: Partial<Record<BuildKind, number>> = {
+  torch: 225,
+  campfire: 410,
+  fireTrap: 115,
+};
+const MONSTER_SPAWN_LIGHT_PADDING = 30;
 const CONSTRUCTION_SECONDS = 1.5;
 const DECONSTRUCTION_SECONDS = 2.25;
 const BUILDING_HALF_SIZE = 23;
@@ -1043,6 +1050,23 @@ function isNight(game: GameState) {
   return game.clock >= 0.5;
 }
 
+function buildingLightRadius(building: Building) {
+  if (building.hp <= 0 || building.construction < 1) return 0;
+  return BUILDING_LIGHT_RADIUS[building.kind] ?? 0;
+}
+
+function pointIsLit(game: GameState, realm: Realm, x: number, y: number, padding = 0) {
+  if (
+    realm === game.realm &&
+    Math.hypot(x - game.player.x, y - game.player.y) <= PLAYER_LIGHT_RADIUS[realm] + padding
+  ) return true;
+  return game.buildings.some((building) => {
+    if (building.realm !== realm) return false;
+    const radius = buildingLightRadius(building);
+    return radius > 0 && Math.hypot(x - building.gx * GRID, y - building.gy * GRID) <= radius + padding;
+  });
+}
+
 function notify(game: GameState, message: string, duration = 2300) {
   game.message = message;
   game.messageUntil = performance.now() + duration;
@@ -1086,6 +1110,7 @@ function spawnNightWave(game: GameState) {
       const candidateY = 70 + seeded(candidateIndex + 1, game.day * 19 + 103) * (WORLD_H - 140);
       if (Math.hypot(candidateX - game.player.x, candidateY - game.player.y) < 360) continue;
       if (game.realm === "caveSystem" && !isCaveFloor(candidateX, candidateY, 38)) continue;
+      if (pointIsLit(game, game.realm, candidateX, candidateY, MONSTER_SPAWN_LIGHT_PADDING)) continue;
       if (reservedBuildingAt(game, game.realm, candidateX, candidateY, 30)) continue;
       if (
         game.nodes.some(
@@ -4500,10 +4525,10 @@ function drawDarkness(
 
   const playerX = width / 2 + (game.player.x - game.camera.x) * scale;
   const playerY = height / 2 + (game.player.y - game.camera.y) * scale;
-  reveal(playerX, playerY, (inCave ? 430 : 96) * scale, 25 * scale);
+  reveal(playerX, playerY, PLAYER_LIGHT_RADIUS[game.realm] * scale, 25 * scale);
   game.buildings.forEach((building) => {
-    if (building.realm !== game.realm || building.hp <= 0 || building.construction < 1) return;
-    const radius = building.kind === "campfire" ? 410 : building.kind === "torch" ? 225 : building.kind === "fireTrap" ? 115 : 0;
+    if (building.realm !== game.realm) return;
+    const radius = buildingLightRadius(building);
     if (!radius) return;
     reveal(offsetX + building.gx * GRID * scale, offsetY + building.gy * GRID * scale, radius * scale, 55 * scale);
   });
