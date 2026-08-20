@@ -7,8 +7,9 @@ The player gathers by day, explores a large meadow, forest, and several caves, c
 equipment and firearms, builds defenses, tames wildlife, and survives night
 waves that become larger and stronger forever.
 
-There is no third-night ending or final victory state. Days continue until the
-player's health reaches zero. **Try again** resets the complete run.
+There is no third- or fourth-night ending, day cap, or final victory state.
+Days continue until the player's health reaches zero. **Try again** resets the
+complete run.
 
 ## 2. Core loop
 
@@ -33,17 +34,35 @@ player's health reaches zero. **Try again** resets the complete run.
 | Berries | 3 |
 | Seeds | 2 |
 | Ready building pieces | None |
-| Equipment | None; berries begin selected in hotbar slot 1 |
+| Equipment | Wood Axe in hotbar slot 2; berries begin selected in slot 1 |
+| Placed structures | One completed campfire beside the spawn point |
 | Armor | None |
 
 The player is a plain, top-down painted circle. The equipped item appears beside
 the circle. Equipping copper, iron, or blacksteel armor adds a small cartoony
 helmet whose color and construction match that metal tier.
 
+Axe and pickaxe heads change both material and silhouette at every tier: wood
+is crude and lashed, stone is chunky, iron is forged and tapered, and
+Aetherium is crystalline and glowing. Resource stacks, recipes, and ready
+building pieces use recognizable miniature illustrations rather than letter
+abbreviations.
+
+Axes always use one broad, offset chopping blade. Pickaxes use a narrow,
+double-ended head so the two tool families remain distinct at gameplay scale.
+
+Every world object and creature is presented from directly overhead. Wildlife
+uses a complete body silhouette with a visible torso, head, legs, and species
+details such as ears, antlers, or a tail; animals are never represented as a
+front-facing or side-profile face. Creatures turn their whole overhead body in
+their direction of travel.
+
 The player moves at 190 world units per second. Trees and mineable deposits use
 their full visible top-down footprint as solid hitboxes. Movement slides along
 their edges so the dense forest remains navigable. The player does not collide
-with forage nodes, creatures, or placed buildings.
+with forage nodes or creatures. Completed walls, fences, gates, doors, benches,
+chests, and other solid structures block the player and creatures; an open gate
+or door can be crossed.
 
 ## 4. Controls and inventory
 
@@ -51,13 +70,13 @@ with forage nodes, creatures, or placed buildings.
 | --- | --- |
 | `WASD` or arrow keys | Move |
 | Pointer position | Aim the equipped tool independently of movement and choose targets |
-| Hold left mouse | Repeatedly gather, attack, or fire at the item's cooldown |
+| Hold left mouse | Repeatedly gather, attack, fire, or start hammer deconstruction at the item's cooldown |
 | Left click in build mode | Place one ready building piece |
 | Hold `Shift` and left-drag | Place ready pieces across each valid grid cell crossed |
 | `E` | Context action: eat, feed, harvest, operate, enter/exit, or place once |
 | `Space` or `F` | Attack once |
 | `1`–`9`, `0` | Select hotbar slots 1 through 10 |
-| `Q` | Open or close building |
+| `Q` | Open or close ready building pieces |
 | `C` | Open or close crafting |
 | `I` or `B` | Open or close inventory |
 | `Escape` | Cancel build mode and close panels |
@@ -75,11 +94,12 @@ Inventory and hotbar moves use the two-tap flow.
 
 ## 5. World and time
 
-The Meadow and each cave are separate 5,200 by 3,800 world spaces.
+The Meadow and the connected Deepways cave system are separate 5,200 by 3,800
+world spaces.
 
 - **The Meadow** contains open grassland, dense patches of harvestable wild
-  grass, scattered iron and copper deposits, three cave entrances, a handful
-  of rare Aetherium deposits, and the Blackwood.
+  grass, eight scattered iron and copper deposits, three cave entrances, one
+  rare Aetherium deposit, and the Blackwood.
 - **The Blackwood** is a large, visibly darker forest biome filled with closely
   spaced oak, pine, and birch trees, forage, bears, and other wildlife.
 - **Granite Hollow** is rich in granite and ordinary rock, with some coal and
@@ -89,13 +109,23 @@ The Meadow and each cave are separate 5,200 by 3,800 world spaces.
 - **Sulfur Grotto** concentrates sulfur and coal, with mushrooms and some
   copper.
 
-Each cave has its own terrain palette, resources, creatures, and placed
-buildings. Entering or exiting returns the player to that cave's matching
-Meadow entrance.
+Granite Hollow, Iron Delve, and Sulfur Grotto are large chambers within the same
+underground realm. Visible, solid rock walls enclose each chamber, and broad
+tunnels connect all three through the central Deepways hub. Each chamber keeps
+its own terrain palette and resource mix, but creatures and placed buildings
+share one connected cave system. Each chamber has an exit to its matching
+Meadow entrance, so the player can enter through one cave, cross the tunnels,
+and leave through another. Ore seams are intentionally sparse among the much
+more common ordinary rock.
 
 The three tree species and every rock are drawn from directly overhead. A tree
 crown covers the same circular area used for its collision and pointer target.
 Rocks and ore deposits are intentionally much larger than in the original map.
+
+At night, the Meadow is almost completely opaque beyond light. The player has
+only 96 units of close night vision; Standing Torches, Campfires, and Fire Traps
+reveal 225, 410, and 115 units respectively. Caves remain dark at every time of
+day and give the player 112 units of close vision before placed lights extend it.
 
 A full cycle lasts 110 seconds: 55 seconds of day and 55 seconds of night. The
 first run begins partway through daylight, leaving about 37 seconds before
@@ -121,11 +151,13 @@ and total defeated threats. Nothing persists into a restarted run.
 
 Trees require an axe, and mineable deposits require a pickaxe. Berry bushes,
 wild grass, and mushrooms can be gathered with any selected item. Holding left
-mouse repeatedly gathers the resource under the pointer; if the pointer is
-slightly off, the closest reachable node inside the aiming cone is selected.
+mouse repeatedly gathers a reachable resource anywhere under its full visible
+footprint; the pointer does not need to touch the resource's center. If the
+pointer is slightly off, the tool's aim ray is tested against the complete
+footprints of nearby resources and the first intersected footprint is selected.
 Pointer coordinates stay synchronized while the camera moves.
 
-| Tool tier | Durability removed and per-hit yield | Cooldown | Access |
+| Tool tier | Node durability removed and per-hit yield | Cooldown | Access |
 | --- | ---: | ---: | --- |
 | Wood | 1 | 400 ms | Trees and ordinary rock |
 | Stone | 2 | 320 ms | Trees, granite, iron, copper, coal, and sulfur |
@@ -135,8 +167,24 @@ Pointer coordinates stay synchronized while the camera moves.
 Forage uses a 300 ms cooldown. A tool awards the material for every durability
 point it removes, so higher tiers gather several hits' yield at once.
 
+Every axe and pickaxe tier is a separate inventory item. Crafting a Stone
+Pickaxe, for example, does not remove or alter an owned Wood Pickaxe. Tools lose
+one durability point after each successful gathering use or melee hit, show
+their remaining durability in the inventory and equipped-item display, and
+break at zero. A broken tool disappears and its recipe becomes available again.
+
+| Tool material | Maximum tool durability |
+| --- | ---: |
+| Wood | 36 |
+| Stone | 72 |
+| Iron | 120 |
+| Aetherium | 180 |
+
 Materials are awarded on every hit, not only when a node breaks. Depleted nodes
 return after 120 seconds.
+
+Every partially damaged resource node shows both a health bar and its remaining
+durability as a current/maximum number until it is depleted or fully respawned.
 
 | Node | Durability | Material awarded per hit | Depletion bonus |
 | --- | ---: | --- | --- |
@@ -158,16 +206,19 @@ return after 120 seconds.
 
 Wood and stone tools, the spear, arrows, bandages, and basic building pieces
 can be made anywhere. Place a Crafting Bench and stand within 150 units to make
-advanced weapons, armor, metal tools, ammunition, and defenses. Permanent gear
-cannot be crafted twice or downgraded; ammunition, bandages, and building
-pieces are repeatable.
+advanced weapons, armor, metal tools, ammunition, and defenses. Owned durable
+tools cannot be duplicated, but can be crafted again after breaking. Crafting a
+higher tool tier adds a new item instead of replacing a lower-tier tool.
+Permanent weapons and armor cannot be crafted twice or downgraded; ammunition,
+bandages, and building pieces are repeatable.
 
 | Recipe | Cost | Result |
 | --- | --- | --- |
-| Wood Axe | 3 wood | Tier-1 chopping tool |
-| Wood Pickaxe | 3 wood | Tier-1 pickaxe for ordinary rock |
-| Stone Axe | 3 wood, 4 stone | Tier-2 chopping tool |
-| Stone Pickaxe | 3 wood, 4 stone | Tier-2 pickaxe for common ores |
+| Wood Axe | 3 wood | Tier-1 chopping tool; 36 durability |
+| Wood Pickaxe | 3 wood | Tier-1 pickaxe for ordinary rock; 36 durability |
+| Stone Axe | 3 wood, 4 stone | Tier-2 chopping tool; 72 durability |
+| Stone Pickaxe | 3 wood, 4 stone | Tier-2 pickaxe for common ores; 72 durability |
+| Deconstruction Hammer | 4 wood, 2 stone | Removes an aimed structure and recovers part of its materials |
 | Stone Spear | 5 wood, 3 stone | 17-damage melee weapon |
 | Iron Sword | 4 wood, 7 iron | Fast 25-damage melee weapon |
 | Hunting Bow | 6 wood, 4 fiber, 2 copper | 18-damage ranged weapon |
@@ -177,10 +228,10 @@ pieces are repeatable.
 | Copper Armor | 12 copper, 5 hide | Copper helmet; 18% damage reduction |
 | Iron Armor | 14 iron, 6 hide | Iron helmet; 35% damage reduction |
 | Blacksteel Armor | 18 iron, 10 coal, 4 sulfur, 8 hide | Blacksteel helmet; 55% damage reduction |
-| Iron Axe | 4 wood, 5 iron | Tier-3 chopping tool and 14 combat damage |
-| Iron Pickaxe | 4 wood, 5 iron | Tier-3 pickaxe that can mine Aetherium |
-| Aetherium Axe | 4 wood, 7 Aetherium, 3 iron | Tier-4 chopping tool and 22 combat damage |
-| Aetherium Pickaxe | 4 wood, 7 Aetherium, 3 iron | Tier-4 mining tool and 18 combat damage |
+| Iron Axe | 4 wood, 5 iron | Tier-3 chopping tool, 14 combat damage, and 120 durability |
+| Iron Pickaxe | 4 wood, 5 iron | Tier-3 pickaxe for Aetherium; 120 durability |
+| Aetherium Axe | 4 wood, 7 Aetherium, 3 iron | Tier-4 chopping tool, 22 combat damage, and 180 durability |
+| Aetherium Pickaxe | 4 wood, 7 Aetherium, 3 iron | Tier-4 mining tool, 18 combat damage, and 180 durability |
 | Field Bandage | 5 fiber, 1 berry | Immediately restores up to 35 health |
 
 Crafting a higher armor tier replaces the visible helmet and protection tier.
@@ -189,15 +240,30 @@ A higher tier cannot be downgraded through the crafting panel.
 ## 9. Building and traps
 
 Building pieces are crafted into ready stacks and placed on a 48-unit grid.
-The target must be within 260 units of the player. A cell can contain one floor,
-one roof, and one solid-layer piece. Solid pieces cannot be placed over a live
-tree, rock, or deposit. A click places one piece. Holding `Shift` while dragging
-places one piece in each new valid cell crossed, without repeatedly attempting
-the same cell. Touch tool-hold provides the same continuous placement behavior.
+Grid lines outline each cell, while the preview and completed structure sit at
+the exact center of that cell. The target must be within 260 units of the
+player. A cell can contain one floor, one roof, and one solid-layer piece.
+Solid pieces cannot be placed over a live tree, rock, deposit, player, or
+creature. A click places one blueprint and exits single-placement mode. Holding
+`Shift` while dragging places one blueprint in each new valid cell crossed,
+without repeatedly attempting the same cell. Touch tool-hold provides the same
+continuous placement behavior.
+
+Blueprints enter a first-in, first-out work queue. When the player is not giving
+movement input, the player walks to the next blueprint and builds it for three
+seconds; manual movement pauses that work. A completed solid structure blocks
+movement. Equipping the Deconstruction Hammer and aiming with left mouse queues
+a nearby structure for 2.25 seconds of deconstruction. This returns half of
+each per-piece recipe cost, rounded down to whole materials. Deconstructing a
+chest also returns everything stored inside it.
 
 | Piece | Cost | Made | Health | Function |
 | --- | --- | ---: | ---: | --- |
 | Crafting Bench | 4 wood, 2 stone | 1 | 85 | Enables advanced recipes within 150 units |
+| Storage Chest | 5 wood, 2 fiber | 1 | 110 | Opens with `E` and stores resource stacks separately |
+| Bedroll | 2 wood, 4 fiber | 1 | 50 | Rest once per day for up to 25 health at a cost of 8 hunger |
+| Standing Torch | 2 wood, 1 fiber, 1 coal | 2 | 35 | Permanent 225-unit light radius |
+| Campfire | 4 wood, 4 stone, 1 coal | 1 | 80 | Permanent 410-unit light radius |
 | Wood Fence | 3 wood | 2 | 55 | Light barrier |
 | Stone Fence | 4 stone | 2 | 105 | Durable barrier |
 | Wood Gate | 5 wood | 1 | 70 | Opens and closes with `E` |
@@ -214,9 +280,16 @@ the same cell. Touch tool-hold provides the same continuous placement behavior.
 | Scrap Turret | 6 wood, 7 iron, 5 copper | 1 | 95 | 12 damage within 360 units every 700 ms |
 | Crop Plot | 2 wood, 2 fiber, 1 seed | 1 | 45 | Produces berries and seeds |
 
-Crop plots mature in 75 seconds. A mature harvest gives 4 berries and 2 seeds,
-then resets growth. Monsters damage any building they pass closely enough to
-reach. Destroyed buildings are removed.
+Crop plots mature in 75 seconds and always display their current whole-number
+growth percentage. A mature harvest gives 4 berries and 2 seeds, then resets
+growth. Monsters damage any building they pass closely enough to reach.
+Destroyed buildings are removed.
+
+The Storage Chest is a basic hand-crafted piece. Pressing `E` nearby opens a
+two-sided container view. Selecting a stack moves its complete quantity between
+the backpack and that specific chest. Stored materials cannot be crafted,
+consumed, or fired until retrieved. Deliberate hammer deconstruction returns
+the stored contents; if monsters destroy the chest, those contents are lost.
 
 ## 10. Combat
 
@@ -246,6 +319,10 @@ trap increases the threat count.
 
 Twenty-four animals are distributed around the Blackwood at the start:
 
+Each species is drawn as a full overhead animal rather than an animal face.
+Body proportions, paws or hooves, ears, tails, antlers, and markings distinguish
+the species while it turns and moves.
+
 | Animal | Health | Speed | Contact damage | Aggro distance |
 | --- | ---: | ---: | ---: | ---: |
 | Bear | 70 | 48 | 9 | 135 |
@@ -270,6 +347,10 @@ checks throughout the night whether the current day's wave has spawned, so a
 missed transition frame cannot suppress a wave. Each day advances after dawn,
 and each monster gains 2 speed and 1.4 contact damage per day.
 
+Each monster's position is sampled independently from valid points across the
+current realm, at least 360 units from the player. Waves do not form a ring or
+otherwise distribute themselves evenly around the player.
+
 | Monster | Earliest night | Base health | Health per day | Base speed | Base damage | Sense radius |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Shade | 1 | 28 | 8 | 66 | 7 | 320 |
@@ -278,16 +359,15 @@ and each monster gains 2 speed and 1.4 contact damage per day.
 | Wraith | 4 | 42 | 10 | 73 | 10 | 440 |
 | Maw | 5 | 92 | 17 | 39 | 17 | 240 |
 
-Shades are jagged many-eyed forms, crawlers are low toothy horrors, brutes are
-horned heavy monsters, wraiths have torn spectral bodies, and maws are large
-walking rings of teeth and eyes. Monsters initially prowl instead of knowing
-the player's location. They chase after sensing the player or being attacked,
-then return to prowling after the player moves beyond 1.8 times that monster's
-sense radius. Survivors remain after dawn.
+Every monster has a round main body surrounded by animated tentacles. Body size,
+tentacle count and thickness, color, eyes, horns, and tooth patterns distinguish
+shades, crawlers, brutes, wraiths, and maws. Monsters initially prowl instead of
+knowing the player's location. They chase after sensing the player or being
+attacked, then return to prowling after the player moves beyond 1.8 times that
+monster's sense radius. Survivors remain after dawn.
 
 ## 13. Current scope
 
 The game is local to one browser run. It has no multiplayer, accounts, save
-files, true pause, equipment durability, building repair, trading, quests,
-finite ending, or collision with placed structures. Panels do not pause the
-simulation.
+files, true pause, tool repair, building repair, trading, quests, or finite
+ending. Panels do not pause the simulation.

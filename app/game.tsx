@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type CaveRealm = "graniteCave" | "ironCave" | "sulfurCave";
+type CaveRealm = "caveSystem";
+type CaveZone = "granite" | "iron" | "sulfur";
 type Realm = "meadow" | CaveRealm;
 type ResourceKind =
   | "oak"
@@ -19,10 +20,24 @@ type ResourceKind =
   | "grass"
   | "mushroom";
 type FoodMaterial = "berries" | "mushrooms" | "meat";
-type Tool = "axe" | "pickaxe" | "spear" | "sword" | "bow" | "pistol" | FoodMaterial | "build" | "hands";
 type ToolTier = "none" | "wood" | "stone" | "iron" | "aetherium";
+type DurableTool =
+  | "woodAxe"
+  | "stoneAxe"
+  | "ironAxe"
+  | "aetheriumAxe"
+  | "woodPickaxe"
+  | "stonePickaxe"
+  | "ironPickaxe"
+  | "aetheriumPickaxe";
+type Tool = DurableTool | "hammer" | "spear" | "sword" | "bow" | "pistol" | FoodMaterial | "build" | "hands";
+type ToolGlyphKind = "axe" | "pickaxe" | "hammer" | "spear" | "sword" | "bow" | "pistol" | "pack";
 type BuildKind =
   | "craftingBench"
+  | "storageChest"
+  | "bedroll"
+  | "torch"
+  | "campfire"
   | "woodFence"
   | "stoneFence"
   | "woodGate"
@@ -74,6 +89,15 @@ interface ResourceNode {
   respawnAt: number;
 }
 
+interface CaveTreasure {
+  id: number;
+  realm: CaveRealm;
+  x: number;
+  y: number;
+  opened: boolean;
+  loot: Partial<Record<Material, number>>;
+}
+
 interface Creature {
   id: number;
   kind: CreatureKind;
@@ -91,6 +115,13 @@ interface Creature {
   phase: number;
   slowUntil: number;
   rewarded: boolean;
+  dir: number;
+  structureHitAt: number;
+  boss: boolean;
+  homeX: number;
+  homeY: number;
+  provokedUntil: number;
+  respawnAt: number;
 }
 
 interface Building {
@@ -104,6 +135,16 @@ interface Building {
   open: boolean;
   growth: number;
   triggerAt: number;
+  construction: number;
+  deconstruction: number;
+  restedDay: number;
+  storage?: Partial<Record<Material, number>>;
+}
+
+interface WorkOrder {
+  buildingId: number;
+  action: "construct" | "deconstruct";
+  progress: number;
 }
 
 interface Projectile {
@@ -145,8 +186,8 @@ interface GameState {
     sword: boolean;
     bow: boolean;
     pistol: boolean;
-    axeTier: ToolTier;
-    pickaxeTier: ToolTier;
+    hammer: boolean;
+    toolDurability: Record<DurableTool, number>;
     armor: ArmorKind;
   };
   kits: Record<BuildKind, number>;
@@ -156,7 +197,10 @@ interface GameState {
   inventory: (InventoryItem | null)[];
   hotbar: (InventoryItem | null)[];
   buildMode: BuildKind | null;
+  openChestId: number | null;
+  workOrders: WorkOrder[];
   nodes: ResourceNode[];
+  treasures: CaveTreasure[];
   creatures: Creature[];
   buildings: Building[];
   projectiles: Projectile[];
@@ -187,20 +231,24 @@ const WORLD_W = 5200;
 const WORLD_H = 3800;
 const GRID = 48;
 const DAY_SECONDS = 110;
+const CONSTRUCTION_SECONDS = 3;
+const DECONSTRUCTION_SECONDS = 2.25;
+const BUILDING_HALF_SIZE = 23;
 const SPAWN_X = 2780;
 const SPAWN_Y = 1940;
-const CAVE_EXIT_X = 180;
-const CAVE_EXIT_Y = 180;
 const FOREST_X = 1320;
 const FOREST_Y = 2080;
 const FOREST_RX = 1120;
 const FOREST_RY = 1500;
 
 interface CaveDefinition {
-  realm: CaveRealm;
+  id: CaveZone;
   name: string;
   entranceX: number;
   entranceY: number;
+  undergroundX: number;
+  undergroundY: number;
+  chamberRadius: number;
   ground: string;
   textureA: string;
   textureB: string;
@@ -208,51 +256,75 @@ interface CaveDefinition {
 
 const CAVES: CaveDefinition[] = [
   {
-    realm: "graniteCave",
+    id: "granite",
     name: "Granite Hollow",
     entranceX: 4720,
     entranceY: 480,
+    undergroundX: 860,
+    undergroundY: 900,
+    chamberRadius: 570,
     ground: "#444f4a",
     textureA: "#52605a",
     textureB: "#35423d",
   },
   {
-    realm: "ironCave",
+    id: "iron",
     name: "Iron Delve",
     entranceX: 4420,
     entranceY: 3260,
+    undergroundX: 4300,
+    undergroundY: 980,
+    chamberRadius: 600,
     ground: "#494b4b",
     textureA: "#5a5c5b",
     textureB: "#393c3c",
   },
   {
-    realm: "sulfurCave",
+    id: "sulfur",
     name: "Sulfur Grotto",
     entranceX: 650,
     entranceY: 470,
+    undergroundX: 2580,
+    undergroundY: 3100,
+    chamberRadius: 620,
     ground: "#4d4d39",
     textureA: "#626044",
     textureB: "#3d3e31",
   },
 ];
 
-const MATERIALS: { id: Material; name: string; icon: string }[] = [
-  { id: "wood", name: "Wood", icon: "W" },
-  { id: "stone", name: "Stone", icon: "S" },
-  { id: "granite", name: "Granite", icon: "G" },
-  { id: "iron", name: "Iron", icon: "Fe" },
-  { id: "copper", name: "Copper", icon: "Cu" },
-  { id: "coal", name: "Coal", icon: "C" },
-  { id: "sulfur", name: "Sulfur", icon: "Su" },
-  { id: "aetherium", name: "Aetherium", icon: "Ae" },
-  { id: "fiber", name: "Fiber", icon: "F" },
-  { id: "berries", name: "Berries", icon: "●" },
-  { id: "meat", name: "Meat", icon: "M" },
-  { id: "mushrooms", name: "Mushrooms", icon: "Mu" },
-  { id: "seeds", name: "Seeds", icon: "✦" },
-  { id: "hide", name: "Hide", icon: "H" },
-  { id: "arrows", name: "Arrows", icon: "↑" },
-  { id: "bullets", name: "Bullets", icon: "•" },
+const CAVE_HUB = { x: 2580, y: 1830, radius: 520 };
+const CAVE_TUNNEL_HALF_WIDTH = 185;
+const CAVE_CONNECTIONS = CAVES.map((cave) => [
+  { x: cave.undergroundX, y: cave.undergroundY },
+  CAVE_HUB,
+] as const);
+
+function caveEncounterPoint(cave: CaveDefinition, distance: number, lateral = 0) {
+  const angle = Math.atan2(cave.undergroundY - CAVE_HUB.y, cave.undergroundX - CAVE_HUB.x);
+  return {
+    x: cave.undergroundX + Math.cos(angle) * distance - Math.sin(angle) * lateral,
+    y: cave.undergroundY + Math.sin(angle) * distance + Math.cos(angle) * lateral,
+  };
+}
+
+const MATERIALS: { id: Material; name: string }[] = [
+  { id: "wood", name: "Wood" },
+  { id: "stone", name: "Stone" },
+  { id: "granite", name: "Granite" },
+  { id: "iron", name: "Iron" },
+  { id: "copper", name: "Copper" },
+  { id: "coal", name: "Coal" },
+  { id: "sulfur", name: "Sulfur" },
+  { id: "aetherium", name: "Aetherium" },
+  { id: "fiber", name: "Fiber" },
+  { id: "berries", name: "Berries" },
+  { id: "meat", name: "Meat" },
+  { id: "mushrooms", name: "Mushrooms" },
+  { id: "seeds", name: "Seeds" },
+  { id: "hide", name: "Hide" },
+  { id: "arrows", name: "Arrows" },
+  { id: "bullets", name: "Bullets" },
 ];
 
 const BUILD_DATA: Record<
@@ -260,6 +332,10 @@ const BUILD_DATA: Record<
   { name: string; detail: string; icon: string; cost: Partial<Record<Material, number>>; makes: number; hp: number }
 > = {
   craftingBench: { name: "Crafting Bench", detail: "Unlocks advanced crafting nearby", icon: "CB", cost: { wood: 4, stone: 2 }, makes: 1, hp: 85 },
+  storageChest: { name: "Storage Chest", detail: "Holds separate resource stacks", icon: "CH", cost: { wood: 5, fiber: 2 }, makes: 1, hp: 110 },
+  bedroll: { name: "Bedroll", detail: "Rest once each day to recover health", icon: "BR", cost: { wood: 2, fiber: 4 }, makes: 1, hp: 50 },
+  torch: { name: "Standing Torch", detail: "A small permanent light", icon: "TO", cost: { wood: 2, fiber: 1, coal: 1 }, makes: 2, hp: 35 },
+  campfire: { name: "Campfire", detail: "A broad pool of warmth and light", icon: "CF", cost: { wood: 4, stone: 4, coal: 1 }, makes: 1, hp: 80 },
   woodFence: { name: "Wood Fence", detail: "A quick timber barrier", icon: "WF", cost: { wood: 3 }, makes: 2, hp: 55 },
   stoneFence: { name: "Stone Fence", detail: "Slow, sturdy protection", icon: "SF", cost: { stone: 4 }, makes: 2, hp: 105 },
   woodGate: { name: "Wood Gate", detail: "Opens with E", icon: "WG", cost: { wood: 5 }, makes: 1, hp: 70 },
@@ -279,6 +355,10 @@ const BUILD_DATA: Record<
 
 const BUILD_ORDER: BuildKind[] = [
   "craftingBench",
+  "storageChest",
+  "bedroll",
+  "torch",
+  "campfire",
   "woodFence",
   "stoneFence",
   "woodGate",
@@ -298,10 +378,40 @@ const BUILD_ORDER: BuildKind[] = [
 
 const ANIMAL_KINDS: AnimalKind[] = ["bear", "boar", "deer", "rabbit", "fox", "wolf"];
 const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "wraith", "maw"];
+const MAX_TAMED_ANIMALS = 5;
+const ANIMAL_RESPAWN_MS = 120000;
+const ANIMAL_LURE_DISTANCE = 360;
+
+const ANIMAL_DATA: Record<
+  AnimalKind,
+  {
+    hp: number;
+    speed: number;
+    damage: number;
+    temperament: "aggressive" | "skittish";
+    noticeDistance: number;
+    tameChance: number;
+    startingCount: number;
+  }
+> = {
+  bear: { hp: 70, speed: 48, damage: 9, temperament: "aggressive", noticeDistance: 135, tameChance: 0.1, startingCount: 1 },
+  boar: { hp: 44, speed: 55, damage: 6, temperament: "aggressive", noticeDistance: 90, tameChance: 0.24, startingCount: 2 },
+  deer: { hp: 36, speed: 74, damage: 0, temperament: "skittish", noticeDistance: 150, tameChance: 0.42, startingCount: 7 },
+  rabbit: { hp: 18, speed: 84, damage: 0, temperament: "skittish", noticeDistance: 110, tameChance: 0.6, startingCount: 10 },
+  fox: { hp: 30, speed: 78, damage: 0, temperament: "skittish", noticeDistance: 125, tameChance: 0.32, startingCount: 3 },
+  wolf: { hp: 50, speed: 70, damage: 8, temperament: "aggressive", noticeDistance: 120, tameChance: 0.16, startingCount: 1 },
+};
 
 const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
-  axe: "Axe",
-  pickaxe: "Pickaxe",
+  woodAxe: "Wood Axe",
+  stoneAxe: "Stone Axe",
+  ironAxe: "Iron Axe",
+  aetheriumAxe: "Aetherium Axe",
+  woodPickaxe: "Wood Pickaxe",
+  stonePickaxe: "Stone Pickaxe",
+  ironPickaxe: "Iron Pickaxe",
+  aetheriumPickaxe: "Aetherium Pickaxe",
+  hammer: "Deconstruction Hammer",
   spear: "Stone Spear",
   sword: "Iron Sword",
   bow: "Hunting Bow",
@@ -348,6 +458,28 @@ const TOOL_TIER_NAMES: Record<ToolTier, string> = {
   aetherium: "Aetherium",
 };
 
+const DURABLE_TOOL_DATA: Record<
+  DurableTool,
+  { family: "axe" | "pickaxe"; tier: Exclude<ToolTier, "none">; maxDurability: number; damage: number }
+> = {
+  woodAxe: { family: "axe", tier: "wood", maxDurability: 36, damage: 7 },
+  stoneAxe: { family: "axe", tier: "stone", maxDurability: 72, damage: 9 },
+  ironAxe: { family: "axe", tier: "iron", maxDurability: 120, damage: 14 },
+  aetheriumAxe: { family: "axe", tier: "aetherium", maxDurability: 180, damage: 22 },
+  woodPickaxe: { family: "pickaxe", tier: "wood", maxDurability: 36, damage: 5 },
+  stonePickaxe: { family: "pickaxe", tier: "stone", maxDurability: 72, damage: 7 },
+  ironPickaxe: { family: "pickaxe", tier: "iron", maxDurability: 120, damage: 11 },
+  aetheriumPickaxe: { family: "pickaxe", tier: "aetherium", maxDurability: 180, damage: 18 },
+};
+
+function isDurableTool(item: InventoryItem | null): item is DurableTool {
+  return Boolean(item && item in DURABLE_TOOL_DATA);
+}
+
+function durableToolInfo(item: InventoryItem | null) {
+  return isDurableTool(item) ? DURABLE_TOOL_DATA[item] : null;
+}
+
 function isFoodItem(item: InventoryItem | null): item is FoodMaterial {
   return item === "berries" || item === "mushrooms" || item === "meat";
 }
@@ -355,8 +487,7 @@ function isFoodItem(item: InventoryItem | null): item is FoodMaterial {
 function itemLabel(item: InventoryItem | null, game?: GameState) {
   if (!item) return "Empty";
   if (isBuildKind(item)) return BUILD_DATA[item].name;
-  if (item === "axe" && game) return TOOL_TIER_NAMES[game.gear.axeTier] + " Axe";
-  if (item === "pickaxe" && game) return TOOL_TIER_NAMES[game.gear.pickaxeTier] + " Pickaxe";
+  if (isDurableTool(item) && game) return ITEM_LABELS[item] || item;
   return ITEM_LABELS[item] || item;
 }
 
@@ -364,8 +495,8 @@ function itemCount(game: GameState, item: InventoryItem | null) {
   if (!item) return 0;
   if (isBuildKind(item)) return game.kits[item];
   if (isMaterial(item)) return game.resources[item];
-  if (item === "axe") return game.gear.axeTier === "none" ? 0 : 1;
-  if (item === "pickaxe") return game.gear.pickaxeTier === "none" ? 0 : 1;
+  if (isDurableTool(item)) return game.gear.toolDurability[item] > 0 ? 1 : 0;
+  if (item === "hammer") return game.gear.hammer ? 1 : 0;
   if (item === "spear") return game.gear.spear ? 1 : 0;
   if (item === "sword") return game.gear.sword ? 1 : 0;
   if (item === "bow") return game.gear.bow ? 1 : 0;
@@ -376,7 +507,7 @@ function itemCount(game: GameState, item: InventoryItem | null) {
 function ensureItemListed(game: GameState, item: InventoryItem) {
   if (game.hotbar.includes(item) || game.inventory.includes(item)) return;
   const openHotbar = game.hotbar.findIndex((entry) => entry === null);
-  if (openHotbar >= 0 && (item === "axe" || item === "pickaxe" || item === "spear" || item === "sword" || item === "bow" || item === "pistol")) {
+  if (openHotbar >= 0 && (isDurableTool(item) || item === "hammer" || item === "spear" || item === "sword" || item === "bow" || item === "pistol")) {
     game.hotbar[openHotbar] = item;
     return;
   }
@@ -425,19 +556,56 @@ function nodeHp(kind: ResourceKind) {
   return 1;
 }
 
-function isCaveRealm(realm: Realm): realm is CaveRealm {
-  return realm !== "meadow";
+function pointToSegmentDistance(
+  x: number,
+  y: number,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+) {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared
+    ? Math.max(0, Math.min(1, ((x - startX) * dx + (y - startY) * dy) / lengthSquared))
+    : 0;
+  return Math.hypot(x - (startX + dx * t), y - (startY + dy * t));
 }
 
-function caveForRealm(realm: Realm) {
-  if (!isCaveRealm(realm)) return undefined;
-  return CAVES.find((cave) => cave.realm === realm);
+function isCaveFloor(x: number, y: number, padding = 0) {
+  if (Math.hypot(x - CAVE_HUB.x, y - CAVE_HUB.y) <= CAVE_HUB.radius - padding) return true;
+  if (
+    CAVES.some(
+      (cave) =>
+        Math.hypot(x - cave.undergroundX, y - cave.undergroundY) <= cave.chamberRadius - padding,
+    )
+  ) return true;
+  return CAVE_CONNECTIONS.some(
+    ([start, end]) =>
+      pointToSegmentDistance(x, y, start.x, start.y, end.x, end.y) <= CAVE_TUNNEL_HALF_WIDTH - padding,
+  );
+}
+
+function caveAreaAt(x: number, y: number) {
+  return [...CAVES].sort(
+    (a, b) =>
+      Math.hypot(x - a.undergroundX, y - a.undergroundY) -
+      Math.hypot(x - b.undergroundX, y - b.undergroundY),
+  )[0];
 }
 
 function nearbyCaveEntrance(game: GameState) {
   if (game.realm !== "meadow") return null;
   return CAVES.find(
     (cave) => Math.hypot(game.player.x - cave.entranceX, game.player.y - cave.entranceY) < 110,
+  ) || null;
+}
+
+function nearbyCaveExit(game: GameState) {
+  if (game.realm !== "caveSystem") return null;
+  return CAVES.find(
+    (cave) => Math.hypot(game.player.x - cave.undergroundX, game.player.y - cave.undergroundY) < 110,
   ) || null;
 }
 
@@ -461,14 +629,34 @@ function seeded(index: number, salt: number) {
 function makeGame(): GameState {
   const nodes: ResourceNode[] = [];
   let id = 1;
+  const treasureCave = CAVES[Math.floor(Math.random() * CAVES.length)];
+  const guardianCave = CAVES[Math.floor(Math.random() * CAVES.length)];
+  const treasurePoint = caveEncounterPoint(treasureCave, treasureCave.chamberRadius * 0.48, -95);
+  const guardianPoint = caveEncounterPoint(guardianCave, guardianCave.chamberRadius * 0.38, 95);
   const addNode = (kind: ResourceKind, realm: Realm, x: number, y: number) => {
     const blocksMovement = isTree(kind) || isMineable(kind);
     const clearSpawn = realm !== "meadow" || !blocksMovement || Math.hypot(x - SPAWN_X, y - SPAWN_Y) > 360;
-    const clearExit = realm === "meadow" || Math.hypot(x - CAVE_EXIT_X, y - CAVE_EXIT_Y) > 210;
+    const clearExit =
+      realm === "meadow" ||
+      CAVES.every((cave) => Math.hypot(x - cave.undergroundX, y - cave.undergroundY) > 340);
     const clearCave =
       realm !== "meadow" ||
       CAVES.every((cave) => Math.hypot(x - cave.entranceX, y - cave.entranceY) > 210);
-    if (!clearSpawn || !clearExit || !clearCave) return;
+    const insideCave = realm !== "caveSystem" || isCaveFloor(x, y, nodeRadius(kind) + 32);
+    const clearCaveNode =
+      realm !== "caveSystem" ||
+      !blocksMovement ||
+      nodes.every(
+        (node) =>
+          node.realm !== realm ||
+          !isMineable(node.kind) ||
+          Math.hypot(x - node.x, y - node.y) > nodeRadius(kind) + nodeRadius(node.kind) + 30,
+      );
+    const clearEncounter =
+      realm !== "caveSystem" ||
+      (Math.hypot(x - treasurePoint.x, y - treasurePoint.y) > nodeRadius(kind) + 75 &&
+        Math.hypot(x - guardianPoint.x, y - guardianPoint.y) > nodeRadius(kind) + 95);
+    if (!clearSpawn || !clearExit || !clearCave || !insideCave || !clearCaveNode || !clearEncounter) return;
     const hp = nodeHp(kind);
     nodes.push({ id: id++, kind, realm, x, y, hp, maxHp: hp, respawnAt: 0 });
   };
@@ -495,7 +683,7 @@ function makeGame(): GameState {
     const distance = 115 + seeded(i, 127) * 235;
     addNode("grass", "meadow", SPAWN_X + Math.cos(angle) * distance, SPAWN_Y + Math.sin(angle) * distance);
   }
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 8; i++) {
     addNode(
       i % 3 === 0 ? "copperOre" : "ironOre",
       "meadow",
@@ -503,7 +691,7 @@ function makeGame(): GameState {
       180 + seeded(i, 132) * (WORLD_H - 360),
     );
   }
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 1; i++) {
     addNode(
       "aetherOre",
       "meadow",
@@ -523,25 +711,37 @@ function makeGame(): GameState {
   }
 
   for (const [caveIndex, cave] of CAVES.entries()) {
-    for (let i = 0; i < 145; i++) {
-      const roll = i % 18;
+    for (let i = 0; i < 68; i++) {
+      const roll = i % 24;
       let kind: ResourceKind;
-      if (cave.realm === "graniteCave") {
-        kind = roll % 3 === 0 ? "granite" : roll === 1 ? "coal" : roll === 5 ? "mushroom" : "rock";
-      } else if (cave.realm === "ironCave") {
-        kind = roll === 17 ? "aetherOre" : roll % 4 === 0 ? "ironOre" : roll % 7 === 0 ? "copperOre" : roll === 3 ? "coal" : roll === 9 ? "granite" : "rock";
+      if (cave.id === "granite") {
+        kind = roll % 4 === 0 ? "granite" : roll === 1 ? "coal" : roll === 5 || roll === 17 ? "mushroom" : "rock";
+      } else if (cave.id === "iron") {
+        kind = i === 67 ? "aetherOre" : roll === 0 || roll === 12 ? "ironOre" : roll === 7 ? "copperOre" : roll === 3 ? "coal" : roll === 9 ? "granite" : "rock";
       } else {
-        kind = roll % 4 === 0 ? "sulfur" : roll % 5 === 0 ? "coal" : roll === 3 ? "mushroom" : roll === 7 ? "copperOre" : "rock";
+        kind = roll === 0 || roll === 8 || roll === 16 ? "sulfur" : roll === 5 || roll === 15 ? "coal" : roll === 3 || roll === 19 ? "mushroom" : roll === 11 ? "copperOre" : "rock";
       }
+      const angle = seeded(i, 90 + caveIndex * 11) * Math.PI * 2;
+      const distance = 150 + Math.sqrt(seeded(i, 91 + caveIndex * 11)) * (cave.chamberRadius - 235);
       addNode(
         kind,
-        cave.realm,
-        150 + seeded(i, 90 + caveIndex * 11) * (WORLD_W - 300),
-        150 + seeded(i, 91 + caveIndex * 11) * (WORLD_H - 300),
+        "caveSystem",
+        cave.undergroundX + Math.cos(angle) * distance,
+        cave.undergroundY + Math.sin(angle) * distance,
       );
     }
   }
 
+  const treasures: CaveTreasure[] = [
+    {
+      id: id++,
+      realm: "caveSystem",
+      x: treasurePoint.x,
+      y: treasurePoint.y,
+      opened: false,
+      loot: { granite: 4, iron: 5, copper: 4, coal: 3, sulfur: 3, aetherium: 2 },
+    },
+  ];
   const creatures: Creature[] = [];
   const animalStats: Record<AnimalKind, { hp: number; speed: number; damage: number }> = {
     bear: { hp: 70, speed: 48, damage: 9 },
@@ -553,7 +753,7 @@ function makeGame(): GameState {
   };
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = animalStats[kind];
-    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false });
+    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, boss: false });
   };
   for (let i = 0; i < 24; i++) {
     const x = FOREST_X + (seeded(i, 61) - 0.5) * FOREST_RX * 1.55;
@@ -561,6 +761,42 @@ function makeGame(): GameState {
     const kind: AnimalKind = i % 8 === 0 ? "bear" : i % 5 === 0 ? "wolf" : i % 4 === 0 ? "boar" : i % 3 === 0 ? "deer" : i % 2 === 0 ? "fox" : "rabbit";
     addAnimal(kind, x, y, i * 0.73);
   }
+  creatures.push({
+    id: id++,
+    kind: "maw",
+    realm: "caveSystem",
+    x: guardianPoint.x,
+    y: guardianPoint.y,
+    hp: 240,
+    maxHp: 240,
+    speed: 34,
+    damage: 22,
+    fed: 0,
+    tame: false,
+    angry: false,
+    hitAt: 0,
+    phase: 19.7,
+    slowUntil: 0,
+    rewarded: false,
+    dir: Math.atan2(CAVE_HUB.y - guardianPoint.y, CAVE_HUB.x - guardianPoint.x),
+    structureHitAt: 0,
+    boss: true,
+  });
+  const startingCampfire: Building = {
+    id: id++,
+    kind: "campfire",
+    realm: "meadow",
+    gx: 57,
+    gy: 40,
+    hp: BUILD_DATA.campfire.hp,
+    maxHp: BUILD_DATA.campfire.hp,
+    open: false,
+    growth: 0,
+    triggerAt: 0,
+    construction: 1,
+    deconstruction: 0,
+    restedDay: 0,
+  };
   return {
     started: false,
     dead: false,
@@ -571,9 +807,30 @@ function makeGame(): GameState {
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
     resources: { wood: 8, stone: 5, granite: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, fiber: 4, berries: 3, meat: 0, mushrooms: 0, seeds: 2, hide: 0, arrows: 0, bullets: 0 },
-    gear: { spear: false, sword: false, bow: false, pistol: false, axeTier: "none", pickaxeTier: "none", armor: "none" },
+    gear: {
+      spear: false,
+      sword: false,
+      bow: false,
+      pistol: false,
+      hammer: false,
+      toolDurability: {
+        woodAxe: DURABLE_TOOL_DATA.woodAxe.maxDurability,
+        stoneAxe: 0,
+        ironAxe: 0,
+        aetheriumAxe: 0,
+        woodPickaxe: 0,
+        stonePickaxe: 0,
+        ironPickaxe: 0,
+        aetheriumPickaxe: 0,
+      },
+      armor: "none",
+    },
     kits: {
       craftingBench: 0,
+      storageChest: 0,
+      bedroll: 0,
+      torch: 0,
+      campfire: 0,
       woodFence: 0,
       stoneFence: 0,
       woodGate: 0,
@@ -594,11 +851,14 @@ function makeGame(): GameState {
     selectedSlot: 0,
     weapon: "spear",
     inventory: ["wood", "stone", "fiber", "berries", "seeds", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
-    hotbar: ["berries", null, null, null, null, null, null, null, null, null],
+    hotbar: ["berries", "woodAxe", null, null, null, null, null, null, null, null],
     buildMode: null,
+    openChestId: null,
+    workOrders: [],
     nodes,
+    treasures,
     creatures,
-    buildings: [],
+    buildings: [startingCampfire],
     projectiles: [],
     keys: new Set(),
     mouseHeld: false,
@@ -606,7 +866,7 @@ function makeGame(): GameState {
     lastBuildCell: null,
     pointer: { x: 0, y: 0, worldX: 0, worldY: 0, active: false },
     camera: { x: SPAWN_X, y: SPAWN_Y },
-    message: "Gather, craft, and build before nightfall.",
+    message: "Your Wood Axe is in slot 2 and a campfire is already lit. Gather before nightfall.",
     messageUntil: performance.now() + 6000,
     wave: 0,
     kills: 0,
@@ -643,10 +903,28 @@ function spawnNightWave(game: GameState) {
   game.wave = game.day;
   const count = 6 + game.day * 3;
   for (let i = 0; i < count; i++) {
-    const angle = (Math.PI * 2 * i) / count + seeded(i, game.day);
-    const distance = 560 + seeded(i, game.day + 5) * 420;
-    const x = Math.max(70, Math.min(WORLD_W - 70, game.player.x + Math.cos(angle) * distance));
-    const y = Math.max(70, Math.min(WORLD_H - 70, game.player.y + Math.sin(angle) * distance));
+    let x = game.player.x;
+    let y = game.player.y;
+    for (let attempt = 0; attempt < 160; attempt++) {
+      const candidateIndex = i * 211 + attempt * 2;
+      const candidateX = 70 + seeded(candidateIndex, game.day * 17 + 101) * (WORLD_W - 140);
+      const candidateY = 70 + seeded(candidateIndex + 1, game.day * 19 + 103) * (WORLD_H - 140);
+      if (Math.hypot(candidateX - game.player.x, candidateY - game.player.y) < 360) continue;
+      if (game.realm === "caveSystem" && !isCaveFloor(candidateX, candidateY, 38)) continue;
+      if (blockingBuildingAt(game, game.realm, candidateX, candidateY, 24)) continue;
+      if (
+        game.nodes.some(
+          (node) =>
+            node.realm === game.realm &&
+            node.hp > 0 &&
+            (isTree(node.kind) || isMineable(node.kind)) &&
+            distanceToNodeFootprint(node, candidateX, candidateY, 20) === 0,
+        )
+      ) continue;
+      x = candidateX;
+      y = candidateY;
+      break;
+    }
     const kind: MonsterKind =
       game.day >= 5 && i % 7 === 0
         ? "maw"
@@ -683,12 +961,23 @@ function spawnNightWave(game: GameState) {
       phase: i,
       slowUntil: 0,
       rewarded: false,
+      dir: Math.atan2(game.player.y - y, game.player.x - x),
+      structureHitAt: 0,
+      boss: false,
     });
   }
   notify(game, "NIGHT " + game.day + " — " + count + " horrors have entered the hunt.", 4300);
 }
 
 function activeTool(game: GameState): Tool {
+  const order = game.workOrders[0];
+  const building = order && game.buildings.find((candidate) => candidate.id === order.buildingId);
+  if (
+    order?.action === "construct" &&
+    building?.realm === game.realm &&
+    distanceToBuilding(building, game.player.x, game.player.y) <= 58 &&
+    !movementInput(game)
+  ) return "build";
   return game.selected;
 }
 
@@ -698,6 +987,7 @@ function nearCraftingBench(game: GameState) {
       building.kind === "craftingBench" &&
       building.realm === game.realm &&
       building.hp > 0 &&
+      building.construction >= 1 &&
       Math.hypot(building.gx * GRID - game.player.x, building.gy * GRID - game.player.y) <= 150,
   );
 }
@@ -756,43 +1046,62 @@ function nearestNode(game: GameState, maxDistance: number) {
   return found;
 }
 
+function nearestTreasure(game: GameState, maxDistance: number) {
+  let found: CaveTreasure | null = null;
+  let best = maxDistance;
+  for (const treasure of game.treasures) {
+    if (treasure.realm !== game.realm || treasure.opened) continue;
+    const distance = Math.hypot(treasure.x - game.player.x, treasure.y - game.player.y);
+    if (distance < best) {
+      best = distance;
+      found = treasure;
+    }
+  }
+  return found;
+}
+
+function distanceToNodeFootprint(node: ResourceNode, x: number, y: number, padding = 0) {
+  return Math.max(0, Math.hypot(node.x - x, node.y - y) - nodeRadius(node.kind) - padding);
+}
+
+function rayEntryToNode(game: GameState, node: ResourceNode, padding = 10) {
+  const aimX = game.pointer.worldX - game.player.x;
+  const aimY = game.pointer.worldY - game.player.y;
+  const aimLength = Math.hypot(aimX, aimY);
+  if (aimLength < 0.001) return null;
+  const unitX = aimX / aimLength;
+  const unitY = aimY / aimLength;
+  const nodeX = node.x - game.player.x;
+  const nodeY = node.y - game.player.y;
+  const projection = nodeX * unitX + nodeY * unitY;
+  const radius = nodeRadius(node.kind) + padding;
+  if (projection < -radius) return null;
+  const perpendicularSquared = nodeX * nodeX + nodeY * nodeY - projection * projection;
+  if (perpendicularSquared > radius * radius) return null;
+  return Math.max(0, projection - Math.sqrt(Math.max(0, radius * radius - perpendicularSquared)));
+}
+
 function targetNode(game: GameState, maxDistance: number) {
   if (game.pointer.active) {
     const reachable = game.nodes.filter(
       (node) =>
         node.realm === game.realm &&
         node.hp > 0 &&
-        Math.hypot(node.x - game.player.x, node.y - game.player.y) - nodeRadius(node.kind) < maxDistance,
+        distanceToNodeFootprint(node, game.player.x, game.player.y) <= maxDistance,
     );
     const pointed = reachable
-      .filter(
-        (node) =>
-          Math.hypot(node.x - game.pointer.worldX, node.y - game.pointer.worldY) < nodeRadius(node.kind) + 18,
-      )
+      .filter((node) => distanceToNodeFootprint(node, game.pointer.worldX, game.pointer.worldY, 12) === 0)
       .sort(
         (a, b) =>
-          Math.hypot(a.x - game.pointer.worldX, a.y - game.pointer.worldY) - nodeRadius(a.kind) -
-          (Math.hypot(b.x - game.pointer.worldX, b.y - game.pointer.worldY) - nodeRadius(b.kind)),
+          distanceToNodeFootprint(a, game.pointer.worldX, game.pointer.worldY) -
+          distanceToNodeFootprint(b, game.pointer.worldX, game.pointer.worldY),
       )[0];
     if (pointed) return pointed;
 
-    const aim = Math.atan2(
-      game.pointer.worldY - game.player.y,
-      game.pointer.worldX - game.player.x,
-    );
     return reachable
-      .map((node) => {
-        let angle = Math.atan2(node.y - game.player.y, node.x - game.player.x) - aim;
-        while (angle > Math.PI) angle -= Math.PI * 2;
-        while (angle < -Math.PI) angle += Math.PI * 2;
-        return {
-          node,
-          angle: Math.abs(angle),
-          edge: Math.hypot(node.x - game.player.x, node.y - game.player.y) - nodeRadius(node.kind),
-        };
-      })
-      .filter((target) => target.angle < 0.55)
-      .sort((a, b) => a.angle - b.angle || a.edge - b.edge)[0]?.node || null;
+      .map((node) => ({ node, entry: rayEntryToNode(game, node) }))
+      .filter((target): target is { node: ResourceNode; entry: number } => target.entry !== null && target.entry <= maxDistance)
+      .sort((a, b) => a.entry - b.entry)[0]?.node || null;
   }
   return nearestNode(game, maxDistance);
 }
@@ -801,6 +1110,45 @@ function buildLayer(kind: BuildKind) {
   if (kind === "floor") return "floor";
   if (kind === "roof") return "roof";
   return "solid";
+}
+
+function blocksMovementKind(kind: BuildKind) {
+  return !["floor", "roof", "bedroll", "torch", "campfire", "spikes", "snare", "fireTrap", "crop"].includes(kind);
+}
+
+function isSolidBuilding(building: Building) {
+  if (building.hp <= 0 || building.construction < 1 || !blocksMovementKind(building.kind)) return false;
+  return !(["woodGate", "stoneGate", "door"].includes(building.kind) && building.open);
+}
+
+function distanceToBuilding(building: Building, x: number, y: number, padding = 0) {
+  const dx = Math.max(Math.abs(x - building.gx * GRID) - BUILDING_HALF_SIZE - padding, 0);
+  const dy = Math.max(Math.abs(y - building.gy * GRID) - BUILDING_HALF_SIZE - padding, 0);
+  return Math.hypot(dx, dy);
+}
+
+function blockingBuildingAt(game: GameState, realm: Realm, x: number, y: number, radius: number) {
+  return game.buildings.find(
+    (building) =>
+      building.realm === realm &&
+      isSolidBuilding(building) &&
+      distanceToBuilding(building, x, y, radius) === 0,
+  ) || null;
+}
+
+function creatureRadius(creature: Creature) {
+  if (creature.boss) return 49;
+  if (creature.kind === "maw" || creature.kind === "bear" || creature.kind === "brute") return 27;
+  if (creature.kind === "rabbit") return 14;
+  return 20;
+}
+
+function cancelBuildMode(game: GameState) {
+  game.buildMode = null;
+  game.selected = "hands";
+  game.mouseHeld = false;
+  game.buildDrag = false;
+  game.lastBuildCell = null;
 }
 
 function previewCell(game: GameState) {
@@ -821,6 +1169,14 @@ function validPlacement(game: GameState, kind: BuildKind, gx: number, gy: number
   const y = gy * GRID;
   if (x < 70 || y < 70 || x > WORLD_W - 70 || y > WORLD_H - 70) return false;
   if (Math.hypot(x - game.player.x, y - game.player.y) > 260) return false;
+  if (game.realm === "caveSystem" && !isCaveFloor(x, y, BUILDING_HALF_SIZE + 10)) return false;
+  if (
+    game.treasures.some(
+      (treasure) =>
+        treasure.realm === game.realm &&
+        Math.hypot(treasure.x - x, treasure.y - y) < BUILDING_HALF_SIZE + 34,
+    )
+  ) return false;
   if (
     buildLayer(kind) === "solid" &&
     game.nodes.some(
@@ -831,6 +1187,16 @@ function validPlacement(game: GameState, kind: BuildKind, gx: number, gy: number
         Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind) + 24,
     )
   ) return false;
+  if (
+    blocksMovementKind(kind) &&
+    (Math.hypot(game.player.x - x, game.player.y - y) < BUILDING_HALF_SIZE + 25 ||
+      game.creatures.some(
+        (creature) =>
+          creature.realm === game.realm &&
+          creature.hp > 0 &&
+          Math.hypot(creature.x - x, creature.y - y) < BUILDING_HALF_SIZE + creatureRadius(creature),
+      ))
+  ) return false;
   return !game.buildings.some(
     (building) =>
       building.realm === game.realm &&
@@ -840,7 +1206,7 @@ function validPlacement(game: GameState, kind: BuildKind, gx: number, gy: number
   );
 }
 
-function placeBuild(game: GameState, quiet = false) {
+function placeBuild(game: GameState, quiet = false, keepPlacing = false) {
   const kind = game.buildMode;
   if (!kind) return false;
   const cell = previewCell(game);
@@ -853,66 +1219,157 @@ function placeBuild(game: GameState, quiet = false) {
     return false;
   }
   game.kits[kind] -= 1;
-  game.buildings.push({
+  const building: Building = {
     id: game.lastId++,
     kind,
     realm: game.realm,
     gx: cell.gx,
     gy: cell.gy,
-    hp: BUILD_DATA[kind].hp,
+    hp: Math.max(1, Math.ceil(BUILD_DATA[kind].hp * 0.15)),
     maxHp: BUILD_DATA[kind].hp,
     open: false,
     growth: 0,
     triggerAt: 0,
-  });
+    construction: 0,
+    deconstruction: 0,
+    restedDay: 0,
+    storage: kind === "storageChest" ? {} : undefined,
+  };
+  game.buildings.push(building);
+  game.workOrders.push({ buildingId: building.id, action: "construct", progress: 0 });
   if (!quiet) {
     notify(
       game,
-      game.kits[kind] > 0
-        ? BUILD_DATA[kind].name + " placed. Hold Shift and drag to place several."
-        : BUILD_DATA[kind].name + " placed. Craft more pieces to keep building.",
+      BUILD_DATA[kind].name + " blueprint placed. Moving in to build it.",
     );
   }
-  if (game.kits[kind] <= 0) {
-    game.buildMode = null;
-    game.selected = "hands";
-  }
+  if (!keepPlacing || game.kits[kind] <= 0) cancelBuildMode(game);
   return true;
+}
+
+function rayEntryToBuilding(game: GameState, building: Building, padding = 10) {
+  const aimX = game.pointer.worldX - game.player.x;
+  const aimY = game.pointer.worldY - game.player.y;
+  const aimLength = Math.hypot(aimX, aimY);
+  if (aimLength < 0.001) return null;
+  const unitX = aimX / aimLength;
+  const unitY = aimY / aimLength;
+  const buildingX = building.gx * GRID - game.player.x;
+  const buildingY = building.gy * GRID - game.player.y;
+  const projection = buildingX * unitX + buildingY * unitY;
+  const radius = BUILDING_HALF_SIZE * Math.SQRT2 + padding;
+  if (projection < -radius) return null;
+  const perpendicularSquared = buildingX * buildingX + buildingY * buildingY - projection * projection;
+  if (perpendicularSquared > radius * radius) return null;
+  return Math.max(0, projection - Math.sqrt(Math.max(0, radius * radius - perpendicularSquared)));
+}
+
+function targetBuilding(game: GameState, maxDistance: number) {
+  const reachable = game.buildings.filter(
+    (building) =>
+      building.realm === game.realm &&
+      building.hp > 0 &&
+      distanceToBuilding(building, game.player.x, game.player.y) <= maxDistance,
+  );
+  if (game.pointer.active) {
+    const pointed = reachable
+      .filter((building) => distanceToBuilding(building, game.pointer.worldX, game.pointer.worldY, 10) === 0)
+      .sort(
+        (a, b) =>
+          distanceToBuilding(a, game.pointer.worldX, game.pointer.worldY) -
+          distanceToBuilding(b, game.pointer.worldX, game.pointer.worldY),
+      )[0];
+    if (pointed) return pointed;
+    return reachable
+      .map((building) => ({ building, entry: rayEntryToBuilding(game, building) }))
+      .filter((target): target is { building: Building; entry: number } => target.entry !== null && target.entry <= maxDistance)
+      .sort((a, b) => a.entry - b.entry)[0]?.building || null;
+  }
+  return reachable.sort(
+    (a, b) =>
+      distanceToBuilding(a, game.player.x, game.player.y) -
+      distanceToBuilding(b, game.player.x, game.player.y),
+  )[0] || null;
+}
+
+function startDeconstruction(game: GameState) {
+  const now = performance.now();
+  if (now < game.player.useReady) return;
+  const building = targetBuilding(game, 118);
+  if (!building) {
+    notify(game, "Aim the hammer at a nearby structure.", 900);
+    game.player.useReady = now + 450;
+    return;
+  }
+  const activeOrder = game.workOrders.find(
+    (order) => order.buildingId === building.id && order.action === "deconstruct",
+  );
+  if (activeOrder) return;
+  game.workOrders = game.workOrders.filter((order) => order.buildingId !== building.id);
+  building.deconstruction = 0;
+  game.workOrders.unshift({ buildingId: building.id, action: "deconstruct", progress: 0 });
+  game.player.useReady = now + 450;
+  notify(game, "Deconstructing " + BUILD_DATA[building.kind].name + "…", 1200);
 }
 
 function interact(game: GameState) {
   if (game.buildMode) {
-    placeBuild(game);
+    placeBuild(game, false, game.keys.has("shift"));
     return;
   }
   const entrance = nearbyCaveEntrance(game);
-  const currentCave = caveForRealm(game.realm);
-  const atCaveExit =
-    currentCave &&
-    Math.hypot(game.player.x - CAVE_EXIT_X, game.player.y - CAVE_EXIT_Y) < 110;
-  if (entrance || atCaveExit) {
+  const caveExit = nearbyCaveExit(game);
+  if (entrance || caveExit) {
     if (entrance) {
-      game.realm = entrance.realm;
-      game.player.x = CAVE_EXIT_X + 80;
-      game.player.y = CAVE_EXIT_Y + 60;
-      notify(game, entrance.name + " entered. Its deposits differ from the other caves.");
-    } else if (currentCave) {
+      const towardHub = Math.atan2(CAVE_HUB.y - entrance.undergroundY, CAVE_HUB.x - entrance.undergroundX);
+      game.realm = "caveSystem";
+      game.player.x = entrance.undergroundX + Math.cos(towardHub) * 145;
+      game.player.y = entrance.undergroundY + Math.sin(towardHub) * 145;
+      notify(game, "Entered the cave. Its tunnels connect to the other entrances.", 3000);
+    } else if (caveExit) {
       game.realm = "meadow";
-      game.player.x = currentCave.entranceX - 90;
-      game.player.y = currentCave.entranceY + 90;
-      notify(game, "Back in the meadow from " + currentCave.name + ".");
+      game.player.x = caveExit.entranceX - 90;
+      game.player.y = caveExit.entranceY + 90;
+      notify(game, "Back in the meadow.");
     }
     game.camera.x = game.player.x;
     game.camera.y = game.player.y;
     return;
   }
+  const treasure = nearestTreasure(game, 92);
+  if (treasure) {
+    const rewards = Object.entries(treasure.loot) as [Material, number][];
+    rewards.forEach(([material, amount]) => addMaterial(game, material, amount));
+    treasure.opened = true;
+    notify(
+      game,
+      "Treasure found · " + rewards.map(([material, amount]) => amount + " " + material).join(" · "),
+      5200,
+    );
+    return;
+  }
   const nearbyBuilding = game.buildings.find((building) => {
-    if (building.realm !== game.realm) return false;
-    if (building.kind !== "woodGate" && building.kind !== "stoneGate" && building.kind !== "door" && building.kind !== "crop") return false;
+    if (building.realm !== game.realm || building.construction < 1) return false;
+    if (building.kind !== "woodGate" && building.kind !== "stoneGate" && building.kind !== "door" && building.kind !== "crop" && building.kind !== "storageChest" && building.kind !== "bedroll") return false;
     return Math.hypot(building.gx * GRID - game.player.x, building.gy * GRID - game.player.y) < 82;
   });
   if (nearbyBuilding) {
-    if (nearbyBuilding.kind === "crop") {
+    if (nearbyBuilding.kind === "storageChest") {
+      game.openChestId = nearbyBuilding.id;
+      notify(game, "Storage Chest opened. Stored materials are unavailable for crafting until removed.");
+    } else if (nearbyBuilding.kind === "bedroll") {
+      if (nearbyBuilding.restedDay === game.day) {
+        notify(game, "You have already rested here today.");
+      } else if (game.player.hp >= game.player.maxHp) {
+        notify(game, "You are already at full health.");
+      } else {
+        const recovered = Math.min(25, game.player.maxHp - game.player.hp);
+        game.player.hp += recovered;
+        game.player.hunger = Math.max(0, game.player.hunger - 8);
+        nearbyBuilding.restedDay = game.day;
+        notify(game, "Rested at the bedroll · +" + Math.ceil(recovered) + " health · -8 hunger.");
+      }
+    } else if (nearbyBuilding.kind === "crop") {
       if (nearbyBuilding.growth >= 1) {
         addMaterial(game, "berries", 4);
         addMaterial(game, "seeds", 2);
@@ -965,22 +1422,33 @@ const TOOL_TIER_RANK: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, i
 const TOOL_POWER: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 5 };
 const TOOL_COOLDOWN: Record<ToolTier, number> = { none: 450, wood: 400, stone: 320, iron: 220, aetherium: 140 };
 
+function wearTool(game: GameState, tool: DurableTool) {
+  const remaining = Math.max(0, game.gear.toolDurability[tool] - 1);
+  game.gear.toolDurability[tool] = remaining;
+  if (remaining > 0) return { remaining, broke: false };
+  game.hotbar = game.hotbar.map((item) => (item === tool ? null : item));
+  game.inventory = game.inventory.map((item) => (item === tool ? null : item));
+  if (game.selected === tool) selectSlot(game, game.selectedSlot);
+  return { remaining: 0, broke: true };
+}
+
 function harvestNode(game: GameState, node: ResourceNode) {
   const now = performance.now();
   if (now < game.player.useReady || game.dead || !game.started) return;
   const tree = isTree(node.kind);
   const mining = isMineable(node.kind);
-  if (tree && game.selected !== "axe") {
+  const selectedTool = durableToolInfo(game.selected);
+  if (tree && selectedTool?.family !== "axe") {
     notify(game, "Put an axe in the selected hotbar slot.", 900);
     game.player.useReady = now + 450;
     return;
   }
-  if (mining && game.selected !== "pickaxe") {
+  if (mining && selectedTool?.family !== "pickaxe") {
     notify(game, "Put a pickaxe in the selected hotbar slot.", 900);
     game.player.useReady = now + 450;
     return;
   }
-  const tier = tree ? game.gear.axeTier : mining ? game.gear.pickaxeTier : "wood";
+  const tier = tree || mining ? selectedTool?.tier ?? "none" : "wood";
   const requiredPickTier: ToolTier = node.kind === "aetherOre"
     ? "iron"
     : node.kind === "rock"
@@ -1038,7 +1506,16 @@ function harvestNode(game: GameState, node: ResourceNode) {
     if (node.kind === "oak") gain("fiber", 2);
     if (node.kind === "birch") gain("fiber", 1);
   }
-  notify(game, gains.join(" · "), 850);
+  if ((tree || mining) && isDurableTool(game.selected)) {
+    const usedTool = game.selected;
+    const wear = wearTool(game, usedTool);
+    gains.push(
+      wear.broke
+        ? ITEM_LABELS[usedTool] + " broke"
+        : "durability " + wear.remaining + "/" + DURABLE_TOOL_DATA[usedTool].maxDurability,
+    );
+  }
+  notify(game, gains.join(" · "), 1000);
 }
 
 function attack(game: GameState) {
@@ -1069,10 +1546,9 @@ function attack(game: GameState) {
     });
     return;
   }
-  const axeDamage: Record<ToolTier, number> = { none: 3, wood: 7, stone: 9, iron: 14, aetherium: 22 };
-  const pickDamage: Record<ToolTier, number> = { none: 3, wood: 5, stone: 7, iron: 11, aetherium: 18 };
+  const durableTool = durableToolInfo(tool);
   const damage =
-    tool === "sword" ? 25 : tool === "spear" ? 17 : tool === "axe" ? axeDamage[game.gear.axeTier] : tool === "pickaxe" ? pickDamage[game.gear.pickaxeTier] : 3;
+    tool === "sword" ? 25 : tool === "spear" ? 17 : durableTool?.damage ?? 3;
   const range = tool === "spear" || tool === "sword" ? 102 : 78;
   game.player.attackReady = now + (tool === "sword" ? 380 : 500);
   game.player.swing = 0.28;
@@ -1096,7 +1572,17 @@ function attack(game: GameState) {
       }
     }
   }
-  if (hit) notify(game, damage + " damage", 700);
+  if (hit && isDurableTool(tool)) {
+    const wear = wearTool(game, tool);
+    notify(
+      game,
+      damage + " damage · " +
+        (wear.broke
+          ? ITEM_LABELS[tool] + " broke"
+          : "durability " + wear.remaining + "/" + DURABLE_TOOL_DATA[tool].maxDurability),
+      1000,
+    );
+  } else if (hit) notify(game, damage + " damage", 700);
 }
 
 function awardCreatureDrop(game: GameState, creature: Creature) {
@@ -1120,6 +1606,10 @@ function updateProjectiles(game: GameState, dt: number) {
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
     projectile.life -= dt;
+    if (projectile.realm === "caveSystem" && !isCaveFloor(projectile.x, projectile.y, 5)) {
+      projectile.life = 0;
+      continue;
+    }
     const target = game.creatures.find(
       (creature) =>
         creature.realm === projectile.realm &&
@@ -1148,10 +1638,14 @@ function primaryAction(game: GameState, repeated = false) {
     const cellKey = game.realm + ":" + cell.gx + ":" + cell.gy;
     if (repeated && game.lastBuildCell === cellKey) return;
     if (!continuous && now < game.player.useReady) return;
-    const placed = placeBuild(game, repeated);
+    const placed = placeBuild(game, repeated, continuous);
     game.lastBuildCell = cellKey;
     game.player.useReady = continuous ? now : now + 300;
     if (!placed && !continuous) game.lastBuildCell = null;
+    return;
+  }
+  if (game.selected === "hammer") {
+    startDeconstruction(game);
     return;
   }
   const node = targetNode(game, 112);
@@ -1167,6 +1661,20 @@ function reviveNodes(game: GameState) {
   for (const node of game.nodes) {
     if (node.hp <= 0 && node.respawnAt < now) node.hp = node.maxHp;
   }
+}
+
+function moveCreatureWithBuildings(game: GameState, creature: Creature, dx: number, dy: number, distance: number, step: number) {
+  const radius = creatureRadius(creature);
+  const nextX = Math.max(35, Math.min(WORLD_W - 35, creature.x + (dx / distance) * step));
+  const nextY = Math.max(35, Math.min(WORLD_H - 35, creature.y + (dy / distance) * step));
+  let blocker = blockingBuildingAt(game, creature.realm, nextX, creature.y, radius);
+  const xInsideCave = creature.realm !== "caveSystem" || isCaveFloor(nextX, creature.y, radius + 4);
+  if (!blocker && xInsideCave) creature.x = nextX;
+  const yBlocker = blockingBuildingAt(game, creature.realm, creature.x, nextY, radius);
+  const yInsideCave = creature.realm !== "caveSystem" || isCaveFloor(creature.x, nextY, radius + 4);
+  if (!yBlocker && yInsideCave) creature.y = nextY;
+  blocker ||= yBlocker;
+  return blocker;
 }
 
 function updateCreatures(game: GameState, dt: number) {
@@ -1228,8 +1736,12 @@ function updateCreatures(game: GameState, dt: number) {
     if (shouldMove) {
       const slowFactor = now < creature.slowUntil ? 0.42 : 1;
       const pace = (chasing ? creature.speed : creature.speed * 0.22) * slowFactor;
-      creature.x = Math.max(35, Math.min(WORLD_W - 35, creature.x + (dx / distance) * pace * dt));
-      creature.y = Math.max(35, Math.min(WORLD_H - 35, creature.y + (dy / distance) * pace * dt));
+      creature.dir = Math.atan2(dy, dx);
+      const blocker = moveCreatureWithBuildings(game, creature, dx, dy, distance, pace * dt);
+      if (blocker && isMonster(creature.kind) && now - creature.structureHitAt > 800) {
+        blocker.hp -= creature.damage;
+        creature.structureHitAt = now;
+      }
     }
     if (chasing && !creature.tame && playerDistance < 43 && now - creature.hitAt > 850) {
       const armorReduction = game.gear.armor === "blacksteel" ? 0.55 : game.gear.armor === "iron" ? 0.35 : game.gear.armor === "copper" ? 0.18 : 0;
@@ -1239,7 +1751,7 @@ function updateCreatures(game: GameState, dt: number) {
       notify(game, "You took " + Math.round(received) + " damage!", 1100);
     }
     for (const building of game.buildings) {
-      if (building.realm !== game.realm || building.hp <= 0) continue;
+      if (building.realm !== game.realm || building.hp <= 0 || building.construction < 1) continue;
       const buildingDistance = Math.hypot(building.gx * GRID - creature.x, building.gy * GRID - creature.y);
       if (building.kind === "spikes" && buildingDistance < 42 && isMonster(creature.kind) && now - creature.hitAt > 450) {
         creature.hp -= 10;
@@ -1254,15 +1766,11 @@ function updateCreatures(game: GameState, dt: number) {
         creature.hp -= 18;
         building.triggerAt = now + 3200;
       }
-      if (isMonster(creature.kind) && buildingDistance < 36 && now - creature.hitAt > 800) {
-        building.hp -= creature.damage;
-        creature.hitAt = now;
-      }
       if (creature.hp <= 0) awardCreatureDrop(game, creature);
     }
   }
   for (const turret of game.buildings) {
-    if (turret.kind !== "turret" || turret.realm !== game.realm || performance.now() < turret.triggerAt) continue;
+    if (turret.kind !== "turret" || turret.realm !== game.realm || turret.construction < 1 || performance.now() < turret.triggerAt) continue;
     const target = game.creatures
       .filter((creature) => creature.realm === game.realm && creature.hp > 0 && isMonster(creature.kind))
       .sort(
@@ -1281,6 +1789,13 @@ function updateCreatures(game: GameState, dt: number) {
 }
 
 function canStand(game: GameState, x: number, y: number) {
+  if (game.realm === "caveSystem" && !isCaveFloor(x, y, 24)) return false;
+  if (blockingBuildingAt(game, game.realm, x, y, 22)) return false;
+  if (
+    game.treasures.some(
+      (treasure) => treasure.realm === game.realm && Math.hypot(treasure.x - x, treasure.y - y) < 53,
+    )
+  ) return false;
   return !game.nodes.some(
     (node) =>
       node.realm === game.realm &&
@@ -1288,6 +1803,81 @@ function canStand(game: GameState, x: number, y: number) {
       (isTree(node.kind) || isMineable(node.kind)) &&
       Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind) + 19,
   );
+}
+
+function movementInput(game: GameState) {
+  return ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].some((key) => game.keys.has(key));
+}
+
+function movePlayerToward(game: GameState, targetX: number, targetY: number, dt: number) {
+  const dx = targetX - game.player.x;
+  const dy = targetY - game.player.y;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  const step = Math.min(distance, 155 * dt);
+  const nextX = Math.max(32, Math.min(WORLD_W - 32, game.player.x + (dx / distance) * step));
+  const nextY = Math.max(32, Math.min(WORLD_H - 32, game.player.y + (dy / distance) * step));
+  if (canStand(game, nextX, game.player.y)) game.player.x = nextX;
+  if (canStand(game, game.player.x, nextY)) game.player.y = nextY;
+}
+
+function finishDeconstruction(game: GameState, building: Building) {
+  const recovered: string[] = [];
+  for (const [material, totalCost] of Object.entries(BUILD_DATA[building.kind].cost) as [Material, number][]) {
+    const amount = Math.floor((totalCost / BUILD_DATA[building.kind].makes) * 0.5);
+    if (amount <= 0) continue;
+    addMaterial(game, material, amount);
+    recovered.push(amount + " " + material);
+  }
+  if (building.storage) {
+    for (const [material, stored] of Object.entries(building.storage) as [Material, number][]) {
+      if (!stored) continue;
+      addMaterial(game, material, stored);
+      recovered.push(stored + " " + material + " from storage");
+    }
+  }
+  game.buildings = game.buildings.filter((candidate) => candidate.id !== building.id);
+  if (game.openChestId === building.id) game.openChestId = null;
+  notify(
+    game,
+    BUILD_DATA[building.kind].name + " deconstructed" + (recovered.length ? " · recovered " + recovered.join(", ") : "."),
+    2600,
+  );
+}
+
+function updateWorkOrders(game: GameState, dt: number) {
+  while (game.workOrders.length > 0 && !game.buildings.some((building) => building.id === game.workOrders[0].buildingId)) {
+    game.workOrders.shift();
+  }
+  const order = game.workOrders[0];
+  if (!order || movementInput(game)) return;
+  const building = game.buildings.find((candidate) => candidate.id === order.buildingId);
+  if (!building || building.realm !== game.realm) return;
+  const targetX = building.gx * GRID;
+  const targetY = building.gy * GRID;
+  game.player.dir = Math.atan2(targetY - game.player.y, targetX - game.player.x);
+  if (distanceToBuilding(building, game.player.x, game.player.y) > 58) {
+    movePlayerToward(game, targetX, targetY, dt);
+    return;
+  }
+  if (game.player.swing <= 0.03) game.player.swing = 0.2;
+  const duration = order.action === "construct" ? CONSTRUCTION_SECONDS : DECONSTRUCTION_SECONDS;
+  order.progress = Math.min(1, order.progress + dt / duration);
+  if (order.action === "construct") {
+    building.construction = order.progress;
+    building.hp = Math.max(building.hp, Math.ceil(building.maxHp * (0.15 + order.progress * 0.85)));
+    if (order.progress >= 1) {
+      building.construction = 1;
+      building.hp = building.maxHp;
+      game.workOrders.shift();
+      notify(game, BUILD_DATA[building.kind].name + " finished · " + building.maxHp + " health.", 1800);
+    }
+    return;
+  }
+  building.deconstruction = order.progress;
+  if (order.progress >= 1) {
+    game.workOrders.shift();
+    finishDeconstruction(game, building);
+  }
 }
 
 function syncPointerWorld(game: GameState, viewportWidth: number, viewportHeight: number) {
@@ -1332,6 +1922,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
       game.pointer.worldX - game.player.x,
     );
   }
+  updateWorkOrders(game, dt);
   if (game.mouseHeld) primaryAction(game, true);
   game.player.swing = Math.max(0, game.player.swing - dt);
   game.player.hunger = Math.max(0, game.player.hunger - dt * 0.5);
@@ -1342,7 +1933,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
     game.started = false;
   }
   for (const building of game.buildings) {
-    if (building.kind === "crop") building.growth = Math.min(1, building.growth + dt / 75);
+    if (building.kind === "crop" && building.construction >= 1) building.growth = Math.min(1, building.growth + dt / 75);
   }
   updateProjectiles(game, dt);
   updateCreatures(game, dt);
@@ -1352,6 +1943,25 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   ctx.beginPath();
   ctx.roundRect(x, y, width, height, radius);
+}
+
+function drawResourceHealth(ctx: CanvasRenderingContext2D, node: ResourceNode) {
+  if (node.hp >= node.maxHp) return;
+  const width = Math.max(44, Math.min(62, nodeRadius(node.kind) * 1.15));
+  const y = node.y - nodeRadius(node.kind) - 17;
+  const ratio = Math.max(0, node.hp / node.maxHp);
+  ctx.save();
+  ctx.fillStyle = "rgba(15,27,24,.92)";
+  roundedRect(ctx, node.x - width / 2, y, width, 9, 4);
+  ctx.fill();
+  ctx.fillStyle = ratio > 0.5 ? "#75c86e" : ratio > 0.25 ? "#e1b84e" : "#e55f56";
+  roundedRect(ctx, node.x - width / 2 + 2, y + 2, (width - 4) * ratio, 5, 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff2dc";
+  ctx.font = "bold 8px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(Math.max(0, Math.ceil(node.hp)) + "/" + node.maxHp, node.x, y - 3);
+  ctx.restore();
 }
 
 function drawTree(ctx: CanvasRenderingContext2D, node: ResourceNode) {
@@ -1509,6 +2119,7 @@ function drawBush(ctx: CanvasRenderingContext2D, node: ResourceNode) {
 
 function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number) {
   const tool = activeTool(game);
+  const durableTool = durableToolInfo(tool);
   const angle = swing > 0 ? -0.75 : -0.22;
   ctx.save();
   ctx.translate(19, 6);
@@ -1617,48 +2228,163 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
   ctx.moveTo(4, 0);
   ctx.lineTo(tool === "spear" || tool === "sword" ? 49 : 39, 0);
   ctx.stroke();
-  if (tool === "axe") {
-    const tier = game.gear.axeTier;
-    ctx.fillStyle = tier === "wood" ? "#9a693f" : tier === "stone" ? "#87948d" : tier === "iron" ? "#c3ceca" : "#69d8e7";
+  if (durableTool?.family === "axe") {
+    const tier = durableTool.tier;
     ctx.strokeStyle = "#32443e";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(30, -13);
-    ctx.lineTo(48, -10);
-    ctx.lineTo(46, 11);
-    ctx.lineTo(31, 8);
+    if (tier === "wood") {
+      ctx.fillStyle = "#9d673b";
+      ctx.moveTo(30, 6);
+      ctx.lineTo(31, -13);
+      ctx.lineTo(39, -14);
+      ctx.quadraticCurveTo(49, -24, 56, -21);
+      ctx.lineTo(52, -6);
+      ctx.quadraticCurveTo(47, 5, 38, 10);
+    } else if (tier === "stone") {
+      ctx.fillStyle = "#818d86";
+      ctx.moveTo(28, 8);
+      ctx.lineTo(29, -17);
+      ctx.lineTo(39, -19);
+      ctx.lineTo(51, -27);
+      ctx.lineTo(58, -22);
+      ctx.lineTo(53, -5);
+      ctx.lineTo(43, 12);
+    } else if (tier === "iron") {
+      ctx.fillStyle = "#c4cfcb";
+      ctx.moveTo(27, 10);
+      ctx.lineTo(28, -18);
+      ctx.lineTo(39, -20);
+      ctx.quadraticCurveTo(51, -30, 60, -25);
+      ctx.lineTo(55, -4);
+      ctx.quadraticCurveTo(49, 11, 39, 16);
+    } else {
+      ctx.shadowColor = "#69e6ef";
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = "#6ce0ec";
+      ctx.moveTo(26, 11);
+      ctx.lineTo(28, -18);
+      ctx.lineTo(39, -22);
+      ctx.lineTo(50, -31);
+      ctx.lineTo(63, -26);
+      ctx.lineTo(56, -12);
+      ctx.lineTo(60, -2);
+      ctx.lineTo(43, 17);
+    }
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-  } else if (tool === "pickaxe") {
-    const tier = game.gear.pickaxeTier;
-    const headColor = tier === "wood" ? "#9a693f" : tier === "stone" ? "#87948d" : tier === "iron" ? "#c3ceca" : "#69d8e7";
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = tier === "aetherium" ? "#d5fbff" : tier === "iron" ? "#f0f6f2" : "#d3b06a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(35, -13);
+    ctx.lineTo(tier === "iron" || tier === "aetherium" ? 52 : 48, -20);
+    ctx.stroke();
+    if (tier === "wood") {
+      ctx.strokeStyle = "#d6b15f";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(29, -5);
+      ctx.lineTo(35, 6);
+      ctx.moveTo(30, -9);
+      ctx.lineTo(36, 2);
+      ctx.stroke();
+    }
+  } else if (durableTool?.family === "pickaxe") {
+    const tier = durableTool.tier;
     ctx.strokeStyle = "#32443e";
-    ctx.lineWidth = 12;
-    ctx.lineCap = "butt";
     ctx.beginPath();
-    ctx.moveTo(40, -25);
-    ctx.lineTo(40, 25);
-    ctx.stroke();
-    ctx.strokeStyle = headColor;
-    ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.moveTo(40, -25);
-    ctx.lineTo(40, 25);
-    ctx.stroke();
-    ctx.fillStyle = headColor;
-    ctx.beginPath();
-    ctx.moveTo(40, -31);
-    ctx.lineTo(33, -20);
-    ctx.lineTo(47, -20);
+    if (tier === "wood") {
+      ctx.fillStyle = "#946039";
+      ctx.moveTo(34, -23);
+      ctx.lineTo(44, -19);
+      ctx.lineTo(44, 19);
+      ctx.lineTo(34, 23);
+    } else if (tier === "stone") {
+      ctx.fillStyle = "#818d86";
+      ctx.moveTo(40, -29);
+      ctx.lineTo(48, -18);
+      ctx.lineTo(44, -6);
+      ctx.lineTo(49, 0);
+      ctx.lineTo(44, 7);
+      ctx.lineTo(48, 18);
+      ctx.lineTo(40, 29);
+      ctx.lineTo(32, 18);
+      ctx.lineTo(36, 7);
+      ctx.lineTo(32, 0);
+      ctx.lineTo(36, -6);
+      ctx.lineTo(32, -18);
+    } else if (tier === "iron") {
+      ctx.fillStyle = "#c4cfcb";
+      ctx.moveTo(40, -33);
+      ctx.lineTo(47, -18);
+      ctx.lineTo(43, -4);
+      ctx.lineTo(50, 0);
+      ctx.lineTo(43, 4);
+      ctx.lineTo(47, 18);
+      ctx.lineTo(40, 33);
+      ctx.lineTo(34, 18);
+      ctx.lineTo(37, 4);
+      ctx.lineTo(33, 0);
+      ctx.lineTo(37, -4);
+      ctx.lineTo(34, -18);
+    } else {
+      ctx.shadowColor = "#69e6ef";
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = "#6ce0ec";
+      ctx.moveTo(40, -35);
+      ctx.lineTo(49, -17);
+      ctx.lineTo(44, -5);
+      ctx.lineTo(54, 0);
+      ctx.lineTo(44, 5);
+      ctx.lineTo(49, 17);
+      ctx.lineTo(40, 35);
+      ctx.lineTo(31, 17);
+      ctx.lineTo(36, 5);
+      ctx.lineTo(29, 0);
+      ctx.lineTo(36, -5);
+      ctx.lineTo(31, -17);
+    }
     ctx.closePath();
     ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = tier === "aetherium" ? "#ddfcff" : tier === "iron" ? "#f0f6f2" : "#d3b06a";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(40, 31);
-    ctx.lineTo(33, 20);
-    ctx.lineTo(47, 20);
+    ctx.moveTo(40, -21);
+    ctx.lineTo(40, 21);
+    ctx.stroke();
+    if (tier === "wood") {
+      ctx.strokeStyle = "#e0b85e";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(34, -7);
+      ctx.lineTo(45, 5);
+      ctx.moveTo(34, 0);
+      ctx.lineTo(44, 11);
+      ctx.stroke();
+    }
+  } else if (tool === "hammer") {
+    ctx.fillStyle = "#879793";
+    ctx.strokeStyle = "#33433f";
+    ctx.lineWidth = 3;
+    roundedRect(ctx, 29, -14, 24, 27, 4);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#d5dedb";
+    roundedRect(ctx, 32, -10, 18, 6, 2);
+    ctx.fill();
+    ctx.fillStyle = "#40524d";
+    ctx.beginPath();
+    ctx.moveTo(50, -12);
+    ctx.lineTo(59, -7);
+    ctx.lineTo(52, -1);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
   } else if (tool === "spear") {
     ctx.fillStyle = "#cad4ce";
     ctx.strokeStyle = "#35463f";
@@ -1753,6 +2479,188 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: GameState) {
   ctx.restore();
 }
 
+function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
+  const kind = creature.kind as AnimalKind;
+  const animalColor: Record<AnimalKind, string> = {
+    bear: "#77513c",
+    boar: "#9a6444",
+    deer: "#b57a48",
+    rabbit: "#b9b6aa",
+    fox: "#d36f3d",
+    wolf: "#697773",
+  };
+  const lightColor: Record<AnimalKind, string> = {
+    bear: "#a97857",
+    boar: "#bd7b56",
+    deer: "#d39a63",
+    rabbit: "#ded9cd",
+    fox: "#e69a67",
+    wolf: "#9aa4a0",
+  };
+  const body = animalColor[kind];
+  const light = lightColor[kind];
+  const outline = kind === "rabbit" ? "#56544e" : "#3e322c";
+  const bodyLength = kind === "bear" ? 31 : kind === "rabbit" ? 21 : kind === "deer" ? 27 : 28;
+  const bodyWidth = kind === "bear" ? 21 : kind === "boar" ? 18 : kind === "rabbit" ? 13 : kind === "deer" ? 13 : 15;
+
+  ctx.fillStyle = body;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 4;
+
+  // Tails and legs sit beneath the torso, just as they would be seen from overhead.
+  if (kind === "fox" || kind === "wolf") {
+    ctx.beginPath();
+    ctx.moveTo(-19, -7);
+    ctx.bezierCurveTo(-34, -20, -48, -15, -43, -3);
+    ctx.bezierCurveTo(-38, 8, -27, 9, -18, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    if (kind === "fox") {
+      ctx.fillStyle = "#eee2cf";
+      ctx.beginPath();
+      ctx.ellipse(-42, -7, 8, 6, -0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = body;
+    }
+  } else if (kind === "rabbit") {
+    ctx.fillStyle = "#eee9dc";
+    ctx.beginPath();
+    ctx.arc(-23, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = body;
+  } else if (kind === "deer") {
+    ctx.fillStyle = "#eee4d0";
+    ctx.beginPath();
+    ctx.moveTo(-25, 0);
+    ctx.lineTo(-15, -7);
+    ctx.lineTo(-15, 7);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.arc(-bodyLength + 1, 0, kind === "bear" ? 6 : 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  for (const [x, y] of [[-12, -bodyWidth], [11, -bodyWidth], [-12, bodyWidth], [11, bodyWidth]] as const) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, kind === "rabbit" ? 8 : 10, kind === "rabbit" ? 4 : 5, x < 0 ? -0.2 : 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.ellipse(-2, 0, bodyLength, bodyWidth, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = light;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.ellipse(-4, -bodyWidth * 0.25, bodyLength * 0.62, bodyWidth * 0.34, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  if (kind === "rabbit") {
+    ctx.fillStyle = body;
+    for (const y of [-7, 7]) {
+      ctx.beginPath();
+      ctx.ellipse(33, y, 16, 5, y * 0.015, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#d8a7a0";
+      ctx.beginPath();
+      ctx.ellipse(35, y, 10, 2, y * 0.015, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = body;
+    }
+    ctx.beginPath();
+    ctx.arc(20, 0, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  } else if (kind === "fox" || kind === "wolf") {
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(39, 0);
+    ctx.lineTo(20, -14);
+    ctx.lineTo(14, -8);
+    ctx.lineTo(14, 8);
+    ctx.lineTo(20, 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    for (const y of [-11, 11]) {
+      ctx.beginPath();
+      ctx.moveTo(20, y);
+      ctx.lineTo(13, y * 1.75);
+      ctx.lineTo(29, y * 1.15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = kind === "fox" ? "#eee2cf" : light;
+    ctx.beginPath();
+    ctx.moveTo(39, 0);
+    ctx.lineTo(29, -5);
+    ctx.lineTo(29, 5);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    const headX = kind === "deer" ? 31 : kind === "boar" ? 25 : 23;
+    const headLength = kind === "deer" ? 15 : kind === "boar" ? 17 : 15;
+    const headWidth = kind === "bear" ? 14 : kind === "boar" ? 13 : 11;
+    ctx.fillStyle = body;
+    if (kind === "deer") {
+      ctx.beginPath();
+      ctx.ellipse(18, 0, 17, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.ellipse(headX, 0, headLength, headWidth, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    for (const y of [-headWidth, headWidth]) {
+      ctx.beginPath();
+      ctx.ellipse(headX - 2, y, kind === "bear" ? 7 : 9, kind === "bear" ? 6 : 4, y * 0.025, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = light;
+    ctx.beginPath();
+    ctx.ellipse(headX + headLength - 4, 0, kind === "boar" ? 9 : 7, kind === "boar" ? 8 : 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (kind === "deer") {
+      ctx.strokeStyle = "#6a472f";
+      ctx.lineWidth = 3;
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(33, side * 8);
+        ctx.lineTo(45, side * 17);
+        ctx.lineTo(53, side * 15);
+        ctx.moveTo(44, side * 16);
+        ctx.lineTo(47, side * 25);
+        ctx.stroke();
+      }
+    }
+  }
+
+  ctx.fillStyle = "#20211f";
+  ctx.beginPath();
+  ctx.arc(kind === "rabbit" ? 25 : 31, -5, 2.2, 0, Math.PI * 2);
+  ctx.arc(kind === "rabbit" ? 25 : 31, 5, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  if (creature.tame) {
+    ctx.strokeStyle = "#f1bf4f";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(15, -bodyWidth * 0.85);
+    ctx.lineTo(15, bodyWidth * 0.85);
+    ctx.stroke();
+  }
+}
+
 function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
   const scale = creature.kind === "brute" ? 1.28 : creature.kind === "bear" ? 1.2 : creature.kind === "rabbit" ? 0.68 : creature.kind === "boar" ? 0.92 : 1;
   ctx.save();
@@ -1762,98 +2670,41 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
   ctx.beginPath();
   ctx.ellipse(5, 14, 25, 12, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.rotate(creature.dir);
   if (isAnimal(creature.kind)) {
-    const animalColor: Record<AnimalKind, string> = {
-      bear: "#77513c",
-      boar: "#9a6444",
-      deer: "#b57a48",
-      rabbit: "#b9b6aa",
-      fox: "#d36f3d",
-      wolf: "#697773",
-    };
-    const muzzleColor: Record<AnimalKind, string> = {
-      bear: "#b9825d",
-      boar: "#ca8560",
-      deer: "#d3a06f",
-      rabbit: "#e1d8c7",
-      fox: "#e5a06e",
-      wolf: "#a6ada8",
-    };
-    ctx.fillStyle = animalColor[creature.kind];
-    ctx.strokeStyle = "#3e322c";
-    ctx.lineWidth = 5;
-    if (creature.kind === "rabbit") {
-      for (const x of [-10, 10]) {
-        ctx.beginPath();
-        ctx.ellipse(x, -22, 7, 18, x * 0.015, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-    } else if (creature.kind === "fox" || creature.kind === "wolf") {
-      for (const x of [-15, 15]) {
-        ctx.beginPath();
-        ctx.moveTo(x - 7, -10);
-        ctx.lineTo(x, -30);
-        ctx.lineTo(x + 9, -9);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-    } else {
-      ctx.beginPath();
-      ctx.arc(-14, -14, creature.kind === "bear" ? 9 : 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(14, -14, creature.kind === "bear" ? 9 : 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.arc(0, 0, 24, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    if (creature.kind === "deer") {
-      ctx.strokeStyle = "#6a472f";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(-8, -18);
-      ctx.lineTo(-14, -34);
-      ctx.lineTo(-21, -39);
-      ctx.moveTo(8, -18);
-      ctx.lineTo(14, -34);
-      ctx.lineTo(21, -39);
-      ctx.stroke();
-    }
-    ctx.fillStyle = muzzleColor[creature.kind];
-    ctx.beginPath();
-    ctx.ellipse(13, 3, 12, 9, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#2b2927";
-    ctx.beginPath();
-    ctx.arc(20, 1, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(7, -7, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-    if (creature.tame) {
-      ctx.strokeStyle = "#f1bf4f";
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(0, 0, 24, 0.25, 2.9);
-      ctx.stroke();
-      ctx.fillStyle = "#ef6b67";
-      ctx.font = "bold 19px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("♥", 0, -34);
-    } else if (creature.fed > 0) {
-      ctx.fillStyle = "#ef6b67";
-      ctx.font = "bold 15px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(creature.fed + "/3", 0, -33);
-    }
+    drawTopDownAnimal(ctx, creature);
   } else {
     const pulse = Math.sin(now / 120 + creature.phase) * 2;
+    const tentacleCount = creature.kind === "maw" ? 10 : creature.kind === "crawler" ? 8 : creature.kind === "wraith" ? 7 : creature.kind === "brute" ? 6 : 5;
+    const tentacleLength = creature.kind === "wraith" ? 52 : creature.kind === "maw" ? 43 : creature.kind === "brute" ? 39 : 34;
+    const tentacleWidth = creature.kind === "brute" || creature.kind === "maw" ? 9 : creature.kind === "wraith" ? 5 : 7;
+    const tentacleColor = creature.kind === "maw" ? "#67354f" : creature.kind === "wraith" ? "#514775" : creature.kind === "brute" ? "#5c385c" : creature.kind === "crawler" ? "#303a51" : "#2b3452";
+    ctx.lineCap = "round";
+    for (let i = 0; i < tentacleCount; i++) {
+      const angle = (Math.PI * 2 * i) / tentacleCount + (creature.kind === "crawler" ? 0.35 : 0);
+      const wave = Math.sin(now / 260 + creature.phase + i * 1.7) * 8;
+      const startRadius = creature.kind === "maw" ? 24 : creature.kind === "brute" ? 21 : 17;
+      const endRadius = tentacleLength + (i % 2) * 7;
+      const startX = Math.cos(angle) * startRadius;
+      const startY = Math.sin(angle) * startRadius;
+      const endX = Math.cos(angle) * endRadius - Math.sin(angle) * wave;
+      const endY = Math.sin(angle) * endRadius + Math.cos(angle) * wave;
+      const controlRadius = (startRadius + endRadius) * 0.55;
+      const controlX = Math.cos(angle) * controlRadius + Math.sin(angle) * wave;
+      const controlY = Math.sin(angle) * controlRadius - Math.cos(angle) * wave;
+      ctx.strokeStyle = "#111522";
+      ctx.lineWidth = tentacleWidth + 4;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+      ctx.stroke();
+      ctx.strokeStyle = tentacleColor;
+      ctx.lineWidth = tentacleWidth;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+      ctx.stroke();
+    }
     ctx.strokeStyle = "#111522";
     ctx.lineCap = "round";
     if (creature.kind === "crawler") {
@@ -1869,7 +2720,7 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
       }
       ctx.fillStyle = "#283044";
       ctx.beginPath();
-      ctx.ellipse(0, 0, 25 + pulse, 19, 0, 0, Math.PI * 2);
+      ctx.arc(0, 0, 24 + pulse, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = "#0b0d12";
@@ -1895,15 +2746,7 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
       ctx.strokeStyle = "#17182b";
       ctx.lineWidth = 5;
       ctx.beginPath();
-      ctx.moveTo(25, 0);
-      ctx.quadraticCurveTo(8, -29, -15, -20);
-      ctx.lineTo(-35, -30 - pulse);
-      ctx.lineTo(-27, -9);
-      ctx.lineTo(-42, 1 + pulse);
-      ctx.lineTo(-25, 10);
-      ctx.lineTo(-34, 31 - pulse);
-      ctx.lineTo(-12, 20);
-      ctx.quadraticCurveTo(12, 28, 25, 0);
+      ctx.arc(0, 0, 27 + pulse, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = "#05060b";
@@ -1955,15 +2798,7 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
       ctx.strokeStyle = "#111522";
       ctx.lineWidth = 5;
       ctx.beginPath();
-      for (let i = 0; i < 16; i++) {
-        const angle = (Math.PI * 2 * i) / 16;
-        const radius = (creature.kind === "brute" ? 30 : 25) + (i % 2 ? pulse : 7);
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.closePath();
+      ctx.arc(0, 0, (creature.kind === "brute" ? 30 : 26) + pulse, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
       if (creature.kind === "brute") {
@@ -1989,6 +2824,20 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
       }
     }
   }
+  ctx.rotate(-creature.dir);
+  if (isAnimal(creature.kind)) {
+    if (creature.tame) {
+      ctx.fillStyle = "#ef6b67";
+      ctx.font = "bold 19px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("♥", 0, -42);
+    } else if (creature.fed > 0) {
+      ctx.fillStyle = "#ef6b67";
+      ctx.font = "bold 15px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(creature.fed + "/3", 0, -41);
+    }
+  }
   if (creature.hp < creature.maxHp) {
     ctx.fillStyle = "#1d2a27";
     roundedRect(ctx, -22, -39, 44, 5, 3);
@@ -2004,9 +2853,18 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
   const x = building.gx * GRID;
   const y = building.gy * GRID;
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = alpha * (0.38 + building.construction * 0.62);
   ctx.translate(x, y);
   const kind = building.kind;
+  if (building.construction < 1) {
+    ctx.fillStyle = "rgba(196,218,207,.12)";
+    ctx.strokeStyle = "#b9d4c5";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 5]);
+    ctx.fillRect(-BUILDING_HALF_SIZE, -BUILDING_HALF_SIZE, BUILDING_HALF_SIZE * 2, BUILDING_HALF_SIZE * 2);
+    ctx.strokeRect(-BUILDING_HALF_SIZE, -BUILDING_HALF_SIZE, BUILDING_HALF_SIZE * 2, BUILDING_HALF_SIZE * 2);
+    ctx.setLineDash([]);
+  }
   if (kind === "craftingBench") {
     ctx.fillStyle = "#75482f";
     ctx.strokeStyle = "#432c22";
@@ -2029,6 +2887,37 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
     ctx.fillStyle = "#69787a";
     roundedRect(ctx, 6, -10, 18, 8, 2);
     ctx.fill();
+  } else if (kind === "storageChest") {
+    ctx.fillStyle = "rgba(31,34,28,.2)";
+    ctx.beginPath();
+    ctx.ellipse(4, 13, 27, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#9a6037";
+    ctx.strokeStyle = "#4c3025";
+    ctx.lineWidth = 4;
+    roundedRect(ctx, -23, -18, 46, 37, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#bd7d43";
+    ctx.beginPath();
+    ctx.arc(0, -11, 22, Math.PI, 0);
+    ctx.lineTo(22, -4);
+    ctx.lineTo(-22, -4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#d2b15d";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-23, -4);
+    ctx.lineTo(23, -4);
+    ctx.stroke();
+    ctx.fillStyle = "#e2bd5d";
+    ctx.strokeStyle = "#59452a";
+    ctx.lineWidth = 3;
+    roundedRect(ctx, -6, -7, 12, 16, 3);
+    ctx.fill();
+    ctx.stroke();
   } else if (kind === "floor") {
     ctx.fillStyle = "#b47a43";
     ctx.strokeStyle = "#6b472f";
@@ -2125,6 +3014,94 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
     ctx.beginPath();
     ctx.arc(10, 3, 3, 0, Math.PI * 2);
     ctx.fill();
+  } else if (kind === "bedroll") {
+    ctx.save();
+    ctx.rotate(-0.16);
+    ctx.fillStyle = "#6e4937";
+    ctx.strokeStyle = "#3f3028";
+    ctx.lineWidth = 4;
+    roundedRect(ctx, -22, -16, 44, 32, 9);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#c2b986";
+    roundedRect(ctx, -18, -12, 15, 24, 7);
+    ctx.fill();
+    ctx.fillStyle = "#456b5d";
+    roundedRect(ctx, 0, -12, 18, 24, 5);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(231,221,173,.45)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(5, -10);
+    ctx.lineTo(5, 10);
+    ctx.stroke();
+    ctx.restore();
+  } else if (kind === "torch") {
+    const flicker = Math.sin(performance.now() / 85 + building.id) * 2;
+    ctx.fillStyle = "rgba(243,159,57,.2)";
+    ctx.beginPath();
+    ctx.arc(0, -7, 24 + flicker, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#513a2a";
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, 21);
+    ctx.lineTo(0, -7);
+    ctx.stroke();
+    ctx.fillStyle = "#ffca4d";
+    ctx.beginPath();
+    ctx.moveTo(-8, -8);
+    ctx.quadraticCurveTo(-9, -22 - flicker, 0, -29);
+    ctx.quadraticCurveTo(11, -18 + flicker, 8, -7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#ed673d";
+    ctx.beginPath();
+    ctx.moveTo(-3, -8);
+    ctx.quadraticCurveTo(-3, -18, 2, -21);
+    ctx.quadraticCurveTo(6, -13, 4, -8);
+    ctx.closePath();
+    ctx.fill();
+  } else if (kind === "campfire") {
+    const flicker = Math.sin(performance.now() / 95 + building.id) * 2.5;
+    ctx.fillStyle = "rgba(239,143,47,.22)";
+    ctx.beginPath();
+    ctx.arc(0, 0, 31 + flicker, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#8c9188";
+    ctx.strokeStyle = "#4b534f";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 9; i++) {
+      const angle = (Math.PI * 2 * i) / 9;
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * 18, Math.sin(angle) * 18, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "#65402c";
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(-13, -9);
+    ctx.lineTo(13, 9);
+    ctx.moveTo(13, -9);
+    ctx.lineTo(-13, 9);
+    ctx.stroke();
+    ctx.fillStyle = "#ffca4d";
+    ctx.beginPath();
+    ctx.moveTo(-10, 11);
+    ctx.quadraticCurveTo(-13, -9, -1, -23 - flicker);
+    ctx.quadraticCurveTo(4, -8, 10, -17);
+    ctx.quadraticCurveTo(17, 3, 8, 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#eb5d3d";
+    ctx.beginPath();
+    ctx.moveTo(-4, 10);
+    ctx.quadraticCurveTo(-4, -5, 3, -13);
+    ctx.quadraticCurveTo(9, 3, 5, 10);
+    ctx.closePath();
+    ctx.fill();
   } else if (kind === "spikes") {
     ctx.fillStyle = "#a9b4ae";
     ctx.strokeStyle = "#43544e";
@@ -2200,6 +3177,42 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
         ctx.fill();
       }
     }
+    if (building.construction >= 1) {
+      const percent = Math.min(100, Math.floor(building.growth * 100));
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "rgba(16,30,25,.92)";
+      roundedRect(ctx, -23, -39, 46, 14, 6);
+      ctx.fill();
+      ctx.fillStyle = building.growth >= 1 ? "#f3c557" : "#dbe9ce";
+      ctx.font = "bold 9px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(percent + "% GROWN", 0, -29);
+    }
+  }
+  const workInProgress = building.construction < 1 || building.deconstruction > 0;
+  if (workInProgress || building.hp < building.maxHp) {
+    const progress = building.construction < 1
+      ? building.construction
+      : building.deconstruction > 0
+        ? building.deconstruction
+        : Math.max(0, building.hp / building.maxHp);
+    ctx.globalAlpha = alpha;
+    const barY = kind === "crop" ? -53 : -35;
+    ctx.fillStyle = "rgba(17,30,26,.9)";
+    roundedRect(ctx, -25, barY, 50, 8, 4);
+    ctx.fill();
+    ctx.fillStyle = building.construction < 1 ? "#68b9da" : building.deconstruction > 0 ? "#e5a346" : "#74c66d";
+    roundedRect(ctx, -23, barY + 2, 46 * progress, 4, 2);
+    ctx.fill();
+    ctx.fillStyle = "#f4ead8";
+    ctx.font = "bold 8px Arial";
+    ctx.textAlign = "center";
+    const label = building.construction < 1
+      ? "BUILD " + Math.floor(building.construction * 100) + "%"
+      : building.deconstruction > 0
+        ? "REMOVE " + Math.floor(building.deconstruction * 100) + "%"
+        : Math.ceil(building.hp) + "/" + building.maxHp;
+    ctx.fillText(label, 0, barY - 4);
   }
   ctx.restore();
 }
@@ -2239,6 +3252,96 @@ function drawCave(
   ctx.textAlign = "center";
   ctx.fillText(exit ? "EXIT · " + label.toUpperCase() : label.toUpperCase(), 0, -51);
   ctx.restore();
+}
+
+function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
+  ctx.fillStyle = "#141c1b";
+  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const [start, end] of CAVE_CONNECTIONS) {
+    ctx.strokeStyle = "#293330";
+    ctx.lineWidth = (CAVE_TUNNEL_HALF_WIDTH + 58) * 2;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#293330";
+  ctx.beginPath();
+  ctx.arc(CAVE_HUB.x, CAVE_HUB.y, CAVE_HUB.radius + 58, 0, Math.PI * 2);
+  ctx.fill();
+  for (const cave of CAVES) {
+    ctx.beginPath();
+    ctx.arc(cave.undergroundX, cave.undergroundY, cave.chamberRadius + 58, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (const [index, [start, end]] of CAVE_CONNECTIONS.entries()) {
+    const gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+    gradient.addColorStop(0, CAVES[index].ground);
+    gradient.addColorStop(1, "#414a46");
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = CAVE_TUNNEL_HALF_WIDTH * 2;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#414a46";
+  ctx.beginPath();
+  ctx.arc(CAVE_HUB.x, CAVE_HUB.y, CAVE_HUB.radius, 0, Math.PI * 2);
+  ctx.fill();
+  for (const cave of CAVES) {
+    ctx.fillStyle = cave.ground;
+    ctx.beginPath();
+    ctx.arc(cave.undergroundX, cave.undergroundY, cave.chamberRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(13,20,19,.45)";
+    ctx.lineWidth = 16;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  for (let i = 0; i < 560; i++) {
+    const x = seeded(i, 231) * WORLD_W;
+    const y = seeded(i, 232) * WORLD_H;
+    if (!isCaveFloor(x, y, 12)) continue;
+    const area = caveAreaAt(x, y);
+    ctx.fillStyle = i % 2 ? area.textureA : area.textureB;
+    ctx.globalAlpha = 0.42;
+    ctx.beginPath();
+    ctx.arc(x, y, 2 + seeded(i, 233) * 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  for (const cave of CAVES) {
+    for (let i = 0; i < 26; i++) {
+      const angle = (i / 26) * Math.PI * 2 + seeded(i, 241 + CAVES.indexOf(cave)) * 0.11;
+      const radius = cave.chamberRadius + 31;
+      const x = cave.undergroundX + Math.cos(angle) * radius;
+      const y = cave.undergroundY + Math.sin(angle) * radius;
+      const size = 17 + seeded(i, 244 + CAVES.indexOf(cave)) * 20;
+      ctx.fillStyle = i % 2 ? "#202927" : "#343e3a";
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(angle) * size, y + Math.sin(angle) * size);
+      ctx.lineTo(x + Math.cos(angle + 2.25) * size * 0.8, y + Math.sin(angle + 2.25) * size * 0.8);
+      ctx.lineTo(x + Math.cos(angle - 2.25) * size * 0.8, y + Math.sin(angle - 2.25) * size * 0.8);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = "rgba(231,222,184,.34)";
+    ctx.font = "900 30px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(cave.name.toUpperCase(), cave.undergroundX, cave.undergroundY - cave.chamberRadius + 105);
+  }
+  ctx.fillStyle = "rgba(218,226,216,.25)";
+  ctx.font = "900 26px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("THE DEEPWAYS", CAVE_HUB.x, CAVE_HUB.y + 12);
 }
 
 function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile) {
@@ -2284,14 +3387,68 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile) {
   ctx.restore();
 }
 
+let lightingLayer: HTMLCanvasElement | null = null;
+
+function drawDarkness(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  dpr: number,
+  game: GameState,
+  scale: number,
+  offsetX: number,
+  offsetY: number,
+  inCave: boolean,
+) {
+  if (!lightingLayer) lightingLayer = document.createElement("canvas");
+  const pixelWidth = Math.max(1, Math.round(width * dpr));
+  const pixelHeight = Math.max(1, Math.round(height * dpr));
+  if (lightingLayer.width !== pixelWidth || lightingLayer.height !== pixelHeight) {
+    lightingLayer.width = pixelWidth;
+    lightingLayer.height = pixelHeight;
+  }
+  const light = lightingLayer.getContext("2d");
+  if (!light) return;
+  light.setTransform(dpr, 0, 0, dpr, 0, 0);
+  light.clearRect(0, 0, width, height);
+  light.fillStyle = inCave ? "rgba(2,6,9,.985)" : "rgba(4,7,18,.975)";
+  light.fillRect(0, 0, width, height);
+  light.globalCompositeOperation = "destination-out";
+
+  const reveal = (x: number, y: number, radius: number, core: number) => {
+    if (x + radius < 0 || y + radius < 0 || x - radius > width || y - radius > height) return;
+    const gradient = light.createRadialGradient(x, y, Math.max(1, core), x, y, radius);
+    gradient.addColorStop(0, "rgba(0,0,0,1)");
+    gradient.addColorStop(0.45, "rgba(0,0,0,.93)");
+    gradient.addColorStop(0.76, "rgba(0,0,0,.52)");
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    light.fillStyle = gradient;
+    light.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+  };
+
+  const playerX = width / 2 + (game.player.x - game.camera.x) * scale;
+  const playerY = height / 2 + (game.player.y - game.camera.y) * scale;
+  reveal(playerX, playerY, (inCave ? 112 : 96) * scale, 25 * scale);
+  game.buildings.forEach((building) => {
+    if (building.realm !== game.realm || building.hp <= 0 || building.construction < 1) return;
+    const radius = building.kind === "campfire" ? 410 : building.kind === "torch" ? 225 : building.kind === "fireTrap" ? 115 : 0;
+    if (!radius) return;
+    reveal(offsetX + building.gx * GRID * scale, offsetY + building.gy * GRID * scale, radius * scale, 55 * scale);
+  });
+
+  light.globalCompositeOperation = "source-over";
+  ctx.drawImage(lightingLayer, 0, 0, width, height);
+}
+
 function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, game: GameState) {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
-  const cave = caveForRealm(game.realm);
-  ctx.fillStyle = cave ? cave.ground : "#89bd63";
+  const inCave = game.realm === "caveSystem";
+  const cave = inCave ? caveAreaAt(game.player.x, game.player.y) : undefined;
+  ctx.fillStyle = inCave ? "#141c1b" : "#89bd63";
   ctx.fillRect(0, 0, width, height);
   const scale = game.zoom;
   const offsetX = width / 2 - game.camera.x * scale;
@@ -2300,9 +3457,11 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   ctx.translate(offsetX, offsetY);
   ctx.scale(scale, scale);
 
-  ctx.fillStyle = cave ? cave.ground : "#91c66b";
-  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-  if (!cave) {
+  if (inCave) {
+    drawCaveSystemTerrain(ctx);
+  } else {
+    ctx.fillStyle = "#91c66b";
+    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
     ctx.fillStyle = "#5f8f50";
     ctx.beginPath();
     ctx.ellipse(FOREST_X, FOREST_Y, FOREST_RX, FOREST_RY, 0, 0, Math.PI * 2);
@@ -2311,21 +3470,27 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
     ctx.font = "900 34px Arial";
     ctx.textAlign = "center";
     ctx.fillText("THE BLACKWOOD", FOREST_X, Math.max(90, FOREST_Y - FOREST_RY + 85));
-  }
-  for (let i = 0; i < 420; i++) {
-    const x = seeded(i, cave ? 31 : 21) * WORLD_W;
-    const y = seeded(i, cave ? 32 : 22) * WORLD_H;
-    ctx.fillStyle = cave ? (i % 2 ? cave.textureA : cave.textureB) : i % 2 ? "#7eb35b" : "#a3cf7b";
-    ctx.beginPath();
-    ctx.arc(x, y, 2 + seeded(i, 4) * 3, 0, Math.PI * 2);
-    ctx.fill();
+    for (let i = 0; i < 420; i++) {
+      const x = seeded(i, 21) * WORLD_W;
+      const y = seeded(i, 22) * WORLD_H;
+      ctx.fillStyle = i % 2 ? "#7eb35b" : "#a3cf7b";
+      ctx.beginPath();
+      ctx.arc(x, y, 2 + seeded(i, 4) * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   if (game.buildMode) {
     ctx.strokeStyle = cave ? "rgba(192,210,201,.13)" : "rgba(47,89,60,.15)";
     ctx.lineWidth = 1;
-    const left = Math.max(0, Math.floor((game.camera.x - width / (2 * scale)) / GRID) * GRID);
+    const left = Math.max(
+      GRID / 2,
+      Math.floor((game.camera.x - width / (2 * scale) - GRID / 2) / GRID) * GRID + GRID / 2,
+    );
     const right = Math.min(WORLD_W, game.camera.x + width / (2 * scale));
-    const top = Math.max(0, Math.floor((game.camera.y - height / (2 * scale)) / GRID) * GRID);
+    const top = Math.max(
+      GRID / 2,
+      Math.floor((game.camera.y - height / (2 * scale) - GRID / 2) / GRID) * GRID + GRID / 2,
+    );
     const bottom = Math.min(WORLD_H, game.camera.y + height / (2 * scale));
     for (let x = left; x <= right; x += GRID) {
       ctx.beginPath();
@@ -2340,12 +3505,14 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
       ctx.stroke();
     }
   }
-  if (!cave) {
+  if (!inCave) {
     CAVES.forEach((entrance) =>
       drawCave(ctx, entrance.entranceX, entrance.entranceY, false, entrance.name),
     );
   } else {
-    drawCave(ctx, CAVE_EXIT_X, CAVE_EXIT_Y, true, cave.name);
+    CAVES.forEach((exit) =>
+      drawCave(ctx, exit.undergroundX, exit.undergroundY, true, exit.name),
+    );
   }
 
   const viewLeft = game.camera.x - width / (2 * scale) - 140;
@@ -2365,6 +3532,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
         if (isTree(node.kind)) drawTree(ctx, node);
         else if (node.kind === "berryBush" || node.kind === "grass" || node.kind === "mushroom") drawBush(ctx, node);
         else drawRock(ctx, node);
+        drawResourceHealth(ctx, node);
       },
     });
   });
@@ -2406,23 +3574,17 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
         open: false,
         growth: 0.5,
         triggerAt: 0,
+        construction: 1,
+        deconstruction: 0,
+        restedDay: 0,
       },
       0.62,
     );
   }
   ctx.restore();
 
-  const px = width / 2 + (game.player.x - game.camera.x) * scale;
-  const py = height / 2 + (game.player.y - game.camera.y) * scale;
-  if (isNight(game) || cave) {
-    const darkness = cave ? 0.82 : 0.72;
-    const lightRadius = cave ? 230 : 300;
-    const gradient = ctx.createRadialGradient(px, py, 45, px, py, lightRadius);
-    gradient.addColorStop(0, "rgba(10,18,34,0)");
-    gradient.addColorStop(0.45, "rgba(10,18,34,.08)");
-    gradient.addColorStop(1, "rgba(7,13,31," + darkness + ")");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
+  if (isNight(game) || inCave) {
+    drawDarkness(ctx, width, height, dpr, game, scale, offsetX, offsetY, inCave);
   } else if (game.clock > 0.4) {
     ctx.fillStyle = "rgba(210,126,68," + ((game.clock - 0.4) * 0.9) + ")";
     ctx.fillRect(0, 0, width, height);
@@ -2434,24 +3596,30 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
 
 function nearbyPrompt(game: GameState) {
   if (game.buildMode) {
-    return "BUILD · Place " + BUILD_DATA[game.buildMode].name + " · Shift-drag for multiple";
+    return "BUILD · Place one " + BUILD_DATA[game.buildMode].name + " · hold Shift to keep placing";
+  }
+  if (game.selected === "hammer") {
+    const target = targetBuilding(game, 118);
+    if (target) return "TOOL · Deconstruct " + BUILD_DATA[target.kind].name + " · " + Math.ceil(target.hp) + "/" + target.maxHp + " health";
   }
   const entrance = nearbyCaveEntrance(game);
-  const currentCave = caveForRealm(game.realm);
+  const currentCave = nearbyCaveExit(game);
   if (entrance) return "E · Enter " + entrance.name;
   if (
-    currentCave &&
-    Math.hypot(game.player.x - CAVE_EXIT_X, game.player.y - CAVE_EXIT_Y) < 110
+    currentCave
   ) {
     return "E · Exit " + currentCave.name;
   }
   const building = game.buildings.find(
     (item) =>
       item.realm === game.realm &&
-      ["woodGate", "stoneGate", "door", "crop"].includes(item.kind) &&
+      item.construction >= 1 &&
+      ["woodGate", "stoneGate", "door", "crop", "storageChest", "bedroll"].includes(item.kind) &&
       Math.hypot(item.gx * GRID - game.player.x, item.gy * GRID - game.player.y) < 82,
   );
   if (building) {
+    if (building.kind === "storageChest") return "E · Open Storage Chest";
+    if (building.kind === "bedroll") return "E · Rest at Bedroll";
     if (building.kind === "crop") return "E · " + (building.growth >= 1 ? "Harvest crop" : "Check crop");
     return "E · " + (building.open ? "Close" : "Open") + " " + BUILD_DATA[building.kind].name;
   }
@@ -2479,45 +3647,56 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "woodAxe",
     name: "Wood Axe",
-    detail: "Starter chopping tool",
+    detail: "Starter chopping tool · 36 durability",
     cost: { wood: 3 },
-    owned: (game) => TOOL_TIER_RANK[game.gear.axeTier] >= TOOL_TIER_RANK.wood,
+    owned: (game) => game.gear.toolDurability.woodAxe > 0,
     action: (game) => {
-      game.gear.axeTier = "wood";
-      equipNewItem(game, "axe");
+      game.gear.toolDurability.woodAxe = DURABLE_TOOL_DATA.woodAxe.maxDurability;
+      equipNewItem(game, "woodAxe");
     },
   },
   {
     id: "woodPick",
     name: "Wood Pickaxe",
-    detail: "Mines surface stone",
+    detail: "Mines surface stone · 36 durability",
     cost: { wood: 3 },
-    owned: (game) => TOOL_TIER_RANK[game.gear.pickaxeTier] >= TOOL_TIER_RANK.wood,
+    owned: (game) => game.gear.toolDurability.woodPickaxe > 0,
     action: (game) => {
-      game.gear.pickaxeTier = "wood";
-      equipNewItem(game, "pickaxe");
+      game.gear.toolDurability.woodPickaxe = DURABLE_TOOL_DATA.woodPickaxe.maxDurability;
+      equipNewItem(game, "woodPickaxe");
     },
   },
   {
     id: "stoneAxe",
     name: "Stone Axe",
-    detail: "Stronger and faster chopping",
+    detail: "Stronger, faster chopping · 72 durability",
     cost: { wood: 3, stone: 4 },
-    owned: (game) => TOOL_TIER_RANK[game.gear.axeTier] >= TOOL_TIER_RANK.stone,
+    owned: (game) => game.gear.toolDurability.stoneAxe > 0,
     action: (game) => {
-      game.gear.axeTier = "stone";
-      equipNewItem(game, "axe");
+      game.gear.toolDurability.stoneAxe = DURABLE_TOOL_DATA.stoneAxe.maxDurability;
+      equipNewItem(game, "stoneAxe");
     },
   },
   {
     id: "stonePick",
     name: "Stone Pickaxe",
-    detail: "Mines granite and common metals",
+    detail: "Mines granite and common metals · 72 durability",
     cost: { wood: 3, stone: 4 },
-    owned: (game) => TOOL_TIER_RANK[game.gear.pickaxeTier] >= TOOL_TIER_RANK.stone,
+    owned: (game) => game.gear.toolDurability.stonePickaxe > 0,
     action: (game) => {
-      game.gear.pickaxeTier = "stone";
-      equipNewItem(game, "pickaxe");
+      game.gear.toolDurability.stonePickaxe = DURABLE_TOOL_DATA.stonePickaxe.maxDurability;
+      equipNewItem(game, "stonePickaxe");
+    },
+  },
+  {
+    id: "hammer",
+    name: "Deconstruction Hammer",
+    detail: "Recovers half the materials from placed structures",
+    cost: { wood: 4, stone: 2 },
+    owned: (game) => game.gear.hammer,
+    action: (game) => {
+      game.gear.hammer = true;
+      equipNewItem(game, "hammer");
     },
   },
   {
@@ -2626,49 +3805,49 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "ironAxe",
     name: "Iron Axe",
-    detail: "Advanced high-speed chopping",
+    detail: "Advanced high-speed chopping · 120 durability",
     cost: { wood: 4, iron: 5 },
     requiresBench: true,
-    owned: (game) => TOOL_TIER_RANK[game.gear.axeTier] >= TOOL_TIER_RANK.iron,
+    owned: (game) => game.gear.toolDurability.ironAxe > 0,
     action: (game) => {
-      game.gear.axeTier = "iron";
-      equipNewItem(game, "axe");
+      game.gear.toolDurability.ironAxe = DURABLE_TOOL_DATA.ironAxe.maxDurability;
+      equipNewItem(game, "ironAxe");
     },
   },
   {
     id: "ironPick",
     name: "Iron Pickaxe",
-    detail: "Can mine rare Aetherium",
+    detail: "Can mine rare Aetherium · 120 durability",
     cost: { wood: 4, iron: 5 },
     requiresBench: true,
-    owned: (game) => TOOL_TIER_RANK[game.gear.pickaxeTier] >= TOOL_TIER_RANK.iron,
+    owned: (game) => game.gear.toolDurability.ironPickaxe > 0,
     action: (game) => {
-      game.gear.pickaxeTier = "iron";
-      equipNewItem(game, "pickaxe");
+      game.gear.toolDurability.ironPickaxe = DURABLE_TOOL_DATA.ironPickaxe.maxDurability;
+      equipNewItem(game, "ironPickaxe");
     },
   },
   {
     id: "aetherAxe",
     name: "Aetherium Axe",
-    detail: "Super tool · five-hit chopping power",
+    detail: "Five-hit chopping power · 180 durability",
     cost: { wood: 4, aetherium: 7, iron: 3 },
     requiresBench: true,
-    owned: (game) => game.gear.axeTier === "aetherium",
+    owned: (game) => game.gear.toolDurability.aetheriumAxe > 0,
     action: (game) => {
-      game.gear.axeTier = "aetherium";
-      equipNewItem(game, "axe");
+      game.gear.toolDurability.aetheriumAxe = DURABLE_TOOL_DATA.aetheriumAxe.maxDurability;
+      equipNewItem(game, "aetheriumAxe");
     },
   },
   {
     id: "aetherPick",
     name: "Aetherium Pickaxe",
-    detail: "Super tool · five-hit mining power",
+    detail: "Five-hit mining power · 180 durability",
     cost: { wood: 4, aetherium: 7, iron: 3 },
     requiresBench: true,
-    owned: (game) => game.gear.pickaxeTier === "aetherium",
+    owned: (game) => game.gear.toolDurability.aetheriumPickaxe > 0,
     action: (game) => {
-      game.gear.pickaxeTier = "aetherium";
-      equipNewItem(game, "pickaxe");
+      game.gear.toolDurability.aetheriumPickaxe = DURABLE_TOOL_DATA.aetheriumPickaxe.maxDurability;
+      equipNewItem(game, "aetheriumPickaxe");
     },
   },
   {
@@ -2683,9 +3862,9 @@ const CRAFT_RECIPES: Recipe[] = [
   ...BUILD_ORDER.map((kind): Recipe => ({
     id: "build:" + kind,
     name: BUILD_DATA[kind].name + " ×" + BUILD_DATA[kind].makes,
-    detail: BUILD_DATA[kind].detail + " · crafted into inventory",
+    detail: BUILD_DATA[kind].detail + " · " + BUILD_DATA[kind].hp + " health · crafted into inventory",
     cost: BUILD_DATA[kind].cost,
-    requiresBench: !["craftingBench", "woodFence", "floor", "woodWall", "crop"].includes(kind),
+    requiresBench: !["craftingBench", "storageChest", "bedroll", "torch", "campfire", "woodFence", "floor", "woodWall", "crop"].includes(kind),
     action: (game) => {
       game.kits[kind] += BUILD_DATA[kind].makes;
       ensureItemListed(game, kind);
@@ -2693,24 +3872,70 @@ const CRAFT_RECIPES: Recipe[] = [
   })),
 ];
 
-function ToolGlyph({ type }: { type: Tool | "pack" }) {
+function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
   return (
-    <span className={"tool-glyph tool-" + type} aria-hidden="true">
+    <span className={"tool-glyph tool-" + type + (tier ? " tier-" + tier : "")} aria-hidden="true">
       <i />
       <b />
     </span>
   );
 }
 
-function ItemVisual({ item }: { item: InventoryItem }) {
-  if (["axe", "pickaxe", "spear", "sword", "bow", "pistol"].includes(item)) {
-    return <ToolGlyph type={item as Tool} />;
+function MaterialIcon({ material }: { material: Material }) {
+  return (
+    <span className={"resource-mark material-icon mark-" + material + " material-" + material} aria-hidden="true">
+      <i />
+      <b />
+    </span>
+  );
+}
+
+function BuildIcon({ kind }: { kind: BuildKind }) {
+  return (
+    <span className={"slot-build-mark build-icon build-" + kind} aria-hidden="true">
+      <i />
+      <b />
+      <em />
+    </span>
+  );
+}
+
+function RecipeVisual({ recipe }: { recipe: Recipe }) {
+  if (recipe.id.startsWith("build:")) return <BuildIcon kind={recipe.id.slice(6) as BuildKind} />;
+  const tier: ToolTier | undefined = recipe.id.startsWith("wood")
+    ? "wood"
+    : recipe.id.startsWith("stone")
+      ? "stone"
+      : recipe.id.startsWith("iron")
+        ? "iron"
+        : recipe.id.startsWith("aether")
+          ? "aetherium"
+          : undefined;
+  if (recipe.id.toLowerCase().includes("axe")) return <ToolGlyph type="axe" tier={tier} />;
+  if (recipe.id.toLowerCase().includes("pick")) return <ToolGlyph type="pickaxe" tier={tier} />;
+  if (recipe.id === "hammer") return <ToolGlyph type="hammer" />;
+  if (recipe.id === "spear") return <ToolGlyph type="spear" />;
+  if (recipe.id === "sword") return <ToolGlyph type="sword" />;
+  if (recipe.id === "bow") return <ToolGlyph type="bow" />;
+  if (recipe.id === "pistol") return <ToolGlyph type="pistol" />;
+  if (recipe.id === "arrows") return <MaterialIcon material="arrows" />;
+  if (recipe.id === "bullets") return <MaterialIcon material="bullets" />;
+  if (recipe.id.endsWith("Armor")) return <span className={"recipe-special recipe-armor armor-" + recipe.id.replace("Armor", "")} aria-hidden="true"><i /><b /></span>;
+  return <span className="recipe-special recipe-bandage" aria-hidden="true"><i /><b /></span>;
+}
+
+function ItemVisual({ item }: { item: InventoryItem; game: GameState }) {
+  const durableTool = durableToolInfo(item);
+  if (durableTool) {
+    return <ToolGlyph type={durableTool.family} tier={durableTool.tier} />;
+  }
+  if (["hammer", "spear", "sword", "bow", "pistol"].includes(item)) {
+    return <ToolGlyph type={item as ToolGlyphKind} />;
   }
   if (isBuildKind(item)) {
-    return <span className={"slot-build-mark build-" + item}>{BUILD_DATA[item].icon}</span>;
+    return <BuildIcon kind={item} />;
   }
-  const material = MATERIALS.find((entry) => entry.id === item);
-  return <span className={"resource-mark mark-" + item}>{material?.icon || item.slice(0, 2).toUpperCase()}</span>;
+  return <MaterialIcon material={item as Material} />;
 }
 
 interface SlotAddress {
@@ -2726,6 +3951,9 @@ export default function Game() {
   const [revision, setRevision] = useState(0);
   const [moveSource, setMoveSource] = useState<SlotAddress | null>(null);
   const game = gameRef.current;
+  const openChest = game.buildings.find(
+    (building) => building.id === game.openChestId && building.kind === "storageChest",
+  );
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
 
   useEffect(() => {
@@ -2743,9 +3971,13 @@ export default function Game() {
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     let frame = 0;
-    let last = performance.now();
-    let lastHud = last;
+    let last = 0;
+    let lastHud = 0;
     const loop = (now: number) => {
+      if (last === 0) {
+        last = now;
+        lastHud = now;
+      }
       const dt = Math.min(0.035, (now - last) / 1000);
       last = now;
       if (game.started && !game.dead) {
@@ -2775,7 +4007,10 @@ export default function Game() {
       }
       if (key === "shift") game.keys.add(key);
       if (event.repeat) return;
-      if (key === "e") interact(game);
+      if (key === "e") {
+        interact(game);
+        if (game.openChestId !== null) setPanel(null);
+      }
       if (key === " " || key === "f") {
         event.preventDefault();
         attack(game);
@@ -2783,11 +4018,21 @@ export default function Game() {
       if (["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].includes(key)) {
         selectSlot(game, key === "0" ? 9 : Number(key) - 1);
       }
-      if (key === "q") setPanel((value) => (value === "build" ? null : "build"));
-      if (key === "c") setPanel((value) => (value === "craft" ? null : "craft"));
-      if (key === "i" || key === "b") setPanel((value) => (value === "inventory" ? null : "inventory"));
+      if (key === "q") {
+        game.openChestId = null;
+        setPanel((value) => (value === "build" ? null : "build"));
+      }
+      if (key === "c") {
+        game.openChestId = null;
+        setPanel((value) => (value === "craft" ? null : "craft"));
+      }
+      if (key === "i" || key === "b") {
+        game.openChestId = null;
+        setPanel((value) => (value === "inventory" ? null : "inventory"));
+      }
       if (key === "escape") {
-        game.buildMode = null;
+        cancelBuildMode(game);
+        game.openChestId = null;
         setPanel(null);
       }
       if (key === "=" || key === "+") game.zoom = Math.min(1.55, game.zoom + 0.1);
@@ -2819,7 +4064,7 @@ export default function Game() {
     game.dead = false;
     setStarted(true);
     canvasRef.current?.focus();
-    notify(game, "Day 1 — gather supplies and build before night.");
+    notify(game, "Day 1 — your Wood Axe is ready in hotbar slot 2.", 3200);
     refresh();
   };
 
@@ -2875,9 +4120,36 @@ export default function Game() {
       return;
     }
     game.buildMode = kind;
+    game.openChestId = null;
     game.selected = "build";
     setPanel(null);
-    notify(game, BUILD_DATA[kind].name + " selected — click once, or hold Shift and drag for a row.");
+    notify(game, BUILD_DATA[kind].name + " selected — click once, or hold Shift while placing several. Right-click cancels.");
+    refresh();
+    canvasRef.current?.focus();
+  };
+
+  const moveChestStack = (material: Material, intoChest: boolean) => {
+    if (!openChest) return;
+    const storage = openChest.storage ?? (openChest.storage = {});
+    if (intoChest) {
+      const amount = game.resources[material];
+      if (amount <= 0) return;
+      storage[material] = (storage[material] ?? 0) + amount;
+      game.resources[material] = 0;
+      selectSlot(game, game.selectedSlot);
+      notify(game, "Stored " + amount + " " + material + ".");
+    } else {
+      const amount = storage[material] ?? 0;
+      if (amount <= 0) return;
+      storage[material] = 0;
+      addMaterial(game, material, amount);
+      notify(game, "Retrieved " + amount + " " + material + ".");
+    }
+    refresh();
+  };
+
+  const closeChest = () => {
+    game.openChestId = null;
     refresh();
     canvasRef.current?.focus();
   };
@@ -2909,12 +4181,15 @@ export default function Game() {
     const item = rawItem && itemCount(game, rawItem) > 0 ? rawItem : null;
     const address: SlotAddress = { area, index };
     const isMoving = moveSource?.area === area && moveSource.index === index;
+    const durabilityDescription = item && isDurableTool(item)
+      ? ", " + game.gear.toolDurability[item] + " of " + DURABLE_TOOL_DATA[item].maxDurability + " durability"
+      : "";
     return (
       <button
         key={area + index}
         className={"inventory-slot" + (area === "hotbar" && game.selectedSlot === index ? " active" : "") + (isMoving ? " moving" : "")}
         draggable={movable && Boolean(item)}
-        aria-label={(area === "hotbar" ? "Hotbar " + (index === 9 ? 0 : index + 1) + ": " : "Inventory: ") + itemLabel(item, game)}
+        aria-label={(area === "hotbar" ? "Hotbar " + (index === 9 ? 0 : index + 1) + ": " : "Inventory: ") + itemLabel(item, game) + durabilityDescription}
         onDragStart={() => item && setMoveSource(address)}
         onDragOver={(event) => movable && event.preventDefault()}
         onDrop={(event) => {
@@ -2931,9 +4206,14 @@ export default function Game() {
         }}
       >
         <kbd>{area === "hotbar" ? (index === 9 ? "0" : index + 1) : ""}</kbd>
-        {item ? <ItemVisual item={item} /> : <span className="empty-slot" />}
+        {item ? <ItemVisual item={item} game={game} /> : <span className="empty-slot" />}
         {item && <span className="slot-name">{itemLabel(item, game)}</span>}
         {item && itemCount(game, item) > 1 && <b className="stack-count">{itemCount(game, item)}</b>}
+        {item && isDurableTool(item) && (
+          <span className="tool-durability" title={game.gear.toolDurability[item] + " durability remaining"}>
+            <i style={{ width: (game.gear.toolDurability[item] / DURABLE_TOOL_DATA[item].maxDurability) * 100 + "%" }} />
+          </span>
+        )}
       </button>
     );
   };
@@ -2947,10 +4227,8 @@ export default function Game() {
           ? "Hunting Bow · " + game.resources.arrows + " arrows"
       : game.selected === "pistol"
             ? "Scrap Pistol · " + game.resources.bullets + " bullets"
-      : game.selected === "pickaxe"
-        ? itemLabel("pickaxe", game)
-        : game.selected === "axe"
-          ? itemLabel("axe", game)
+      : isDurableTool(game.selected)
+        ? itemLabel(game.selected, game) + " · " + game.gear.toolDurability[game.selected] + "/" + DURABLE_TOOL_DATA[game.selected].maxDurability + " durability"
           : isFoodItem(game.selected)
             ? itemLabel(game.selected, game) + " · " + game.resources[game.selected]
             : game.buildMode
@@ -2960,7 +4238,7 @@ export default function Game() {
   const promptKey = prompt.startsWith("TOOL")
     ? "HOLD LMB"
     : prompt.startsWith("BUILD")
-      ? "LMB / SHIFT+DRAG"
+      ? "LMB / SHIFT+LMB"
       : "E";
   const promptText = prompt.replace(/^(E|TOOL|BUILD) · /, "");
   const messageVisible = game.messageUntil > 0;
@@ -2981,6 +4259,14 @@ export default function Game() {
           game.lastBuildCell = null;
         }}
         onPointerDown={(event) => {
+          if (event.button === 2) {
+            if (game.buildMode) {
+              cancelBuildMode(game);
+              notify(game, "Build placement canceled.", 900);
+              refresh();
+            }
+            return;
+          }
           if (event.button !== 0) return;
           pointerMove(event);
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -3015,17 +4301,17 @@ export default function Game() {
           <div className={"phase-chip " + phase.toLowerCase()}>{phase}</div>
         </section>
 
-        <div className="brand-pill"><span>H</span><strong>HALFLIGHT</strong><small>{caveForRealm(game.realm)?.name.toUpperCase() || (inForest(game.player.x, game.player.y) ? "THE BLACKWOOD" : "THE MEADOW")}</small></div>
+        <div className="brand-pill"><span>H</span><strong>HALFLIGHT</strong><small>{game.realm === "caveSystem" ? caveAreaAt(game.player.x, game.player.y).name.toUpperCase() : inForest(game.player.x, game.player.y) ? "THE BLACKWOOD" : "THE MEADOW"}</small></div>
 
         <section className="resource-strip" aria-label="Resources">
           {MATERIALS.filter((material) => ["wood", "stone", "iron", "copper", "aetherium", "berries"].includes(material.id)).map((material) => (
             <div key={material.id} title={material.name}>
-              <span className={"resource-mark mark-" + material.id}>{material.icon}</span>
+              <MaterialIcon material={material.id} />
               <b>{game.resources[material.id]}</b>
               <small>{material.name}</small>
             </div>
           ))}
-          <button onClick={() => setPanel("inventory")} aria-label="Open inventory">Inventory <kbd>I</kbd></button>
+          <button onClick={() => { game.openChestId = null; setPanel("inventory"); }} aria-label="Open inventory">Inventory <kbd>I</kbd></button>
         </section>
       </div>
 
@@ -3043,11 +4329,11 @@ export default function Game() {
 
       {messageVisible && <div className="game-toast">{game.message}</div>}
       {prompt && <div className="interact-prompt"><kbd>{promptKey}</kbd><span>{promptText}</span></div>}
-      {game.buildMode && <div className="build-mode-banner"><b>GRID BUILD</b><span>{BUILD_DATA[game.buildMode].name} · {game.kits[game.buildMode]} ready</span><button onClick={() => { game.buildMode = null; game.selected = "hands"; refresh(); }}>Cancel <kbd>Esc</kbd></button></div>}
+      {game.buildMode && <div className="build-mode-banner"><b>GRID BUILD</b><span>{BUILD_DATA[game.buildMode].name} · {game.kits[game.buildMode]} ready</span><button onClick={() => { cancelBuildMode(game); refresh(); }}>Cancel <kbd>RMB / Esc</kbd></button></div>}
 
       <nav className="hotbar" aria-label="Equipment hotbar">
         {game.hotbar.map((_, index) => inventorySlot("hotbar", index, false))}
-        <button className="hotbar-pack" onClick={() => setPanel("inventory")} aria-label="Open free inventory">
+        <button className="hotbar-pack" onClick={() => { game.openChestId = null; setPanel("inventory"); }} aria-label="Open free inventory">
           <kbd>I</kbd><ToolGlyph type="pack" /><span>Inventory</span>
         </button>
         <div className="equipped-label"><small>EQUIPPED</small><strong>{toolName}</strong></div>
@@ -3057,7 +4343,7 @@ export default function Game() {
         <span><kbd>WASD</kbd> Move</span>
         <span><kbd>E</kbd> Interact</span>
         <span><kbd>HOLD LMB</kbd> Use tool</span>
-        <span><kbd>SHIFT+DRAG</kbd> Multi-build</span>
+        <span><kbd>SHIFT+LMB</kbd> Keep building</span>
         <span><kbd>C</kbd> Craft</span>
       </aside>
 
@@ -3157,7 +4443,7 @@ export default function Game() {
                       const needsBench = Boolean(recipe.requiresBench && !nearCraftingBench(game));
                       return (
                         <article key={recipe.id}>
-                          <div className="recipe-badge">{recipe.name.slice(0, 2).toUpperCase()}</div>
+                          <div className="recipe-badge"><RecipeVisual recipe={recipe} /></div>
                           <div><h3>{recipe.name}</h3><p>{recipe.detail}</p><small>{costLabel(recipe.cost)}{recipe.requiresBench ? " · bench" : ""}</small></div>
                           <button disabled={!canAfford(game, recipe.cost) || owned || needsBench} onClick={() => craft(recipe)}>{owned ? "Owned" : needsBench ? "Need bench" : "Craft"}</button>
                         </article>
@@ -3174,8 +4460,8 @@ export default function Game() {
                       const data = BUILD_DATA[kind];
                       return (
                         <article key={kind}>
-                          <div className={"build-badge build-" + kind}>{data.icon}</div>
-                          <div><h3>{data.name}</h3><p>{data.detail}</p><small>Crafted pieces only</small></div>
+                          <div className="build-badge"><BuildIcon kind={kind} /></div>
+                          <div><h3>{data.name}</h3><p>{data.detail}</p><small>{data.hp} health · 3s build time</small></div>
                           <footer><span>{game.kits[kind]} ready</span><button disabled={game.kits[kind] <= 0} onClick={() => chooseBuild(kind)}>{game.kits[kind] > 0 ? "Place" : "Not crafted"}</button></footer>
                         </article>
                       );
@@ -3183,6 +4469,47 @@ export default function Game() {
                   </div>
                 </>
               )}
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {openChest && (
+        <div className="panel-scrim chest-scrim" onPointerDown={closeChest}>
+          <aside className="game-panel chest-panel" role="dialog" aria-modal="true" aria-label="Storage Chest" onPointerDown={(event) => event.stopPropagation()}>
+            <header>
+              <div><small>PLACED CONTAINER</small><h2>Storage Chest</h2></div>
+              <button onClick={closeChest} aria-label="Close storage chest">×</button>
+            </header>
+            <div className="chest-content">
+              <section>
+                <h3>Backpack resources</h3>
+                <p>Choose a stack to store it. Stored supplies cannot be used for crafting until you retrieve them.</p>
+                <div className="chest-grid">
+                  {MATERIALS.filter((material) => game.resources[material.id] > 0).map((material) => (
+                    <button key={material.id} onClick={() => moveChestStack(material.id, true)} aria-label={"Store all " + material.name}>
+                      <MaterialIcon material={material.id} />
+                      <span><b>{material.name}</b><small>{game.resources[material.id]} items · Store stack</small></span>
+                      <em aria-hidden="true">→</em>
+                    </button>
+                  ))}
+                  {!MATERIALS.some((material) => game.resources[material.id] > 0) && <div className="chest-empty">No resource stacks in your backpack.</div>}
+                </div>
+              </section>
+              <section>
+                <h3>Chest contents</h3>
+                <p>Choose a stored stack to move all of it back into your backpack.</p>
+                <div className="chest-grid">
+                  {MATERIALS.filter((material) => (openChest.storage?.[material.id] ?? 0) > 0).map((material) => (
+                    <button key={material.id} onClick={() => moveChestStack(material.id, false)} aria-label={"Retrieve all " + material.name}>
+                      <MaterialIcon material={material.id} />
+                      <span><b>{material.name}</b><small>{openChest.storage?.[material.id]} items · Retrieve stack</small></span>
+                      <em className="retrieve-arrow" aria-hidden="true">←</em>
+                    </button>
+                  ))}
+                  {!MATERIALS.some((material) => (openChest.storage?.[material.id] ?? 0) > 0) && <div className="chest-empty">This chest is empty.</div>}
+                </div>
+              </section>
             </div>
           </aside>
         </div>

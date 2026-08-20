@@ -16,7 +16,7 @@ The GitHub Pages deployment is available at:
 - Hold left mouse — continuously chop, mine, attack, or fire
 - Left click — place one selected building piece
 - Shift + left-drag — place selected building pieces across multiple grid cells
-- E — interact, tame, eat, enter caves, open gates, or confirm grid placement
+- E — interact, tame, eat, rest at bedrolls, enter caves, open gates and chests, or confirm grid placement
 - Space or F — attack
 - 1–9 or 0 — select one of 10 hotbar slots
 - Q — ready building pieces
@@ -32,6 +32,17 @@ Craft starter tools and a Crafting Bench from the Craft menu. After placing the
 bench, stand near it to unlock advanced tools, weapons, ammunition, and wood,
 stone, or metal construction pieces. Construction recipes create stacks in the
 inventory; they never place a piece automatically.
+
+Placed pieces begin as blueprints and are built in order while you are not
+moving. Craft a Deconstruction Hammer to reclaim part of a structure's cost.
+Storage Chests move complete resource stacks into separate storage, making those
+supplies unavailable to crafting until you retrieve them.
+
+A Wood Axe and lit campfire are available at spawn. Bedrolls provide one rest
+per day, while Standing Torches and Campfires create permanent pools of light.
+At night and underground, the world beyond those light pools is hidden. Damaged
+resources show their remaining health, and crop plots show a live growth percent.
+Night waves continue without a cap and spawn at random valid points across the map.
 
 ## Local development
 
