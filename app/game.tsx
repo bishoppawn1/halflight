@@ -77,6 +77,7 @@ type CreatureKind = MonsterKind | AnimalKind;
 type ArmorKind = "none" | "copper" | "iron" | "blacksteel";
 type InventoryItem = Tool | BuildKind | Material;
 type Panel = "inventory" | "craft" | "build" | null;
+type AttackStyle = "slash" | "thrust" | "shot";
 
 interface ResourceNode {
   id: number;
@@ -159,6 +160,18 @@ interface Projectile {
   damage: number;
 }
 
+interface AttackFlash {
+  realm: Realm;
+  x: number;
+  y: number;
+  direction: number;
+  range: number;
+  arc: number;
+  style: AttackStyle;
+  startedAt: number;
+  duration: number;
+}
+
 interface Player {
   x: number;
   y: number;
@@ -204,6 +217,7 @@ interface GameState {
   creatures: Creature[];
   buildings: Building[];
   projectiles: Projectile[];
+  attackFlash: AttackFlash | null;
   keys: Set<string>;
   mouseHeld: boolean;
   buildDrag: boolean;
@@ -231,6 +245,8 @@ const WORLD_W = 5200;
 const WORLD_H = 3800;
 const GRID = 48;
 const DAY_SECONDS = 110;
+const LOW_HEALTH_THRESHOLD = 30;
+const LOW_HUNGER_THRESHOLD = 25;
 const CONSTRUCTION_SECONDS = 3;
 const DECONSTRUCTION_SECONDS = 2.25;
 const BUILDING_HALF_SIZE = 23;
@@ -467,6 +483,44 @@ const DURABLE_TOOL_DATA: Record<
   ironPickaxe: { family: "pickaxe", tier: "iron", maxDurability: 120, damage: 11 },
   aetheriumPickaxe: { family: "pickaxe", tier: "aetherium", maxDurability: 180, damage: 18 },
 };
+
+interface AttackProfile {
+  damage: number;
+  range: number;
+  cooldown: number;
+  animationSeconds: number;
+  arc: number;
+  style: AttackStyle;
+}
+
+const BASIC_ATTACK: AttackProfile = {
+  damage: 3,
+  range: 78,
+  cooldown: 430,
+  animationSeconds: 0.2,
+  arc: 0.8,
+  style: "slash",
+};
+
+const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
+  woodAxe: { damage: 7, range: 78, cooldown: 560, animationSeconds: 0.26, arc: 1.05, style: "slash" },
+  stoneAxe: { damage: 9, range: 78, cooldown: 620, animationSeconds: 0.3, arc: 1.05, style: "slash" },
+  ironAxe: { damage: 14, range: 78, cooldown: 580, animationSeconds: 0.28, arc: 1.05, style: "slash" },
+  aetheriumAxe: { damage: 22, range: 78, cooldown: 500, animationSeconds: 0.24, arc: 1.05, style: "slash" },
+  woodPickaxe: { damage: 5, range: 78, cooldown: 660, animationSeconds: 0.32, arc: 0.85, style: "slash" },
+  stonePickaxe: { damage: 7, range: 78, cooldown: 700, animationSeconds: 0.34, arc: 0.85, style: "slash" },
+  ironPickaxe: { damage: 11, range: 78, cooldown: 640, animationSeconds: 0.31, arc: 0.85, style: "slash" },
+  aetheriumPickaxe: { damage: 18, range: 78, cooldown: 560, animationSeconds: 0.27, arc: 0.85, style: "slash" },
+  hammer: { damage: 3, range: 78, cooldown: 600, animationSeconds: 0.29, arc: 0.9, style: "slash" },
+  spear: { damage: 17, range: 102, cooldown: 460, animationSeconds: 0.25, arc: 0.38, style: "thrust" },
+  sword: { damage: 25, range: 102, cooldown: 330, animationSeconds: 0.2, arc: 1.15, style: "slash" },
+  bow: { damage: 18, range: 520, cooldown: 620, animationSeconds: 0.3, arc: 0, style: "shot" },
+  pistol: { damage: 34, range: 640, cooldown: 280, animationSeconds: 0.14, arc: 0, style: "shot" },
+};
+
+function attackProfile(tool: Tool) {
+  return ATTACK_PROFILES[tool] ?? BASIC_ATTACK;
+}
 
 function isDurableTool(item: InventoryItem | null): item is DurableTool {
   return Boolean(item && item in DURABLE_TOOL_DATA);
@@ -858,6 +912,7 @@ function makeGame(): GameState {
     creatures,
     buildings: [startingCampfire],
     projectiles: [],
+    attackFlash: null,
     keys: new Set(),
     mouseHeld: false,
     buildDrag: false,
@@ -1546,6 +1601,7 @@ function attack(game: GameState) {
   const now = performance.now();
   if (now < game.player.attackReady || game.dead || !game.started) return;
   const tool = activeTool(game);
+  const profile = attackProfile(tool);
   if (tool === "bow" || tool === "pistol") {
     const ammo: Material = tool === "bow" ? "arrows" : "bullets";
     if (game.resources[ammo] <= 0) {
@@ -1554,8 +1610,19 @@ function attack(game: GameState) {
       return;
     }
     game.resources[ammo] -= 1;
-    game.player.attackReady = now + (tool === "bow" ? 520 : 320);
-    game.player.swing = 0.2;
+    game.player.attackReady = now + profile.cooldown;
+    game.player.swing = profile.animationSeconds;
+    game.attackFlash = {
+      realm: game.realm,
+      x: game.player.x,
+      y: game.player.y,
+      direction: game.player.dir,
+      range: 58,
+      arc: 0,
+      style: profile.style,
+      startedAt: now,
+      duration: tool === "pistol" ? 120 : 155,
+    };
     const speed = tool === "bow" ? 620 : 1120;
     game.projectiles.push({
       id: game.lastId++,
@@ -1566,16 +1633,23 @@ function attack(game: GameState) {
       vx: Math.cos(game.player.dir) * speed,
       vy: Math.sin(game.player.dir) * speed,
       life: tool === "bow" ? 0.9 : 0.58,
-      damage: tool === "bow" ? 18 : 34,
+      damage: profile.damage,
     });
     return;
   }
-  const durableTool = durableToolInfo(tool);
-  const damage =
-    tool === "sword" ? 25 : tool === "spear" ? 17 : durableTool?.damage ?? 3;
-  const range = tool === "spear" || tool === "sword" ? 102 : 78;
-  game.player.attackReady = now + (tool === "sword" ? 380 : 500);
-  game.player.swing = 0.28;
+  game.player.attackReady = now + profile.cooldown;
+  game.player.swing = profile.animationSeconds;
+  game.attackFlash = {
+    realm: game.realm,
+    x: game.player.x,
+    y: game.player.y,
+    direction: game.player.dir,
+    range: profile.range,
+    arc: profile.arc,
+    style: profile.style,
+    startedAt: now,
+    duration: profile.style === "thrust" ? 175 : 155,
+  };
   let hit = false;
   for (const creature of game.creatures) {
     if (creature.realm !== game.realm || creature.hp <= 0 || creature.tame) continue;
@@ -1585,8 +1659,8 @@ function attack(game: GameState) {
     let angle = Math.atan2(dy, dx) - game.player.dir;
     while (angle > Math.PI) angle -= Math.PI * 2;
     while (angle < -Math.PI) angle += Math.PI * 2;
-    if (distance < range + Math.max(0, creatureRadius(creature) - 20) && Math.abs(angle) < 1.15) {
-      creature.hp -= damage;
+    if (distance < profile.range + Math.max(0, creatureRadius(creature) - 20) && Math.abs(angle) < profile.arc) {
+      creature.hp -= profile.damage;
       creature.angry = true;
       creature.provokedUntil = now + 5000;
       creature.x += Math.cos(game.player.dir) * 22;
@@ -1601,13 +1675,13 @@ function attack(game: GameState) {
     const wear = wearTool(game, tool);
     notify(
       game,
-      damage + " damage · " +
+      profile.damage + " damage · " +
         (wear.broke
           ? ITEM_LABELS[tool] + " broke"
           : "durability " + wear.remaining + "/" + DURABLE_TOOL_DATA[tool].maxDurability),
       1000,
     );
-  } else if (hit) notify(game, damage + " damage", 700);
+  } else if (hit) notify(game, profile.damage + " damage", 700);
 }
 
 function awardCreatureDrop(game: GameState, creature: Creature) {
@@ -2021,6 +2095,9 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
   updateWorkOrders(game, dt);
   if (game.mouseHeld) primaryAction(game, true);
   game.player.swing = Math.max(0, game.player.swing - dt);
+  if (game.attackFlash && performance.now() - game.attackFlash.startedAt >= game.attackFlash.duration) {
+    game.attackFlash = null;
+  }
   game.player.hunger = Math.max(0, game.player.hunger - dt * 0.5);
   if (game.player.hunger <= 0) game.player.hp -= dt * 2;
   if (game.player.hp <= 0) {
@@ -2216,9 +2293,19 @@ function drawBush(ctx: CanvasRenderingContext2D, node: ResourceNode) {
 function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number) {
   const tool = activeTool(game);
   const durableTool = durableToolInfo(tool);
-  const angle = swing > 0 ? -0.75 : -0.22;
+  const profile = attackProfile(tool);
+  const progress = swing > 0
+    ? Math.max(0, Math.min(1, 1 - swing / profile.animationSeconds))
+    : 0;
+  const motion = swing > 0 ? Math.sin(progress * Math.PI) : 0;
+  const angle = tool === "spear"
+    ? -0.08
+    : tool === "bow" || tool === "pistol"
+      ? -0.22
+      : -0.22 - motion * 0.68;
+  const forwardMotion = tool === "spear" ? motion * 30 : tool === "pistol" ? -motion * 7 : 0;
   ctx.save();
-  ctx.translate(19, 6);
+  ctx.translate(19 + forwardMotion, 6);
   ctx.rotate(angle);
   if (isFoodItem(tool)) {
     ctx.fillStyle = tool === "berries" ? "#d95762" : tool === "mushrooms" ? "#d9cba8" : "#b95c4d";
@@ -2511,6 +2598,63 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.fillStyle = "#d89b47";
     roundedRect(ctx, 28, -10, 19, 20, 4);
     ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawAttackFlash(ctx: CanvasRenderingContext2D, flash: AttackFlash, now: number) {
+  const progress = Math.max(0, Math.min(1, (now - flash.startedAt) / flash.duration));
+  if (progress >= 1) return;
+  const fade = Math.pow(1 - progress, 0.65);
+  ctx.save();
+  ctx.translate(flash.x, flash.y);
+  ctx.rotate(flash.direction);
+  ctx.globalAlpha = fade;
+  ctx.strokeStyle = "#ffffff";
+  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(255,255,255,.95)";
+  ctx.shadowBlur = 14;
+  ctx.lineCap = "round";
+
+  if (flash.style === "thrust") {
+    const start = 38 + progress * 18;
+    const tip = flash.range + 12 + progress * 8;
+    ctx.lineWidth = 6 - progress * 3;
+    ctx.beginPath();
+    ctx.moveTo(start, 0);
+    ctx.lineTo(tip, 0);
+    ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(tip - 7, -8);
+    ctx.lineTo(tip + 5, 0);
+    ctx.lineTo(tip - 7, 8);
+    ctx.stroke();
+  } else if (flash.style === "shot") {
+    const muzzle = flash.range + progress * 5;
+    ctx.lineWidth = 3;
+    for (const offset of [-0.42, 0, 0.42]) {
+      ctx.beginPath();
+      ctx.moveTo(muzzle - 5, 0);
+      ctx.lineTo(muzzle + Math.cos(offset) * (15 + progress * 8), Math.sin(offset) * 15);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(muzzle, 0, 4 * (1 - progress) + 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    const radius = flash.range * 0.78 + progress * 10;
+    ctx.lineWidth = 7 - progress * 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, -flash.arc, flash.arc);
+    ctx.stroke();
+    ctx.lineWidth = 3;
+    for (const offset of [-0.3, 0, 0.3]) {
+      ctx.beginPath();
+      ctx.moveTo(radius - 5, 0);
+      ctx.lineTo(radius + 8 + progress * 8, offset * 22);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }
@@ -3617,6 +3761,9 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   });
   drawables.push({ y: game.player.y, draw: () => drawPlayer(ctx, game) });
   drawables.sort((a, b) => a.y - b.y).forEach((item) => item.draw());
+  if (game.attackFlash?.realm === game.realm) {
+    drawAttackFlash(ctx, game.attackFlash, performance.now());
+  }
   visibleBuildings.filter((building) => building.kind === "roof").forEach((building) => drawBuilding(ctx, building, 0.78));
 
   if (game.buildMode) {
@@ -4311,6 +4458,8 @@ export default function Game() {
   const promptText = prompt.replace(/^(E|TOOL|BUILD) · /, "");
   const messageVisible = game.messageUntil > 0;
   const phase = isNight(game) ? "NIGHT" : "DAY";
+  const lowHealth = game.started && !game.dead && game.player.hp <= LOW_HEALTH_THRESHOLD;
+  const lowHunger = game.started && !game.dead && game.player.hunger <= LOW_HUNGER_THRESHOLD;
 
   return (
     <main className="survival-game" data-revision={revision}>
@@ -4356,6 +4505,21 @@ export default function Game() {
           zoom(event.deltaY > 0 ? -0.08 : 0.08);
         }}
       />
+
+      {lowHealth && (
+        <div
+          className="low-health-vignette"
+          style={{ opacity: Math.min(0.95, 0.42 + (LOW_HEALTH_THRESHOLD - game.player.hp) / 42) }}
+          aria-hidden="true"
+        />
+      )}
+
+      {lowHunger && (
+        <div className={"hunger-warning" + (game.player.hunger <= 10 ? " critical" : "")} role="alert">
+          <strong>LOW HUNGER</strong>
+          <span>Eat food now — select berries, mushrooms, or meat and press <kbd>E</kbd>.</span>
+        </div>
+      )}
 
       <div className="top-hud">
         <section className="cycle-panel" aria-label={"Day " + game.day + ", " + phase.toLowerCase()}>

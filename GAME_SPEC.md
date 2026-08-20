@@ -141,6 +141,9 @@ Surviving monsters remain after dawn.
 ## 6. Hunger, food, and death
 
 Hunger falls by 0.5 per second. At zero hunger, health falls by 2 per second.
+At 25 hunger or below, a large persistent warning tells the player to select and
+eat food; the warning becomes critical at 10 hunger. At 30 health or below, a
+pulsing red vignette closes around the edges of the play area.
 Berries, mushrooms, and meat are separate inventory stacks. Move the desired
 food to the hotbar, select it, and press `E` to eat that exact type:
 
@@ -302,20 +305,26 @@ the stored contents; if monsters destroy the chest, those contents are lost.
 Melee attacks damage every non-tamed creature in the attack arc and apply
 knockback. Ranged weapons spend ammunition even on misses and fire a physical
 projectile in the exact pointer-facing direction. A projectile only deals
-damage if its path intersects a creature.
+damage if its path intersects a creature. Every completed attack produces a
+brief white directional flash. Spears use a narrow straight-ahead hit area and
+thrust animation; axes, pickaxes, swords, and improvised attacks use arcs.
 
 | Item | Damage | Range | Cooldown |
 | --- | ---: | ---: | ---: |
-| Wood axe | 7 | 78 | 500 ms |
-| Stone axe | 9 | 78 | 500 ms |
-| Iron axe | 14 | 78 | 500 ms |
+| Wood axe | 7 | 78 | 560 ms |
+| Stone axe | 9 | 78 | 620 ms |
+| Iron axe | 14 | 78 | 580 ms |
 | Aetherium axe | 22 | 78 | 500 ms |
-| Wood / stone / iron / Aetherium pickaxe | 5 / 7 / 11 / 18 | 78 | 500 ms |
-| Stone spear | 17 | 102 | 500 ms |
-| Iron sword | 25 | 102 | 380 ms |
-| Hunting bow | 18 | 520 | 520 ms |
-| Scrap pistol | 34 | 640 | 320 ms |
-| Hands, food, or build tool | 3 | 78 | 500 ms |
+| Wood pickaxe | 5 | 78 | 660 ms |
+| Stone pickaxe | 7 | 78 | 700 ms |
+| Iron pickaxe | 11 | 78 | 640 ms |
+| Aetherium pickaxe | 18 | 78 | 560 ms |
+| Stone spear | 17 | 102 | 460 ms |
+| Iron sword | 25 | 102 | 330 ms |
+| Hunting bow | 18 | 520 | 620 ms |
+| Scrap pistol | 34 | 640 | 280 ms |
+| Deconstruction hammer | 3 | 78 | 600 ms |
+| Hands, food, or build tool | 3 | 78 | 430 ms |
 
 Wildlife drops meat and hide. Brutes drop iron, wraiths drop sulfur, and maws
 drop 2 iron and 2 sulfur. Every creature defeated by the player, a tame, or a

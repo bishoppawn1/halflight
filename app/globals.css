@@ -36,6 +36,58 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   cursor: crosshair;
 }
 
+.low-health-vignette {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 43%, rgba(157,19,24,.08) 61%, rgba(179,20,25,.66) 100%);
+  box-shadow: inset 0 0 94px 24px rgba(151,12,18,.7), inset 0 0 28px rgba(255,52,45,.48);
+  animation: danger-vignette-pulse 1.05s ease-in-out infinite alternate;
+}
+
+.hunger-warning {
+  position: absolute;
+  z-index: 7;
+  top: 148px;
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 13px;
+  width: min(560px, calc(100vw - 32px));
+  padding: 13px 18px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  color: #2c291c;
+  border: 3px solid #fff1b8;
+  border-radius: 13px;
+  background: #efb845;
+  box-shadow: 0 6px 0 #8f5d1f, 0 13px 30px rgba(36,20,7,.38);
+  animation: hunger-warning-pulse .85s ease-in-out infinite alternate;
+}
+
+.hunger-warning strong {
+  font-size: 17px;
+  font-weight: 950;
+  letter-spacing: .12em;
+  white-space: nowrap;
+}
+
+.hunger-warning span { font-size: 12px; font-weight: 850; line-height: 1.35; }
+.hunger-warning kbd { padding: 2px 5px; color: #fff2cf; border-radius: 4px; background: #46321d; font-weight: 950; }
+.hunger-warning.critical { color: #fff5dc; border-color: #ffd6c5; background: #c94638; box-shadow: 0 6px 0 #70251f, 0 13px 34px rgba(62,9,7,.5); }
+
+@keyframes danger-vignette-pulse {
+  from { filter: saturate(.9); }
+  to { filter: saturate(1.25) brightness(1.12); }
+}
+
+@keyframes hunger-warning-pulse {
+  from { transform: translateX(-50%) scale(1); }
+  to { transform: translateX(-50%) scale(1.025); }
+}
+
 .top-hud {
   position: absolute;
   z-index: 4;
@@ -1283,6 +1335,9 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   .tool-glyph { transform: scale(.84); }
   .interact-prompt { bottom: 76px; }
   .game-toast { top: 82px; max-width: calc(100vw - 30px); }
+  .hunger-warning { top: 124px; grid-template-columns: 1fr; gap: 4px; padding: 10px 13px; text-align: center; }
+  .hunger-warning strong { font-size: 14px; }
+  .hunger-warning span { font-size: 10px; }
   .build-mode-banner { top: 86px; }
   .game-panel { inset: 6px; width: auto; }
   .chest-panel { left: 6px; right: 6px; top: 6px; bottom: 6px; width: auto; max-height: none; transform: none; }
@@ -1294,6 +1349,11 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   .free-inventory { gap: 3px; }
   .inventory-slot { height: 46px; grid-template-rows: 28px 10px; }
   .start-card { padding-inline: 23px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .low-health-vignette,
+  .hunger-warning { animation: none; }
 }
 
 @media (pointer: coarse) {
