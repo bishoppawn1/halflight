@@ -54,10 +54,11 @@ distinct at gameplay scale.
 
 Every world object and creature is presented from directly overhead. Wildlife
 uses a clean silhouette made from a torso and head. Airborne crows and owls have
-compact folded wings and visible beaks until they flee; their escape animation
-extends both wings beyond the torso and sweeps them forward and backward in a
-fast flap. Grounded wild turkeys have a broad fan tail, beak, and a small red
-wattle attached beneath the base of the beak.
+compact folded wings and visible beaks until they are actively moving away in a
+flee; their escape animation extends both wings beyond the torso and sweeps them
+forward and backward in a fast flap. A frightened bird that is stationary or
+blocked keeps its wings folded. Grounded wild turkeys have a broad fan tail,
+beak, and a small red wattle attached beneath the base of the beak.
 Ground animals use coat markings. Legs are
 omitted because they would not be clearly visible from this camera height.
 Deer have large, branched antlers and visible side ears; wolves have a broad
@@ -465,7 +466,8 @@ Crows and owls fly over trees, mineable outcrops, water, and player-built
 structures while roaming, fleeing, following, or attacking. Their wings remain
 folded against the torso during ordinary movement. When a wild flying bird runs
 away, both wings extend outside its body and flap forward and backward until it
-stops fleeing. Wild turkeys remain on the ground and carry their tail in a
+stops physically moving away; a fear flag alone does not unfold its wings. Wild
+turkeys remain on the ground and carry their tail in a
 visible fan. Flying birds range farther from their home
 point and visibly bob above their softer shadow; all three bird species retain a
 body-and-head overhead shape. Crows and owls are compact, turkeys are only

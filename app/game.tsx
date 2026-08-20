@@ -137,6 +137,7 @@ interface Creature {
   provokedUntil: number;
   waryOfPlayer: boolean;
   respawnAt: number;
+  fleeing: boolean;
 }
 
 interface Building {
@@ -1105,7 +1106,7 @@ function makeGame(): GameState {
   const creatures: Creature[] = [];
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = ANIMAL_DATA[kind];
-    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0 });
+    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false });
   };
   const wildlifeRoster = ANIMAL_KINDS.flatMap((kind) =>
     Array.from({ length: ANIMAL_DATA[kind].startingCount }, () => kind),
@@ -1184,6 +1185,7 @@ function makeGame(): GameState {
     provokedUntil: 0,
     waryOfPlayer: false,
     respawnAt: 0,
+    fleeing: false,
   });
   const startingCampfire: Building = {
     id: id++,
@@ -1401,6 +1403,7 @@ function spawnNightWave(game: GameState) {
       provokedUntil: 0,
       waryOfPlayer: false,
       respawnAt: 0,
+      fleeing: false,
     });
     spawned += 1;
   }
@@ -2577,6 +2580,7 @@ function steerCreatureFacing(current: number, target: number, maxTurn: number) {
 function updateCreatures(game: GameState, dt: number) {
   const now = performance.now();
   for (const creature of game.creatures) {
+    creature.fleeing = false;
     if (creature.hp <= 0) {
       if (!isAnimal(creature.kind) || creature.respawnAt <= 0 || now < creature.respawnAt) continue;
       if (reservedBuildingAt(game, creature.realm, creature.homeX, creature.homeY, creatureRadius(creature))) {
@@ -2733,7 +2737,10 @@ function updateCreatures(game: GameState, dt: number) {
       const turnRate = movement === "idle" ? 3.2 : 7;
       creature.dir = steerCreatureFacing(creature.dir, desiredDirection, turnRate * dt);
       const step = Math.min(pace * dt, Math.max(0, distance - stopDistance));
+      const previousX = creature.x;
+      const previousY = creature.y;
       const blocker = moveCreatureWithBuildings(game, creature, dx, dy, distance, step);
+      creature.fleeing = movement === "flee" && Math.hypot(creature.x - previousX, creature.y - previousY) > 0.01;
       if (blocker && isMonster(creature.kind) && now - creature.structureHitAt > CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS) {
         blocker.hp -= creature.damage;
         creature.structureHitAt = now;
@@ -4007,8 +4014,8 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: GameState) {
 }
 
 function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind: BirdKind, now: number) {
-  const escaping = ANIMAL_DATA[kind].flying && creature.angry && !creature.tame;
-  const wingCycle = now / (escaping ? 105 : 135) + creature.phase;
+  const escaping = ANIMAL_DATA[kind].flying && creature.fleeing && !creature.tame;
+  const wingCycle = now / 105 + creature.phase;
   const flap = (Math.sin(wingCycle) + 1) / 2;
   const wingSweep = escaping ? Math.cos(wingCycle) * 12 : 0;
   let collarX = 14;
@@ -4032,35 +4039,37 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
       ctx.fill();
       ctx.stroke();
     }
-    for (const side of [-1, 1]) {
-      const s = side;
-      const wingGradient = ctx.createLinearGradient(-10, 0, 10, s * wingReach);
-      wingGradient.addColorStop(0, "#26343c");
-      wingGradient.addColorStop(1, "#405966");
-      ctx.fillStyle = wingGradient;
-      ctx.beginPath();
-      ctx.moveTo(-11, s * 5);
-      ctx.bezierCurveTo(-20, s * 16, -10 + wingSweep * 0.35, s * (wingReach - 8), 5 + wingSweep, s * wingReach);
-      ctx.lineTo(10 + wingSweep, s * (wingReach - 12));
-      ctx.lineTo(17 + wingSweep, s * (wingReach - 5));
-      ctx.lineTo(15 + wingSweep * 0.78, s * (wingReach - 20));
-      ctx.lineTo(23 + wingSweep * 0.72, s * (wingReach - 13));
-      ctx.lineTo(16 + wingSweep * 0.42, s * 18);
-      ctx.bezierCurveTo(12 + wingSweep * 0.25, s * 10, 4, s * 5, -3, s * 4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = "rgba(128,159,172,.6)";
-      ctx.lineWidth = 2.2;
-      for (const feather of [0, 1, 2]) {
+    if (escaping) {
+      for (const side of [-1, 1]) {
+        const s = side;
+        const wingGradient = ctx.createLinearGradient(-10, 0, 10, s * wingReach);
+        wingGradient.addColorStop(0, "#26343c");
+        wingGradient.addColorStop(1, "#405966");
+        ctx.fillStyle = wingGradient;
         ctx.beginPath();
-        ctx.moveTo(-3 + feather * 5, s * 10);
-        ctx.quadraticCurveTo(1 + feather * 4 + wingSweep * 0.2, s * 24, 6 + feather * 5 + wingSweep, s * (wingReach - feather * 9));
+        ctx.moveTo(-11, s * 5);
+        ctx.bezierCurveTo(-20, s * 16, -10 + wingSweep * 0.35, s * (wingReach - 8), 5 + wingSweep, s * wingReach);
+        ctx.lineTo(10 + wingSweep, s * (wingReach - 12));
+        ctx.lineTo(17 + wingSweep, s * (wingReach - 5));
+        ctx.lineTo(15 + wingSweep * 0.78, s * (wingReach - 20));
+        ctx.lineTo(23 + wingSweep * 0.72, s * (wingReach - 13));
+        ctx.lineTo(16 + wingSweep * 0.42, s * 18);
+        ctx.bezierCurveTo(12 + wingSweep * 0.25, s * 10, 4, s * 5, -3, s * 4);
+        ctx.closePath();
+        ctx.fill();
         ctx.stroke();
+
+        ctx.strokeStyle = "rgba(128,159,172,.6)";
+        ctx.lineWidth = 2.2;
+        for (const feather of [0, 1, 2]) {
+          ctx.beginPath();
+          ctx.moveTo(-3 + feather * 5, s * 10);
+          ctx.quadraticCurveTo(1 + feather * 4 + wingSweep * 0.2, s * 24, 6 + feather * 5 + wingSweep, s * (wingReach - feather * 9));
+          ctx.stroke();
+        }
+        ctx.strokeStyle = outline;
+        ctx.lineWidth = 4;
       }
-      ctx.strokeStyle = outline;
-      ctx.lineWidth = 4;
     }
 
     const bodyGradient = ctx.createLinearGradient(-28, -8, 28, 8);
@@ -4077,6 +4086,28 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
     ctx.beginPath();
     ctx.arc(-5, 0, 18, 4.05, 5.37);
     ctx.stroke();
+
+    if (!escaping) {
+      for (const side of [-1, 1]) {
+        const s = side;
+        ctx.fillStyle = "#2c3d46";
+        ctx.strokeStyle = outline;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-18, s * 3);
+        ctx.bezierCurveTo(-12, s * 7, 3, s * 10, 15, s * 8);
+        ctx.bezierCurveTo(9, s * 5, -1, s * 3.5, -12, s * 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(128,159,172,.6)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-9, s * 4);
+        ctx.lineTo(9, s * 7);
+        ctx.stroke();
+      }
+    }
 
     ctx.fillStyle = "#222f36";
     ctx.strokeStyle = outline;
@@ -4116,31 +4147,33 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
       ctx.stroke();
     }
 
-    for (const side of [-1, 1]) {
-      const s = side;
-      const wingGradient = ctx.createLinearGradient(-8, 0, 4, s * wingReach);
-      wingGradient.addColorStop(0, "#806a49");
-      wingGradient.addColorStop(1, "#b09563");
-      ctx.fillStyle = wingGradient;
-      ctx.beginPath();
-      ctx.moveTo(-12, s * 5);
-      ctx.bezierCurveTo(-27, s * 18, -19 + wingSweep * 0.35, s * (wingReach - 3), 1 + wingSweep, s * wingReach);
-      ctx.bezierCurveTo(17 + wingSweep, s * (wingReach - 1), 24 + wingSweep * 0.55, s * 27, 15 + wingSweep * 0.28, s * 13);
-      ctx.quadraticCurveTo(8, s * 5, -2, s * 4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = "rgba(234,213,166,.7)";
-      ctx.lineWidth = 2.5;
-      for (const feather of [0, 1, 2, 3]) {
+    if (escaping) {
+      for (const side of [-1, 1]) {
+        const s = side;
+        const wingGradient = ctx.createLinearGradient(-8, 0, 4, s * wingReach);
+        wingGradient.addColorStop(0, "#806a49");
+        wingGradient.addColorStop(1, "#b09563");
+        ctx.fillStyle = wingGradient;
         ctx.beginPath();
-        ctx.moveTo(-5 + feather * 5, s * 10);
-        ctx.quadraticCurveTo(-6 + feather * 6 + wingSweep * 0.2, s * 26, -3 + feather * 6 + wingSweep, s * (wingReach - feather * 6));
+        ctx.moveTo(-12, s * 5);
+        ctx.bezierCurveTo(-27, s * 18, -19 + wingSweep * 0.35, s * (wingReach - 3), 1 + wingSweep, s * wingReach);
+        ctx.bezierCurveTo(17 + wingSweep, s * (wingReach - 1), 24 + wingSweep * 0.55, s * 27, 15 + wingSweep * 0.28, s * 13);
+        ctx.quadraticCurveTo(8, s * 5, -2, s * 4);
+        ctx.closePath();
+        ctx.fill();
         ctx.stroke();
+
+        ctx.strokeStyle = "rgba(234,213,166,.7)";
+        ctx.lineWidth = 2.5;
+        for (const feather of [0, 1, 2, 3]) {
+          ctx.beginPath();
+          ctx.moveTo(-5 + feather * 5, s * 10);
+          ctx.quadraticCurveTo(-6 + feather * 6 + wingSweep * 0.2, s * 26, -3 + feather * 6 + wingSweep, s * (wingReach - feather * 6));
+          ctx.stroke();
+        }
+        ctx.strokeStyle = outline;
+        ctx.lineWidth = 4;
       }
-      ctx.strokeStyle = outline;
-      ctx.lineWidth = 4;
     }
 
     ctx.fillStyle = "#745f43";
@@ -4153,6 +4186,30 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    if (!escaping) {
+      for (const side of [-1, 1]) {
+        const s = side;
+        ctx.fillStyle = "#8f7752";
+        ctx.strokeStyle = outline;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-18, s * 4);
+        ctx.bezierCurveTo(-12, s * 10, 4, s * 13, 15, s * 9);
+        ctx.bezierCurveTo(7, s * 6, -4, s * 4, -14, s * 3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(234,213,166,.68)";
+        ctx.lineWidth = 2;
+        for (const featherX of [-9, -1, 7]) {
+          ctx.beginPath();
+          ctx.moveTo(featherX, s * 5);
+          ctx.lineTo(featherX + 5, s * 9);
+          ctx.stroke();
+        }
+      }
     }
 
     ctx.fillStyle = "#c5aa73";
