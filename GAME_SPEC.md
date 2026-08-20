@@ -95,6 +95,8 @@ individual foods, resource stacks, and ready building pieces can be moved by dra
 selecting a source and destination. The hotbar is the only equipment source.
 Every newly acquired item or material uses the first open hotbar slot when
 possible, then the first open backpack slot.
+Multiple copies of the same durable axe or pickaxe share one inventory slot and
+display their copy count on that slot.
 
 Touch players receive a directional pad, an **Interact** button, a **Build**
 button, and a holdable **Tool** button. Holding the touch tool also supports continuous building.
@@ -198,11 +200,12 @@ not play its attack animation. Wild grass is the only natural source of fiber.
 Higher tiers remove more node durability per hit and give access to stronger
 deposits.
 
-Every axe and pickaxe tier is a separate inventory item. Crafting a Stone
-Pickaxe, for example, does not remove or alter an owned Wood Pickaxe. Tools lose
-one durability point after each successful gathering use or melee hit, show
-their remaining durability in the inventory and equipped-item display, and
-break at zero. A broken tool disappears and its recipe becomes available again.
+Every axe and pickaxe tier is a separate tool type. Crafting a Stone Pickaxe,
+for example, does not remove or alter any owned Wood Pickaxes. Each type can be
+crafted repeatedly, and every crafted copy has its own durability. The active
+copy loses one durability point after each successful gathering use or melee
+hit. When it breaks at zero, the next spare of that type is equipped
+automatically; the slot disappears only when no copies remain.
 
 | Tool material | Maximum tool durability |
 | --- | ---: |
@@ -252,11 +255,12 @@ material for each point of their size-adjusted maximum durability.
 
 Wood and stone tools, the spear, arrows, bandages, and basic building pieces
 can be made anywhere. Place a Crafting Bench and stand within 150 units to make
-advanced weapons, armor, metal tools, ammunition, and defenses. Owned durable
-tools cannot be duplicated, but can be crafted again after breaking. Crafting a
-higher tool tier adds a new item instead of replacing a lower-tier tool.
-Permanent weapons and armor cannot be crafted twice or downgraded; ammunition,
-bandages, and building pieces are repeatable. Opening crafting enters a large
+advanced weapons, armor, metal tools, ammunition, and defenses. Durable axes and
+pickaxes can always be crafted again when the material and bench requirements
+are met; their recipes never change to **Owned**. Crafting a higher tool tier
+adds a new tool stack instead of replacing a lower-tier tool. Permanent weapons
+and armor cannot be crafted twice or downgraded; ammunition, bandages, and
+building pieces are repeatable. Opening crafting enters a large
 screen-wide menu. Every recipe occupies its own square card with a prominent
 illustration, name, description, material cost, bench requirement, and craft
 button.

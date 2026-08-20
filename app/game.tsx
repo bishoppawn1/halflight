@@ -213,7 +213,7 @@ interface GameState {
     bow: boolean;
     pistol: boolean;
     hammer: boolean;
-    toolDurability: Record<DurableTool, number>;
+    toolDurability: Record<DurableTool, number[]>;
     armor: ArmorKind;
   };
   kits: Record<BuildKind, number>;
@@ -571,6 +571,19 @@ function durableToolInfo(item: InventoryItem | null) {
   return isDurableTool(item) ? DURABLE_TOOL_DATA[item] : null;
 }
 
+function durableToolCount(game: GameState, tool: DurableTool) {
+  return game.gear.toolDurability[tool].length;
+}
+
+function activeToolDurability(game: GameState, tool: DurableTool) {
+  return game.gear.toolDurability[tool][0] ?? 0;
+}
+
+function addDurableTool(game: GameState, tool: DurableTool) {
+  game.gear.toolDurability[tool].push(DURABLE_TOOL_DATA[tool].maxDurability);
+  equipNewItem(game, tool);
+}
+
 function isFoodItem(item: InventoryItem | null): item is FoodMaterial {
   return item === "berries" || item === "mushrooms" || item === "meat";
 }
@@ -586,7 +599,7 @@ function itemCount(game: GameState, item: InventoryItem | null) {
   if (!item) return 0;
   if (isBuildKind(item)) return game.kits[item];
   if (isMaterial(item)) return game.resources[item];
-  if (isDurableTool(item)) return game.gear.toolDurability[item] > 0 ? 1 : 0;
+  if (isDurableTool(item)) return durableToolCount(game, item);
   if (item === "hammer") return game.gear.hammer ? 1 : 0;
   if (item === "spear") return game.gear.spear ? 1 : 0;
   if (item === "sword") return game.gear.sword ? 1 : 0;
@@ -984,14 +997,14 @@ function makeGame(): GameState {
       pistol: false,
       hammer: false,
       toolDurability: {
-        woodAxe: DURABLE_TOOL_DATA.woodAxe.maxDurability,
-        stoneAxe: 0,
-        ironAxe: 0,
-        aetheriumAxe: 0,
-        woodPickaxe: 0,
-        stonePickaxe: 0,
-        ironPickaxe: 0,
-        aetheriumPickaxe: 0,
+        woodAxe: [DURABLE_TOOL_DATA.woodAxe.maxDurability],
+        stoneAxe: [],
+        ironAxe: [],
+        aetheriumAxe: [],
+        woodPickaxe: [],
+        stonePickaxe: [],
+        ironPickaxe: [],
+        aetheriumPickaxe: [],
       },
       armor: "none",
     },
@@ -1702,13 +1715,27 @@ const TOOL_TIER_RANK: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, i
 const TOOL_POWER: Record<ToolTier, number> = { none: 1, wood: 1, stone: 2, iron: 3, aetherium: 5 };
 
 function wearTool(game: GameState, tool: DurableTool) {
-  const remaining = Math.max(0, game.gear.toolDurability[tool] - 1);
-  game.gear.toolDurability[tool] = remaining;
-  if (remaining > 0) return { remaining, broke: false };
+  const copies = game.gear.toolDurability[tool];
+  const remaining = Math.max(0, (copies[0] ?? 0) - 1);
+  copies[0] = remaining;
+  if (remaining > 0) return { remaining, broke: false, replacement: false, copies: copies.length };
+  copies.shift();
+  if (copies.length > 0) {
+    return { remaining: copies[0], broke: true, replacement: true, copies: copies.length };
+  }
   game.hotbar = game.hotbar.map((item) => (item === tool ? null : item));
   game.inventory = game.inventory.map((item) => (item === tool ? null : item));
   if (game.selected === tool) selectSlot(game, game.selectedSlot);
-  return { remaining: 0, broke: true };
+  return { remaining: 0, broke: true, replacement: false, copies: 0 };
+}
+
+function toolWearMessage(tool: DurableTool, wear: ReturnType<typeof wearTool>) {
+  if (!wear.broke) return "durability " + wear.remaining + "/" + DURABLE_TOOL_DATA[tool].maxDurability;
+  if (wear.replacement) {
+    return ITEM_LABELS[tool] + " broke · spare equipped · durability " + wear.remaining + "/" +
+      DURABLE_TOOL_DATA[tool].maxDurability + " · " + wear.copies + (wear.copies === 1 ? " copy left" : " copies left");
+  }
+  return ITEM_LABELS[tool] + " broke · no spares left";
 }
 
 function resourceNodeLabel(kind: ResourceKind) {
@@ -1805,11 +1832,7 @@ function harvestNode(game: GameState, node: ResourceNode) {
   if ((tree || mining) && isDurableTool(game.selected)) {
     const usedTool = game.selected;
     const wear = wearTool(game, usedTool);
-    feedback.push(
-      wear.broke
-        ? ITEM_LABELS[usedTool] + " broke"
-        : "durability " + wear.remaining + "/" + DURABLE_TOOL_DATA[usedTool].maxDurability,
-    );
+    feedback.push(toolWearMessage(usedTool, wear));
   }
   notify(game, feedback.join(" · "), node.hp <= 0 ? 2200 : 900);
 }
@@ -1890,14 +1913,7 @@ function attack(game: GameState) {
   }
   if (hit && isDurableTool(tool)) {
     const wear = wearTool(game, tool);
-    notify(
-      game,
-      profile.damage + " damage · " +
-        (wear.broke
-          ? ITEM_LABELS[tool] + " broke"
-          : "durability " + wear.remaining + "/" + DURABLE_TOOL_DATA[tool].maxDurability),
-      1000,
-    );
+    notify(game, profile.damage + " damage · " + toolWearMessage(tool, wear), 1000);
   } else if (hit) notify(game, profile.damage + " damage", 700);
 }
 
@@ -4864,10 +4880,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Wood Axe",
     detail: "1 chopping damage per swing · 36 durability",
     cost: { wood: 3 },
-    owned: (game) => game.gear.toolDurability.woodAxe > 0,
     action: (game) => {
-      game.gear.toolDurability.woodAxe = DURABLE_TOOL_DATA.woodAxe.maxDurability;
-      equipNewItem(game, "woodAxe");
+      addDurableTool(game, "woodAxe");
     },
   },
   {
@@ -4875,10 +4889,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Wood Pickaxe",
     detail: "1 mining damage per swing · 36 durability",
     cost: { wood: 3 },
-    owned: (game) => game.gear.toolDurability.woodPickaxe > 0,
     action: (game) => {
-      game.gear.toolDurability.woodPickaxe = DURABLE_TOOL_DATA.woodPickaxe.maxDurability;
-      equipNewItem(game, "woodPickaxe");
+      addDurableTool(game, "woodPickaxe");
     },
   },
   {
@@ -4886,10 +4898,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Stone Axe",
     detail: "2 chopping damage per swing · 72 durability",
     cost: { wood: 3, stone: 4 },
-    owned: (game) => game.gear.toolDurability.stoneAxe > 0,
     action: (game) => {
-      game.gear.toolDurability.stoneAxe = DURABLE_TOOL_DATA.stoneAxe.maxDurability;
-      equipNewItem(game, "stoneAxe");
+      addDurableTool(game, "stoneAxe");
     },
   },
   {
@@ -4897,10 +4907,8 @@ const CRAFT_RECIPES: Recipe[] = [
     name: "Stone Pickaxe",
     detail: "2 mining damage per swing · common metals · 72 durability",
     cost: { wood: 3, stone: 4 },
-    owned: (game) => game.gear.toolDurability.stonePickaxe > 0,
     action: (game) => {
-      game.gear.toolDurability.stonePickaxe = DURABLE_TOOL_DATA.stonePickaxe.maxDurability;
-      equipNewItem(game, "stonePickaxe");
+      addDurableTool(game, "stonePickaxe");
     },
   },
   {
@@ -5023,10 +5031,8 @@ const CRAFT_RECIPES: Recipe[] = [
     detail: "3 chopping damage per swing · 120 durability",
     cost: { wood: 4, iron: 5 },
     requiresBench: true,
-    owned: (game) => game.gear.toolDurability.ironAxe > 0,
     action: (game) => {
-      game.gear.toolDurability.ironAxe = DURABLE_TOOL_DATA.ironAxe.maxDurability;
-      equipNewItem(game, "ironAxe");
+      addDurableTool(game, "ironAxe");
     },
   },
   {
@@ -5035,10 +5041,8 @@ const CRAFT_RECIPES: Recipe[] = [
     detail: "3 mining damage per swing · mines Aetherium · 120 durability",
     cost: { wood: 4, iron: 5 },
     requiresBench: true,
-    owned: (game) => game.gear.toolDurability.ironPickaxe > 0,
     action: (game) => {
-      game.gear.toolDurability.ironPickaxe = DURABLE_TOOL_DATA.ironPickaxe.maxDurability;
-      equipNewItem(game, "ironPickaxe");
+      addDurableTool(game, "ironPickaxe");
     },
   },
   {
@@ -5047,10 +5051,8 @@ const CRAFT_RECIPES: Recipe[] = [
     detail: "5 chopping damage per swing · 180 durability",
     cost: { wood: 4, aetherium: 7, iron: 3 },
     requiresBench: true,
-    owned: (game) => game.gear.toolDurability.aetheriumAxe > 0,
     action: (game) => {
-      game.gear.toolDurability.aetheriumAxe = DURABLE_TOOL_DATA.aetheriumAxe.maxDurability;
-      equipNewItem(game, "aetheriumAxe");
+      addDurableTool(game, "aetheriumAxe");
     },
   },
   {
@@ -5059,10 +5061,8 @@ const CRAFT_RECIPES: Recipe[] = [
     detail: "5 mining damage per swing · 180 durability",
     cost: { wood: 4, aetherium: 7, iron: 3 },
     requiresBench: true,
-    owned: (game) => game.gear.toolDurability.aetheriumPickaxe > 0,
     action: (game) => {
-      game.gear.toolDurability.aetheriumPickaxe = DURABLE_TOOL_DATA.aetheriumPickaxe.maxDurability;
-      equipNewItem(game, "aetheriumPickaxe");
+      addDurableTool(game, "aetheriumPickaxe");
     },
   },
   {
@@ -5454,7 +5454,8 @@ export default function Game() {
     const address: SlotAddress = { area, index };
     const isMoving = moveSource?.area === area && moveSource.index === index;
     const durabilityDescription = item && isDurableTool(item)
-      ? ", " + game.gear.toolDurability[item] + " of " + DURABLE_TOOL_DATA[item].maxDurability + " durability"
+      ? ", " + durableToolCount(game, item) + (durableToolCount(game, item) === 1 ? " copy, " : " copies, ") +
+        activeToolDurability(game, item) + " of " + DURABLE_TOOL_DATA[item].maxDurability + " active durability"
       : "";
     return (
       <button
@@ -5482,8 +5483,8 @@ export default function Game() {
         {item && <span className="slot-name">{itemLabel(item, game)}</span>}
         {item && itemCount(game, item) > 1 && <b className="stack-count">{itemCount(game, item)}</b>}
         {item && isDurableTool(item) && (
-          <span className="tool-durability" title={game.gear.toolDurability[item] + " durability remaining"}>
-            <i style={{ width: (game.gear.toolDurability[item] / DURABLE_TOOL_DATA[item].maxDurability) * 100 + "%" }} />
+          <span className="tool-durability" title={activeToolDurability(game, item) + " active durability · " + durableToolCount(game, item) + (durableToolCount(game, item) === 1 ? " copy" : " copies")}>
+            <i style={{ width: (activeToolDurability(game, item) / DURABLE_TOOL_DATA[item].maxDurability) * 100 + "%" }} />
           </span>
         )}
       </button>
@@ -5500,7 +5501,9 @@ export default function Game() {
       : game.selected === "pistol"
             ? "Scrap Pistol · " + game.resources.bullets + " bullets"
       : isDurableTool(game.selected)
-        ? itemLabel(game.selected, game) + " · " + game.gear.toolDurability[game.selected] + "/" + DURABLE_TOOL_DATA[game.selected].maxDurability + " durability"
+        ? itemLabel(game.selected, game) + " · " + activeToolDurability(game, game.selected) + "/" +
+          DURABLE_TOOL_DATA[game.selected].maxDurability + " durability · " + durableToolCount(game, game.selected) +
+          (durableToolCount(game, game.selected) === 1 ? " copy" : " copies")
           : isFoodItem(game.selected)
             ? itemLabel(game.selected, game) + " · " + game.resources[game.selected]
             : game.buildMode
