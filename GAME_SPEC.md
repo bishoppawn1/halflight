@@ -28,11 +28,11 @@ complete run.
 | --- | ---: |
 | Health | 100 / 100 |
 | Hunger | 100 / 100 |
-| Wood | 8 |
-| Stone | 5 |
-| Fiber | 4 |
+| Wood | 0 |
+| Stone | 0 |
+| Fiber | 0 |
 | Berries | 3 |
-| Seeds | 2 |
+| Seeds | 0 |
 | Ready building pieces | None |
 | Equipment | Wood Axe in hotbar slot 2; berries begin selected in slot 1 |
 | Placed structures | One completed campfire beside the spawn point |
@@ -48,8 +48,9 @@ Aetherium is crystalline and glowing. Resource stacks, recipes, and ready
 building pieces use recognizable miniature illustrations rather than letter
 abbreviations.
 
-Axes always use one broad, offset chopping blade. Pickaxes use a narrow,
-double-ended head so the two tool families remain distinct at gameplay scale.
+Axes always use one broad, offset chopping blade mounted perpendicular to the
+handle. Pickaxes use a narrow, double-ended head so the two tool families remain
+distinct at gameplay scale.
 
 Every world object and creature is presented from directly overhead. Wildlife
 uses a clean silhouette made from a torso and head. Birds add contained folded-
@@ -78,7 +79,7 @@ or door can be crossed.
 | Left click in build mode | Place one ready building piece |
 | Hold `Shift` and left-drag | Place ready pieces across each valid grid cell crossed |
 | Right click in build mode | Cancel placement without using a ready piece |
-| `E` | Context action: eat, feed, harvest, open treasure, operate, enter/exit, or place once |
+| `E` | Context action: pick up ground drops, eat, feed, harvest, open treasure, operate, enter/exit, or place once |
 | `Space` or `F` | Attack once |
 | `1`–`9`, `0` | Select hotbar slots 1 through 10 |
 | `Q` | Open or close ready building pieces |
@@ -91,8 +92,8 @@ or door can be crossed.
 The backpack has 30 unrestricted slots and the hotbar has 10. Tools, weapons,
 individual foods, resource stacks, and ready building pieces can be moved by dragging or by
 selecting a source and destination. The hotbar is the only equipment source.
-Newly crafted weapons use the first open hotbar slot when possible, then the
-first open backpack slot.
+Every newly acquired item or material uses the first open hotbar slot when
+possible, then the first open backpack slot.
 
 Touch players receive a directional pad, an **Interact** button, a **Build**
 button, and a holdable **Tool** button. Holding the touch tool also supports continuous building.
@@ -172,16 +173,18 @@ and total defeated threats. Nothing persists into a restarted run.
 
 ## 7. Gathering
 
-Trees require an axe, and mineable deposits require a pickaxe. Berry bushes,
-wild grass, and mushrooms can be gathered with any selected item. Holding left
-mouse repeatedly gathers a reachable resource anywhere under its full visible
-footprint; the pointer does not need to touch the resource's center. If the
-pointer is slightly off, the tool's aim ray is tested against the complete
-footprints of nearby resources and the first intersected footprint is selected.
-Pointer coordinates stay synchronized while the camera moves.
+Trees can be punched with empty hands or chopped with an axe. Mineable deposits
+require a pickaxe. Berry bushes, wild grass, and mushrooms can be gathered with
+any selected item. Holding left mouse repeatedly damages a reachable resource
+anywhere under its full visible footprint; the pointer does not need to touch
+the resource's center. If the pointer is slightly off, the tool's aim ray is
+tested against the complete footprints of nearby resources and the first
+intersected footprint is selected. Pointer coordinates stay synchronized while
+the camera moves.
 
 | Tool tier | Node durability removed per hit | Axe cooldown | Pickaxe cooldown | Access |
 | --- | ---: | ---: | ---: | --- |
+| Hands | 1 | 600 ms | — | Trees only |
 | Wood | 1 | 700 ms | 820 ms | Trees and ordinary rock |
 | Stone | 2 | 760 ms | 860 ms | Trees, granite, iron, copper, coal, and sulfur |
 | Iron | 3 | 700 ms | 800 ms | All deposits, including Aetherium |
@@ -206,28 +209,29 @@ break at zero. A broken tool disappears and its recipe becomes available again.
 | Iron | 120 |
 | Aetherium | 180 |
 
-Materials are awarded on every hit, not only when a node breaks. Depleted nodes
-return after 120 seconds.
+Hits only reduce node durability. When a node is fully depleted, all of its
+materials appear as illustrated ground drops near the node. The player must
+move near a drop and press `E` to collect it. Depleted nodes return after 120
+seconds.
 
 Every partially damaged resource node shows a large, outlined health bar with
-its current/maximum durability centered inside until it is depleted or fully
-respawned.
+no numeric durability text until it is depleted or fully respawned.
 
-| Node | Durability | Material awarded per hit | Depletion bonus |
-| --- | ---: | --- | --- |
-| Oak | 8 | 2 wood | 2 fiber |
-| Pine | 6 | 1 wood and 1 fiber | — |
-| Birch | 5 | 1 wood | 1 fiber |
-| Stone | 6 | 1 stone | — |
-| Granite | 9 | 1 granite | — |
-| Iron ore | 8 | 1 iron | — |
-| Copper ore | 7 | 1 copper | — |
-| Coal | 6 | 1 coal | — |
-| Sulfur | 6 | 1 sulfur | — |
-| Aetherium ore | 12 | 1 Aetherium | — |
-| Berry bush | 1 | 3 berries and 1 seed | — |
-| Wild grass | 1 | 2 fiber and 1 seed | — |
-| Mushrooms | 1 | 2 mushrooms | — |
+| Node | Durability | World drops on depletion |
+| --- | ---: | --- |
+| Oak | 8 | 16 wood and 2 fiber |
+| Pine | 6 | 6 wood and 6 fiber |
+| Birch | 5 | 5 wood and 1 fiber |
+| Stone | 6 | 6 stone |
+| Granite | 9 | 9 granite |
+| Iron ore | 8 | 8 iron |
+| Copper ore | 7 | 7 copper |
+| Coal | 6 | 6 coal |
+| Sulfur | 6 | 6 sulfur |
+| Aetherium ore | 12 | 12 Aetherium |
+| Berry bush | 1 | 3 berries and 1 seed |
+| Wild grass | 1 | 2 fiber and 1 seed |
+| Mushrooms | 1 | 2 mushrooms |
 
 The durability values above are the base values for medium mineable deposits.
 Every mineable material appears in three patch sizes:
@@ -239,8 +243,8 @@ Every mineable material appears in three patch sizes:
 | Huge | 162% of base | 200% of base |
 
 New maps contain all three sizes. Patch size changes collision, pointer
-targeting, build clearance, and total available material; the material awarded
-for each durability point removed does not change.
+targeting, build clearance, and total material dropped; mineable nodes drop one
+material for each point of their size-adjusted maximum durability.
 
 ## 8. Crafting and equipment
 

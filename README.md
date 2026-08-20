@@ -16,7 +16,7 @@ The GitHub Pages deployment is available at:
 - Hold left mouse — continuously chop, mine, attack, or fire
 - Left click — place one selected building piece
 - Shift + left-drag — place selected building pieces across multiple grid cells
-- E — interact, tame, eat, rest at bedrolls, enter caves, open gates, chests, and treasure caches, or confirm grid placement
+- E — pick up ground drops, interact, tame, eat, rest at bedrolls, enter caves, open gates, chests, and treasure caches, or confirm grid placement
 - Space or F — attack
 - 1–9 or 0 — select one of 10 hotbar slots
 - Q — ready building pieces
@@ -27,7 +27,8 @@ The GitHub Pages deployment is available at:
 
 Move tools, weapons, resources, food, and ready building pieces freely between
 the backpack and hotbar by dragging them, or by selecting a source and then a
-destination slot.
+destination slot. Newly acquired stacks fill open hotbar slots first and use the
+backpack only after the ten-slot hotbar is full.
 
 Craft starter tools and a Crafting Bench from the full-screen, square-card Craft
 menu. After placing the
@@ -41,10 +42,13 @@ Craft a Deconstruction Hammer to reclaim part of a structure's cost.
 Storage Chests move complete resource stacks into separate storage, making those
 supplies unavailable to crafting until you retrieve them.
 
-A Wood Axe and lit campfire are available at spawn. Bedrolls provide one rest
-per day, while Standing Torches and Campfires create permanent pools of light.
-At night and underground, the world beyond those light pools is hidden. Damaged
-resources show a clear health bar, and crop plots show a live growth percent.
+A Wood Axe, 3 berries, and a lit campfire are available at spawn; no other
+carried resources are provided. Resource nodes release illustrated ground drops
+only when fully depleted, and nearby drops are collected with E. Bedrolls
+provide one rest per day, while Standing Torches and Campfires create permanent
+pools of light. At night and underground, the world beyond those light pools is
+hidden. Damaged resources show a clear health bar without numeric durability,
+and crop plots show a live growth percent.
 Night waves continue without a cap and spawn at random valid points across the map;
 surviving wave monsters disappear at dawn.
 The caves have no individual names. Each run hides a treasure cache in one

@@ -94,6 +94,15 @@ interface ResourceNode {
   respawnAt: number;
 }
 
+interface GroundDrop {
+  id: number;
+  material: Material;
+  amount: number;
+  realm: Realm;
+  x: number;
+  y: number;
+}
+
 interface CaveTreasure {
   id: number;
   realm: CaveRealm;
@@ -218,6 +227,7 @@ interface GameState {
   workOrders: WorkOrder[];
   autoBuildActive: boolean;
   nodes: ResourceNode[];
+  drops: GroundDrop[];
   treasures: CaveTreasure[];
   creatures: Creature[];
   buildings: Building[];
@@ -580,7 +590,7 @@ function itemCount(game: GameState, item: InventoryItem | null) {
 function ensureItemListed(game: GameState, item: InventoryItem) {
   if (game.hotbar.includes(item) || game.inventory.includes(item)) return;
   const openHotbar = game.hotbar.findIndex((entry) => entry === null);
-  if (openHotbar >= 0 && (isDurableTool(item) || item === "hammer" || item === "spear" || item === "sword" || item === "bow" || item === "pistol")) {
+  if (openHotbar >= 0) {
     game.hotbar[openHotbar] = item;
     return;
   }
@@ -958,7 +968,7 @@ function makeGame(): GameState {
     realm: "meadow",
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
-    resources: { wood: 8, stone: 5, granite: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, fiber: 4, berries: 3, meat: 0, mushrooms: 0, seeds: 2, hide: 0, arrows: 0, bullets: 0 },
+    resources: { wood: 0, stone: 0, granite: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, seeds: 0, hide: 0, arrows: 0, bullets: 0 },
     gear: {
       spear: false,
       sword: false,
@@ -1002,13 +1012,14 @@ function makeGame(): GameState {
     selected: "berries",
     selectedSlot: 0,
     weapon: "spear",
-    inventory: ["wood", "stone", "fiber", "berries", "seeds", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+    inventory: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
     hotbar: ["berries", "woodAxe", null, null, null, null, null, null, null, null],
     buildMode: null,
     openChestId: null,
     workOrders: [],
     autoBuildActive: false,
     nodes,
+    drops: [],
     treasures,
     creatures,
     buildings: [startingCampfire],
@@ -1214,6 +1225,26 @@ function nearestNode(game: GameState, maxDistance: number) {
     }
   }
   return found;
+}
+
+function nearestGroundDrop(game: GameState, maxDistance: number) {
+  let found: GroundDrop | null = null;
+  let best = maxDistance;
+  for (const drop of game.drops) {
+    if (drop.realm !== game.realm) continue;
+    const distance = Math.hypot(drop.x - game.player.x, drop.y - game.player.y);
+    if (distance < best) {
+      best = distance;
+      found = drop;
+    }
+  }
+  return found;
+}
+
+function pickUpGroundDrop(game: GameState, drop: GroundDrop) {
+  addMaterial(game, drop.material, drop.amount);
+  game.drops = game.drops.filter((candidate) => candidate.id !== drop.id);
+  notify(game, "Picked up " + drop.amount + " " + itemLabel(drop.material) + ".", 1300);
 }
 
 function nearestTreasure(game: GameState, maxDistance: number) {
@@ -1500,6 +1531,11 @@ function interact(game: GameState) {
     placeBuild(game, false, game.keys.has("shift"));
     return;
   }
+  const groundDrop = nearestGroundDrop(game, 86);
+  if (groundDrop) {
+    pickUpGroundDrop(game, groundDrop);
+    return;
+  }
   const entrance = nearbyCaveEntrance(game);
   const caveExit = nearbyCaveExit(game);
   if (entrance || caveExit) {
@@ -1614,7 +1650,7 @@ function interact(game: GameState) {
 }
 
 const TOOL_TIER_RANK: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 4 };
-const TOOL_POWER: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 5 };
+const TOOL_POWER: Record<ToolTier, number> = { none: 1, wood: 1, stone: 2, iron: 3, aetherium: 5 };
 
 function wearTool(game: GameState, tool: DurableTool) {
   const remaining = Math.max(0, game.gear.toolDurability[tool] - 1);
@@ -1626,6 +1662,55 @@ function wearTool(game: GameState, tool: DurableTool) {
   return { remaining: 0, broke: true };
 }
 
+function resourceNodeLabel(kind: ResourceKind) {
+  if (kind === "oak") return "Oak";
+  if (kind === "pine") return "Pine";
+  if (kind === "birch") return "Birch";
+  if (kind === "rock") return "Stone";
+  if (kind === "granite") return "Granite";
+  if (kind === "ironOre") return "Iron deposit";
+  if (kind === "copperOre") return "Copper deposit";
+  if (kind === "coal") return "Coal deposit";
+  if (kind === "sulfur") return "Sulfur deposit";
+  if (kind === "aetherOre") return "Aetherium deposit";
+  if (kind === "berryBush") return "Berry bush";
+  if (kind === "grass") return "Wild grass";
+  return "Mushrooms";
+}
+
+function resourceNodeLoot(node: ResourceNode): [Material, number][] {
+  if (node.kind === "oak") return [["wood", node.maxHp * 2], ["fiber", 2]];
+  if (node.kind === "pine") return [["wood", node.maxHp], ["fiber", node.maxHp]];
+  if (node.kind === "birch") return [["wood", node.maxHp], ["fiber", 1]];
+  if (node.kind === "rock") return [["stone", node.maxHp]];
+  if (node.kind === "granite") return [["granite", node.maxHp]];
+  if (node.kind === "ironOre") return [["iron", node.maxHp]];
+  if (node.kind === "copperOre") return [["copper", node.maxHp]];
+  if (node.kind === "coal") return [["coal", node.maxHp]];
+  if (node.kind === "sulfur") return [["sulfur", node.maxHp]];
+  if (node.kind === "aetherOre") return [["aetherium", node.maxHp]];
+  if (node.kind === "berryBush") return [["berries", 3], ["seeds", 1]];
+  if (node.kind === "grass") return [["fiber", 2], ["seeds", 1]];
+  return [["mushrooms", 2]];
+}
+
+function dropNodeLoot(game: GameState, node: ResourceNode) {
+  const loot = resourceNodeLoot(node).filter(([, amount]) => amount > 0);
+  loot.forEach(([material, amount], index) => {
+    const angle = seeded(node.id + index, 811) * Math.PI * 2;
+    const distance = 18 + index * 9;
+    game.drops.push({
+      id: game.lastId++,
+      material,
+      amount,
+      realm: node.realm,
+      x: Math.max(24, Math.min(WORLD_W - 24, node.x + Math.cos(angle) * distance)),
+      y: Math.max(24, Math.min(WORLD_H - 24, node.y + Math.sin(angle) * distance)),
+    });
+  });
+  return loot.reduce((total, [, amount]) => total + amount, 0);
+}
+
 function harvestNode(game: GameState, node: ResourceNode) {
   const now = performance.now();
   if (now < game.player.useReady || now < game.player.attackReady || game.dead || !game.started) return;
@@ -1633,9 +1718,10 @@ function harvestNode(game: GameState, node: ResourceNode) {
   const mining = isMineable(node.kind);
   const selectedTool = durableToolInfo(game.selected);
   const profile = attackProfile(game.selected);
-  if (tree && selectedTool?.family !== "axe") {
-    notify(game, "Put an axe in the selected hotbar slot.", 900);
-    game.player.useReady = now + 450;
+  const usingHands = tree && game.selected === "hands";
+  if (tree && selectedTool?.family !== "axe" && !usingHands) {
+    notify(game, "Select an empty slot to punch this tree, or equip an axe.", 1100);
+    game.player.useReady = now + 500;
     return;
   }
   if (mining && selectedTool?.family !== "pickaxe") {
@@ -1657,60 +1743,27 @@ function harvestNode(game: GameState, node: ResourceNode) {
     return;
   }
   const power = tree || mining ? TOOL_POWER[tier] : 1;
-  const hits = Math.min(power, node.hp);
-  node.hp -= power;
+  node.hp = Math.max(0, node.hp - power);
   game.player.swing = tree || mining ? profile.animationSeconds : 0;
   game.player.attackReady = now + profile.cooldown;
-  const gains: string[] = [];
-  const gain = (material: Material, amount: number) => {
-    addMaterial(game, material, amount);
-    gains.push("+" + amount + " " + material);
-  };
-  if (node.kind === "oak") {
-    gain("wood", hits * 2);
-  } else if (node.kind === "pine") {
-    gain("wood", hits);
-    gain("fiber", hits);
-  } else if (node.kind === "birch") {
-    gain("wood", hits);
-  } else if (node.kind === "rock") {
-    gain("stone", hits);
-  } else if (node.kind === "granite") {
-    gain("granite", hits);
-  } else if (node.kind === "ironOre") {
-    gain("iron", hits);
-  } else if (node.kind === "copperOre") {
-    gain("copper", hits);
-  } else if (node.kind === "coal") {
-    gain("coal", hits);
-  } else if (node.kind === "sulfur") {
-    gain("sulfur", hits);
-  } else if (node.kind === "aetherOre") {
-    gain("aetherium", hits);
-  } else if (node.kind === "berryBush") {
-    gain("berries", 3);
-    gain("seeds", 1);
-  } else if (node.kind === "grass") {
-    gain("fiber", 2);
-    gain("seeds", 1);
-  } else {
-    gain("mushrooms", 2);
-  }
+  const feedback: string[] = [];
   if (node.hp <= 0) {
     node.respawnAt = now + 120000;
-    if (node.kind === "oak") gain("fiber", 2);
-    if (node.kind === "birch") gain("fiber", 1);
+    const dropCount = dropNodeLoot(game, node);
+    feedback.push(resourceNodeLabel(node.kind) + " depleted · " + dropCount + " items dropped. Press E nearby to pick them up");
+  } else {
+    feedback.push(resourceNodeLabel(node.kind) + " damaged");
   }
   if ((tree || mining) && isDurableTool(game.selected)) {
     const usedTool = game.selected;
     const wear = wearTool(game, usedTool);
-    gains.push(
+    feedback.push(
       wear.broke
         ? ITEM_LABELS[usedTool] + " broke"
         : "durability " + wear.remaining + "/" + DURABLE_TOOL_DATA[usedTool].maxDurability,
     );
   }
-  notify(game, gains.join(" · "), 1000);
+  notify(game, feedback.join(" · "), node.hp <= 0 ? 2200 : 900);
 }
 
 function attack(game: GameState) {
@@ -2329,7 +2382,7 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
 function drawResourceHealth(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   if (node.hp >= node.maxHp) return;
   const width = Math.max(70, Math.min(108, nodeRadius(node.kind, node.size) * 1.45));
-  const height = 14;
+  const height = 9;
   const y = node.y - nodeRadius(node.kind, node.size) - 24;
   const ratio = Math.max(0, Math.min(1, node.hp / node.maxHp));
   ctx.save();
@@ -2356,11 +2409,136 @@ function drawResourceHealth(ctx: CanvasRenderingContext2D, node: ResourceNode) {
   ctx.lineWidth = 2;
   roundedRect(ctx, node.x - width / 2, y, width, height, 5);
   ctx.stroke();
-  ctx.fillStyle = "#fff8e7";
-  ctx.font = "900 9px Arial";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(Math.max(0, Math.ceil(node.hp)) + " / " + node.maxHp, node.x, y + height / 2 + 0.5);
+  ctx.restore();
+}
+
+function drawGroundDrop(ctx: CanvasRenderingContext2D, drop: GroundDrop, now: number) {
+  const bob = Math.sin(now / 320 + drop.id) * 2;
+  ctx.save();
+  ctx.translate(drop.x, drop.y + bob);
+  ctx.fillStyle = "rgba(20,38,29,.28)";
+  ctx.beginPath();
+  ctx.ellipse(2, 12, 19, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#2f3d37";
+  ctx.lineWidth = 2.5;
+
+  if (drop.material === "wood") {
+    for (const [x, y, rotation] of [[-7, -2, -0.22], [6, 3, 0.18]] as const) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.fillStyle = "#8d5735";
+      roundedRect(ctx, -10, -4, 20, 8, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#d4a263";
+      ctx.beginPath();
+      ctx.arc(9, 0, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  } else if (drop.material === "fiber") {
+    ctx.strokeStyle = "#4b873e";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    for (const offset of [-9, -4, 2, 8]) {
+      ctx.beginPath();
+      ctx.moveTo(offset, 9);
+      ctx.quadraticCurveTo(offset - 3, -2, offset + (offset % 3), -12);
+      ctx.stroke();
+    }
+  } else if (drop.material === "berries") {
+    ctx.fillStyle = "#d95862";
+    for (const [x, y] of [[-7, 1], [0, -6], [7, 1], [0, 6]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "#4c863e";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, -10);
+    ctx.lineTo(4, -16);
+    ctx.stroke();
+  } else if (drop.material === "seeds") {
+    ctx.fillStyle = "#d9b35d";
+    for (const [x, y, rotation] of [[-7, 1, -0.5], [1, -5, 0.2], [8, 3, 0.7], [-1, 7, -0.1]] as const) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, 5, 2.8, rotation, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else if (drop.material === "mushrooms") {
+    ctx.fillStyle = "#d8c9a5";
+    roundedRect(ctx, -3, -1, 6, 14, 3);
+    ctx.fill();
+    ctx.fillStyle = "#b96b51";
+    ctx.beginPath();
+    ctx.arc(0, -2, 11, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  } else if (drop.material === "meat") {
+    ctx.fillStyle = "#b85d50";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 15, 10, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#efd3b5";
+    ctx.beginPath();
+    ctx.arc(4, -1, 4, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (drop.material === "arrows") {
+    ctx.strokeStyle = "#684631";
+    ctx.lineWidth = 3;
+    for (const offset of [-4, 2, 8]) {
+      ctx.beginPath();
+      ctx.moveTo(-13, offset);
+      ctx.lineTo(12, offset - 5);
+      ctx.stroke();
+    }
+  } else if (drop.material === "bullets") {
+    ctx.fillStyle = "#c79a47";
+    for (const x of [-7, 0, 7]) {
+      roundedRect(ctx, x - 2.5, -9, 5, 18, 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else {
+    const oreColor: Partial<Record<Material, string>> = {
+      stone: "#8b9690",
+      granite: "#a39a91",
+      iron: "#b8c1bd",
+      copper: "#c2774b",
+      coal: "#343c3b",
+      sulfur: "#d5be4d",
+      aetherium: "#62dce8",
+      hide: "#9b6b46",
+    };
+    ctx.fillStyle = oreColor[drop.material] ?? "#a8b2ad";
+    for (const [x, y, radius] of [[-7, 3, 9], [5, 1, 10], [1, -8, 7]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  if (drop.amount > 1) {
+    ctx.fillStyle = "#f0c15a";
+    ctx.strokeStyle = "#334039";
+    ctx.lineWidth = 2;
+    roundedRect(ctx, 8, 7, 21, 15, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#26352f";
+    ctx.font = "900 9px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("×" + drop.amount, 18.5, 14.5);
+  }
   ctx.restore();
 }
 
@@ -2824,6 +3002,10 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
   ctx.lineTo(tool === "spear" || tool === "sword" ? 49 : 39, 0);
   ctx.stroke();
   if (durableTool?.family === "axe") {
+    ctx.save();
+    ctx.translate(35, 0);
+    ctx.rotate(Math.PI / 2);
+    ctx.translate(-35, 0);
     const tier = durableTool.tier;
     const headColor = tier === "wood" ? "#a66b3e" : tier === "stone" ? "#858f89" : tier === "iron" ? "#b8c6c3" : "#63dae7";
     const edgeColor = tier === "wood" ? "#e0b06a" : tier === "stone" ? "#c3cbc7" : tier === "iron" ? "#f3f7f5" : "#d7fcff";
@@ -2902,6 +3084,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     roundedRect(ctx, 31, -6, 10, 12, 3);
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
   } else if (durableTool?.family === "pickaxe") {
     const tier = durableTool.tier;
     const headColor = tier === "wood" ? "#a66b3e" : tier === "stone" ? "#858f89" : tier === "iron" ? "#b8c6c3" : "#63dae7";
@@ -4425,6 +4608,10 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
       },
     });
   });
+  game.drops.forEach((drop) => {
+    if (drop.realm !== game.realm || !onScreen(drop.x, drop.y)) return;
+    drawables.push({ y: drop.y + 18, draw: () => drawGroundDrop(ctx, drop, performance.now()) });
+  });
   game.treasures.forEach((treasure) => {
     if (treasure.realm === game.realm && onScreen(treasure.x, treasure.y)) {
       drawables.push({ y: treasure.y, draw: () => drawTreasure(ctx, treasure, performance.now()) });
@@ -4499,6 +4686,8 @@ function nearbyPrompt(game: GameState) {
     const target = targetBuilding(game, 118);
     if (target) return "TOOL · Deconstruct " + BUILD_DATA[target.kind].name + " · " + Math.ceil(target.hp) + "/" + target.maxHp + " health";
   }
+  const groundDrop = nearestGroundDrop(game, 86);
+  if (groundDrop) return "E · Pick up " + groundDrop.amount + " " + itemLabel(groundDrop.material);
   const entrance = nearbyCaveEntrance(game);
   const currentCave = nearbyCaveExit(game);
   if (entrance) return "E · Enter cave";
@@ -4529,7 +4718,7 @@ function nearbyPrompt(game: GameState) {
   if (isFoodItem(game.selected)) return "E · Eat " + game.selected;
   const node = nearestNode(game, 92);
   if (node) {
-    if (isTree(node.kind)) return "TOOL · Chop " + node.kind + " with Axe";
+    if (isTree(node.kind)) return "TOOL · " + (game.selected === "hands" ? "Punch " : "Chop ") + node.kind + (game.selected === "hands" ? "" : " with Axe");
     if (node.kind === "rock") return "TOOL · Mine stone with Pickaxe";
     if (node.kind === "granite") return "TOOL · Mine granite with Pickaxe";
     if (node.kind === "ironOre") return "TOOL · Mine iron ore with Pickaxe";
@@ -4803,12 +4992,12 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
           <path d="M9 46 L31 21" stroke="#4b3025" strokeWidth="9" strokeLinecap="round" />
           <path d="M10 44 L30 22" stroke="#b47745" strokeWidth="4.5" strokeLinecap="round" />
           {type === "axe" ? (
-            <>
+            <g transform="rotate(90 31 21)">
               <path d={axeHead[material]} fill={palette.head} stroke={palette.outline} strokeWidth="2.5" strokeLinejoin="round" />
               <path d={axeEdge[material]} fill="none" stroke={palette.edge} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               <rect x="27" y="16" width="8" height="10" rx="2.5" fill="#4b342a" stroke="#ead5a8" strokeWidth="1.4" transform="rotate(2 31 21)" />
               {material === "wood" && <path d="M23 20 L35 29 M23 25 L33 33" fill="none" stroke="#e0bb6b" strokeWidth="2.2" strokeLinecap="round" />}
-            </>
+            </g>
           ) : (
             <>
               <path d={pickCurve} fill="none" stroke={palette.outline} strokeWidth={material === "stone" ? 11 : 9} strokeLinecap="round" />
