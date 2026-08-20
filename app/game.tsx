@@ -1994,6 +1994,12 @@ function moveCreatureWithBuildings(game: GameState, creature: Creature, dx: numb
   return blocker;
 }
 
+function steerCreatureFacing(current: number, target: number, maxTurn: number) {
+  const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  const turn = Math.max(-maxTurn, Math.min(maxTurn, difference));
+  return Math.atan2(Math.sin(current + turn), Math.cos(current + turn));
+}
+
 function updateCreatures(game: GameState, dt: number) {
   const now = performance.now();
   for (const creature of game.creatures) {
@@ -2066,7 +2072,7 @@ function updateCreatures(game: GameState, dt: number) {
       const roamAngle = now / 4300 + creature.phase;
       const roamRadius = animal.flying ? 92 : animal.habitat === "meadow" ? 58 : 42;
       targetX = creature.homeX + Math.cos(roamAngle) * roamRadius;
-      targetY = creature.homeY + Math.sin(roamAngle * 0.83) * roamRadius;
+      targetY = creature.homeY + Math.sin(roamAngle) * roamRadius * 0.78;
 
       if (animal.temperament === "skittish" && now < creature.provokedUntil) {
         creature.angry = true;
@@ -2096,7 +2102,7 @@ function updateCreatures(game: GameState, dt: number) {
         targetX = creature.x + ((creature.x - game.player.x) / awayDistance) * 220;
         targetY = creature.y + ((creature.y - game.player.y) / awayDistance) * 220;
         movement = "flee";
-      } else if (movement === "idle" && homeDistance > 68) {
+      } else if (movement === "idle" && homeDistance > roamRadius + 30) {
         targetX = creature.homeX;
         targetY = creature.homeY;
         movement = "return";
@@ -2119,9 +2125,13 @@ function updateCreatures(game: GameState, dt: number) {
               : movement === "return"
                 ? 0.65
                 : 0.22;
-      const pace = creature.speed * paceMultiplier * slowFactor;
-      creature.dir = Math.atan2(dy, dx);
-      const blocker = moveCreatureWithBuildings(game, creature, dx, dy, distance, pace * dt);
+      const basePace = creature.speed * paceMultiplier * slowFactor;
+      const pace = movement === "idle" ? Math.min(basePace, distance * 1.6) : basePace;
+      const desiredDirection = Math.atan2(dy, dx);
+      const turnRate = movement === "idle" ? 3.2 : 7;
+      creature.dir = steerCreatureFacing(creature.dir, desiredDirection, turnRate * dt);
+      const step = Math.min(pace * dt, Math.max(0, distance - stopDistance));
+      const blocker = moveCreatureWithBuildings(game, creature, dx, dy, distance, step);
       if (blocker && isMonster(creature.kind) && now - creature.structureHitAt > CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS) {
         blocker.hp -= creature.damage;
         creature.structureHitAt = now;

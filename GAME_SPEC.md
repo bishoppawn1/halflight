@@ -414,6 +414,8 @@ Crows and owls fly over trees, mineable outcrops, and player-built structures wh
 roaming, fleeing, following, or attacking. Wild turkeys remain on the ground.
 Flying birds range farther from their home point and visibly bob above their
 softer shadow; all three bird species retain a body-and-head overhead shape.
+Wildlife follows smooth roaming paths and turns progressively instead of
+snapping back and forth when it reaches a roaming target or returns home.
 
 Selecting berries lures wild animals from up to 360 units away and suppresses
 aggression while the berries remain selected and available. Without that lure,
