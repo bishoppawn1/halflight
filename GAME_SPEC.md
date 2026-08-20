@@ -13,7 +13,7 @@ complete run.
 
 ## 2. Core loop
 
-1. Explore the open Meadow and dense Blackwood forest.
+1. Explore the open Meadow, its three forests, lakes, and marshes.
 2. Gather wood, stone, fiber, food, seeds, hide, and specialized materials.
 3. Explore three distinct caves for granite, iron, copper, coal, sulfur,
    mushrooms, and rare Aetherium.
@@ -68,7 +68,9 @@ their full visible top-down footprint as solid hitboxes. Movement slides along
 their edges so the dense forest remains navigable. The player does not collide
 with forage nodes or creatures. Completed walls, fences, gates, doors, benches,
 chests, and other solid structures block the player and creatures; an open gate
-or door can be crossed.
+or door can be crossed. Dark deep water is impassable to the player and every
+ground creature. Pale shallow water can be crossed, but reduces their movement
+speed to 48%. Flying crows and owls ignore both water depths.
 
 ## 4. Controls and inventory
 
@@ -104,16 +106,22 @@ Inventory and hotbar moves use the two-tap flow.
 
 ## 5. World and time
 
-The Meadow and the connected cave system are separate 5,200 by 3,800 world
-spaces. The caves and their chambers are deliberately unnamed; entrances,
-exits, prompts, and the location display identify them only as caves.
+The Meadow is a 7,200 by 5,200 world space. The connected cave system remains
+within its separate 5,200 by 3,800 space. The caves and their chambers are
+deliberately unnamed; entrances, exits, prompts, and the location display
+identify them only as caves.
 
 - **The Meadow** contains open grassland, sparse clumps of harvestable wild
   grass, eight scattered iron and copper deposits, scattered ordinary rock with
   occasional huge outcrops, three cave entrances, one rare Aetherium deposit,
-  and the Blackwood.
+  three forests, and three bodies of water.
 - **The Blackwood** is a large, visibly darker forest biome filled with closely
   spaced oak, pine, and birch trees, forage, bears, and other wildlife.
+- **Pine Reach** is a separate northeastern woodland dominated by pines.
+- **Birch Grove** is a broad southeastern woodland dominated by birches.
+- **Stillwater**, **Eastmere**, and the **Low Marsh** have pale, traversable
+  shallows surrounding dark, impassable deep water. Natural resources do not
+  generate inside either water depth.
 - One chamber is rich in granite and ordinary rock, with some coal and
   mushrooms.
 - One chamber concentrates iron and copper, with some coal, granite, and rare
@@ -246,7 +254,7 @@ no numeric durability text until it is depleted or fully respawned.
 | Sulfur | 6 | 6 sulfur |
 | Aetherium ore | 12 | 12 Aetherium |
 | Berry bush | 1 | 3 berries and 1 seed |
-| Wild grass | 1 | 2 fiber and 1 seed |
+| Wild grass | 1 | 2 fiber and a 10% chance of 1 seed |
 | Mushrooms | 1 | 2 mushrooms |
 
 The durability values above are the base values for medium mineable deposits.
@@ -352,14 +360,14 @@ their respawn until that footprint is clear.
 | Wire Snare | 5 fiber, 2 copper | 2 | 45 | 8 damage and 58% slow for 2.6 seconds |
 | Fire Trap | 4 stone, 3 coal, 2 sulfur | 1 | 70 | 18 damage in a wide area; 3.2-second cooldown |
 | Scrap Turret | 6 wood, 7 iron, 5 copper | 1 | 95 | 12 damage within 360 units every 700 ms |
-| Crop Plot | 2 wood, 2 fiber, 1 seed | 1 | 45 | 2×2 field that produces berries and seeds |
+| Crop Plot | 2 wood, 2 fiber, 1 seed | 1 | 45 | Single-use 2×2 field that produces berries and seeds |
 
 Crop plots mature in 300 seconds and display only their current whole-number
 percentage, such as `59%`, without a repeated growth label. A mature harvest
-gives 4 berries and 2 seeds, then resets growth. Pressing `E` from normal
-interaction range around any edge of the visible field harvests or checks it;
-the player does not have to approach the center. Monsters damage any building
-they pass closely enough to reach.
+gives 4 berries and 2 seeds, then removes the harvested crop plot from the map.
+Pressing `E` from normal interaction range around any edge of the visible field
+harvests or checks it; the player does not have to approach the center. Monsters
+damage any building they pass closely enough to reach.
 Destroyed buildings are removed.
 
 The Storage Chest is a basic hand-crafted piece. Pressing `E` nearby opens a
@@ -430,8 +438,8 @@ species without visible legs or other small exterior details.
 | Wolf | 1 | Blackwood | 50 | 70 | 8 | Attacks within 120 | 16% | 14 | 2 meat, 1 hide |
 | Bear | 1 | Blackwood | 70 | 48 | 9 | Attacks within 135 | 10% | 16 | 4 meat, 2 hide |
 
-Crows and owls fly over trees, mineable outcrops, and player-built structures while
-roaming, fleeing, following, or attacking. Wild turkeys remain on the ground.
+Crows and owls fly over trees, mineable outcrops, water, and player-built
+structures while roaming, fleeing, following, or attacking. Wild turkeys remain on the ground.
 Flying birds range farther from their home point and visibly bob above their
 softer shadow; all three bird species retain a body-and-head overhead shape.
 Wildlife follows smooth roaming paths and turns progressively instead of

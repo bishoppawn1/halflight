@@ -263,8 +263,8 @@ interface Recipe {
   action: (game: GameState) => void;
 }
 
-const WORLD_W = 5200;
-const WORLD_H = 3800;
+const WORLD_W = 7200;
+const WORLD_H = 5200;
 const GRID = 48;
 const DAY_SECONDS = 480;
 const RESOURCE_RESPAWN_DAYS: Record<ResourceKind, readonly [number, number]> = {
@@ -302,10 +302,41 @@ const CROP_HALF_SIZE = GRID - 2;
 const AUTO_BUILD_RANGE = GRID * 3;
 const SPAWN_X = 2780;
 const SPAWN_Y = 1940;
-const FOREST_X = 1320;
-const FOREST_Y = 2080;
-const FOREST_RX = 1120;
-const FOREST_RY = 1500;
+const SHALLOW_WATER_SPEED_FACTOR = 0.48;
+
+interface ForestRegion {
+  id: "blackwood" | "pineReach" | "birchGrove";
+  name: string;
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  rotation: number;
+  color: string;
+  treeCount: number;
+}
+
+const FOREST_REGIONS: ForestRegion[] = [
+  { id: "blackwood", name: "THE BLACKWOOD", x: 1320, y: 2080, rx: 1120, ry: 1500, rotation: 0, color: "#5f8f50", treeCount: 245 },
+  { id: "pineReach", name: "PINE REACH", x: 5790, y: 1240, rx: 1080, ry: 820, rotation: -0.16, color: "#557f49", treeCount: 175 },
+  { id: "birchGrove", name: "BIRCH GROVE", x: 5480, y: 4280, rx: 1380, ry: 760, rotation: 0.1, color: "#6f9b58", treeCount: 195 },
+];
+
+interface WaterBody {
+  name: string;
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  rotation: number;
+  deepScale: number;
+}
+
+const WATER_BODIES: WaterBody[] = [
+  { name: "STILLWATER", x: 3480, y: 1840, rx: 440, ry: 310, rotation: -0.18, deepScale: 0.57 },
+  { name: "EASTMERE", x: 6500, y: 2920, rx: 570, ry: 820, rotation: 0.24, deepScale: 0.62 },
+  { name: "LOW MARSH", x: 3430, y: 4460, rx: 820, ry: 390, rotation: 0.08, deepScale: 0.52 },
+];
 
 interface CaveDefinition {
   id: CaveZone;
@@ -768,10 +799,63 @@ function nearbyCaveExit(game: GameState) {
   ) || null;
 }
 
+function ellipseLevel(
+  x: number,
+  y: number,
+  region: { x: number; y: number; rx: number; ry: number; rotation: number },
+  padding = 0,
+) {
+  const cos = Math.cos(-region.rotation);
+  const sin = Math.sin(-region.rotation);
+  const dx = x - region.x;
+  const dy = y - region.y;
+  const localX = dx * cos - dy * sin;
+  const localY = dx * sin + dy * cos;
+  return (localX * localX) / ((region.rx + padding) ** 2) +
+    (localY * localY) / ((region.ry + padding) ** 2);
+}
+
+function forestRegionAt(x: number, y: number) {
+  return FOREST_REGIONS.find((region) => ellipseLevel(x, y, region) < 1) || null;
+}
+
 function inForest(x: number, y: number) {
-  const dx = (x - FOREST_X) / FOREST_RX;
-  const dy = (y - FOREST_Y) / FOREST_RY;
-  return dx * dx + dy * dy < 1;
+  return forestRegionAt(x, y) !== null;
+}
+
+function waterEllipseLevel(x: number, y: number, water: WaterBody, scale = 1, padding = 0) {
+  const cos = Math.cos(-water.rotation);
+  const sin = Math.sin(-water.rotation);
+  const dx = x - water.x;
+  const dy = y - water.y;
+  const localX = dx * cos - dy * sin;
+  const localY = dx * sin + dy * cos;
+  return (localX * localX) / ((water.rx * scale + padding) ** 2) +
+    (localY * localY) / ((water.ry * scale + padding) ** 2);
+}
+
+function waterDepthAt(x: number, y: number, padding = 0): "deep" | "shallow" | null {
+  for (const water of WATER_BODIES) {
+    if (waterEllipseLevel(x, y, water, water.deepScale, padding) < 1) return "deep";
+  }
+  return WATER_BODIES.some((water) => waterEllipseLevel(x, y, water, 1, padding) < 1) ? "shallow" : null;
+}
+
+function inDeepWater(x: number, y: number, padding = 0) {
+  return WATER_BODIES.some(
+    (water) => waterEllipseLevel(x, y, water, water.deepScale, padding) < 1,
+  );
+}
+
+function groundSpeedFactor(realm: Realm, x: number, y: number) {
+  return realm === "meadow" && waterDepthAt(x, y) === "shallow" ? SHALLOW_WATER_SPEED_FACTOR : 1;
+}
+
+function meadowAreaName(x: number, y: number) {
+  const forest = forestRegionAt(x, y);
+  if (forest) return forest.name;
+  if (waterDepthAt(x, y) === "shallow") return "THE SHALLOWS";
+  return "THE MEADOW";
 }
 
 function equipNewItem(game: GameState, item: InventoryItem) {
@@ -813,6 +897,7 @@ function makeGame(): GameState {
     const clearCave =
       realm !== "meadow" ||
       CAVES.every((cave) => Math.hypot(x - cave.entranceX, y - cave.entranceY) > 210);
+    const clearWater = realm !== "meadow" || waterDepthAt(x, y, radius + 12) === null;
     const insideCave = realm !== "caveSystem" || isCaveFloor(x, y, radius + 32);
     const clearCaveNode =
       realm !== "caveSystem" ||
@@ -827,12 +912,12 @@ function makeGame(): GameState {
       realm !== "caveSystem" ||
       (Math.hypot(x - treasurePoint.x, y - treasurePoint.y) > radius + 75 &&
         Math.hypot(x - guardianPoint.x, y - guardianPoint.y) > radius + 95);
-    if (!clearSpawn || !clearExit || !clearCave || !insideCave || !clearCaveNode || !clearEncounter) return;
+    if (!clearSpawn || !clearExit || !clearCave || !clearWater || !insideCave || !clearCaveNode || !clearEncounter) return;
     const hp = nodeHp(kind, size);
     nodes.push({ id: id++, kind, size, realm, x, y, hp, maxHp: hp, respawnAt: 0 });
   };
 
-  for (let i = 0; i < 210; i++) {
+  for (let i = 0; i < 340; i++) {
     const x = 110 + seeded(i, 1) * (WORLD_W - 220);
     const y = 110 + seeded(i, 2) * (WORLD_H - 220);
     const roll = i % 16;
@@ -876,14 +961,26 @@ function makeGame(): GameState {
     );
   }
 
-  for (let i = 0; i < 245; i++) {
-    const angle = seeded(i, 41) * Math.PI * 2;
-    const radius = Math.sqrt(seeded(i, 42));
-    const x = FOREST_X + Math.cos(angle) * FOREST_RX * radius;
-    const y = FOREST_Y + Math.sin(angle) * FOREST_RY * radius;
-    const kind: ResourceKind = i % 13 === 0 ? "berryBush" : i % 17 === 0 ? "mushroom" : i % 29 === 0 ? "grass" : i % 3 === 0 ? "pine" : i % 3 === 1 ? "oak" : "birch";
-    const tooClose = isTree(kind) && nodes.some((node) => node.realm === "meadow" && isTree(node.kind) && Math.hypot(node.x - x, node.y - y) < 82);
-    if (!tooClose) addNode(kind, "meadow", x, y);
+  for (const [forestIndex, forest] of FOREST_REGIONS.entries()) {
+    for (let i = 0; i < forest.treeCount; i++) {
+      const angle = seeded(i, 41 + forestIndex * 31) * Math.PI * 2;
+      const radius = Math.sqrt(seeded(i, 42 + forestIndex * 31));
+      const localX = Math.cos(angle) * forest.rx * radius;
+      const localY = Math.sin(angle) * forest.ry * radius;
+      const cos = Math.cos(forest.rotation);
+      const sin = Math.sin(forest.rotation);
+      const x = forest.x + localX * cos - localY * sin;
+      const y = forest.y + localX * sin + localY * cos;
+      let kind: ResourceKind;
+      if (i % 13 === 0) kind = "berryBush";
+      else if (i % 17 === 0) kind = "mushroom";
+      else if (i % 29 === 0) kind = "grass";
+      else if (forest.id === "pineReach") kind = i % 5 < 3 ? "pine" : i % 2 ? "oak" : "birch";
+      else if (forest.id === "birchGrove") kind = i % 5 < 3 ? "birch" : i % 2 ? "oak" : "pine";
+      else kind = i % 3 === 0 ? "pine" : i % 3 === 1 ? "oak" : "birch";
+      const tooClose = isTree(kind) && nodes.some((node) => node.realm === "meadow" && isTree(node.kind) && Math.hypot(node.x - x, node.y - y) < 82);
+      if (!tooClose) addNode(kind, "meadow", x, y);
+    }
   }
 
   for (const [caveIndex, cave] of CAVES.entries()) {
@@ -934,8 +1031,8 @@ function makeGame(): GameState {
   for (let i = 0; i < wildlifeRoster.length; i++) {
     const kind = wildlifeRoster[i];
     const stats = ANIMAL_DATA[kind];
-    let x = FOREST_X;
-    let y = FOREST_Y;
+    let x = FOREST_REGIONS[0].x;
+    let y = FOREST_REGIONS[0].y;
     const firstOfSpecies = wildlifeRoster.indexOf(kind) === i;
     if (kind === "crow" && firstOfSpecies) {
       x = SPAWN_X + 410;
@@ -950,10 +1047,15 @@ function makeGame(): GameState {
       for (let attempt = 0; attempt < 18; attempt++) {
         const sample = i * 19 + attempt;
         if (stats.habitat === "forest") {
+          const forest = FOREST_REGIONS[Math.floor(seeded(sample, 60) * FOREST_REGIONS.length)];
           const angle = seeded(sample, 61) * Math.PI * 2;
           const distance = Math.sqrt(seeded(sample, 62)) * 0.78;
-          x = FOREST_X + Math.cos(angle) * FOREST_RX * distance;
-          y = FOREST_Y + Math.sin(angle) * FOREST_RY * distance;
+          const localX = Math.cos(angle) * forest.rx * distance;
+          const localY = Math.sin(angle) * forest.ry * distance;
+          const cos = Math.cos(forest.rotation);
+          const sin = Math.sin(forest.rotation);
+          x = forest.x + localX * cos - localY * sin;
+          y = forest.y + localX * sin + localY * cos;
         } else {
           x = 180 + seeded(sample, 161) * (WORLD_W - 360);
           y = 180 + seeded(sample, 162) * (WORLD_H - 360);
@@ -966,7 +1068,7 @@ function makeGame(): GameState {
             (isTree(node.kind) || isMineable(node.kind)) &&
             Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind, node.size) + 30,
         );
-        if (!blocked) break;
+        if (!blocked && (stats.flying || !inDeepWater(x, y, 30))) break;
       }
     }
     addAnimal(wildlifeRoster[i], x, y, i * 0.73);
@@ -1157,6 +1259,7 @@ function spawnNightWave(game: GameState) {
       const candidateY = 70 + seeded(candidateIndex + 1, game.day * 19 + 103) * (WORLD_H - 140);
       if (Math.hypot(candidateX - game.player.x, candidateY - game.player.y) < 360) continue;
       if (game.realm === "caveSystem" && !isCaveFloor(candidateX, candidateY, 38)) continue;
+      if (game.realm === "meadow" && inDeepWater(candidateX, candidateY, 30)) continue;
       if (pointIsLit(game, game.realm, candidateX, candidateY, MONSTER_SPAWN_LIGHT_PADDING)) continue;
       if (reservedBuildingAt(game, game.realm, candidateX, candidateY, 30)) continue;
       if (
@@ -1718,8 +1821,9 @@ function interact(game: GameState) {
       if (nearbyBuilding.growth >= 1) {
         addMaterial(game, "berries", 4);
         addMaterial(game, "seeds", 2);
-        nearbyBuilding.growth = 0;
-        notify(game, "Harvested 4 berries and 2 seeds.");
+        game.buildings = game.buildings.filter((building) => building.id !== nearbyBuilding.id);
+        game.workOrders = game.workOrders.filter((order) => order.buildingId !== nearbyBuilding.id);
+        notify(game, "Harvested 4 berries and 2 seeds · the crop plot is cleared.");
       } else {
         notify(game, "The crop is " + Math.floor(nearbyBuilding.growth * 100) + "% grown.");
       }
@@ -1834,7 +1938,7 @@ function resourceNodeLoot(node: ResourceNode): [Material, number][] {
   if (node.kind === "sulfur") return [["sulfur", node.maxHp]];
   if (node.kind === "aetherOre") return [["aetherium", node.maxHp]];
   if (node.kind === "berryBush") return [["berries", 3], ["seeds", 1]];
-  if (node.kind === "grass") return [["fiber", 2], ["seeds", 1]];
+  if (node.kind === "grass") return Math.random() < 0.1 ? [["fiber", 2], ["seeds", 1]] : [["fiber", 2]];
   return [["mushrooms", 2]];
 }
 
@@ -2114,14 +2218,17 @@ function moveCreatureWithBuildings(game: GameState, creature: Creature, dx: numb
     return null;
   }
   const radius = creatureRadius(creature);
-  const nextX = Math.max(35, Math.min(WORLD_W - 35, creature.x + (dx / distance) * step));
-  const nextY = Math.max(35, Math.min(WORLD_H - 35, creature.y + (dy / distance) * step));
+  const terrainStep = step * groundSpeedFactor(creature.realm, creature.x, creature.y);
+  const nextX = Math.max(35, Math.min(WORLD_W - 35, creature.x + (dx / distance) * terrainStep));
+  const nextY = Math.max(35, Math.min(WORLD_H - 35, creature.y + (dy / distance) * terrainStep));
   let blocker = blockingBuildingAt(game, creature.realm, nextX, creature.y, radius);
   const xInsideCave = creature.realm !== "caveSystem" || isCaveFloor(nextX, creature.y, radius + 4);
-  if (!blocker && xInsideCave) creature.x = nextX;
+  const xOutsideDeepWater = creature.realm !== "meadow" || !inDeepWater(nextX, creature.y, radius);
+  if (!blocker && xInsideCave && xOutsideDeepWater) creature.x = nextX;
   const yBlocker = blockingBuildingAt(game, creature.realm, creature.x, nextY, radius);
   const yInsideCave = creature.realm !== "caveSystem" || isCaveFloor(creature.x, nextY, radius + 4);
-  if (!yBlocker && yInsideCave) creature.y = nextY;
+  const yOutsideDeepWater = creature.realm !== "meadow" || !inDeepWater(creature.x, nextY, radius);
+  if (!yBlocker && yInsideCave && yOutsideDeepWater) creature.y = nextY;
   blocker ||= yBlocker;
   return blocker;
 }
@@ -2331,6 +2438,7 @@ function updateCreatures(game: GameState, dt: number) {
 
 function canStand(game: GameState, x: number, y: number) {
   if (game.realm === "caveSystem" && !isCaveFloor(x, y, 24)) return false;
+  if (game.realm === "meadow" && inDeepWater(x, y, 22)) return false;
   if (blockingBuildingAt(game, game.realm, x, y, 22)) return false;
   if (
     game.treasures.some(
@@ -2396,7 +2504,7 @@ function movePlayerToward(game: GameState, targetX: number, targetY: number, dt:
   const dx = targetX - game.player.x;
   const dy = targetY - game.player.y;
   const distance = Math.max(1, Math.hypot(dx, dy));
-  const step = Math.min(distance, 155 * dt);
+  const step = Math.min(distance, 155 * groundSpeedFactor(game.realm, game.player.x, game.player.y) * dt);
   const nextX = Math.max(32, Math.min(WORLD_W - 32, game.player.x + (dx / distance) * step));
   const nextY = Math.max(32, Math.min(WORLD_H - 32, game.player.y + (dy / distance) * step));
   if (canStand(game, nextX, game.player.y)) game.player.x = nextX;
@@ -2518,7 +2626,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
   if (game.keys.has("d") || game.keys.has("arrowright")) dx += 1;
   if (dx || dy) {
     const length = Math.hypot(dx, dy);
-    const speed = 190;
+    const speed = 190 * groundSpeedFactor(game.realm, game.player.x, game.player.y);
     const nextX = Math.max(32, Math.min(WORLD_W - 32, game.player.x + (dx / length) * speed * dt));
     const nextY = Math.max(32, Math.min(WORLD_H - 32, game.player.y + (dy / length) * speed * dt));
     if (canStand(game, nextX, game.player.y)) game.player.x = nextX;
@@ -4664,6 +4772,78 @@ function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
   }
 }
 
+function drawMeadowTerrain(ctx: CanvasRenderingContext2D) {
+  ctx.fillStyle = "#91c66b";
+  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+  for (const forest of FOREST_REGIONS) {
+    ctx.fillStyle = forest.color;
+    ctx.beginPath();
+    ctx.ellipse(forest.x, forest.y, forest.rx, forest.ry, forest.rotation, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(232,239,195,.48)";
+    ctx.font = "900 34px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(forest.name, forest.x, Math.max(90, forest.y - forest.ry + 85));
+  }
+
+  for (let i = 0; i < 720; i++) {
+    const x = seeded(i, 21) * WORLD_W;
+    const y = seeded(i, 22) * WORLD_H;
+    if (waterDepthAt(x, y) !== null) continue;
+    const forest = forestRegionAt(x, y);
+    ctx.fillStyle = forest ? "rgba(190,214,145,.35)" : i % 2 ? "#7eb35b" : "#a3cf7b";
+    ctx.beginPath();
+    ctx.arc(x, y, 2 + seeded(i, 4) * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (const water of WATER_BODIES) {
+    ctx.save();
+    ctx.translate(water.x, water.y);
+    ctx.rotate(water.rotation);
+
+    ctx.fillStyle = "#6ea99e";
+    ctx.strokeStyle = "#477f79";
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, water.rx, water.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(197,231,209,.42)";
+    ctx.lineWidth = 4;
+    ctx.setLineDash([28, 20]);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, water.rx * 0.82, water.ry * 0.8, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "#294f58";
+    ctx.strokeStyle = "#1f4049";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, water.rx * water.deepScale, water.ry * water.deepScale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(122,178,174,.32)";
+    ctx.lineWidth = 3;
+    for (const offset of [-0.28, 0, 0.28]) {
+      ctx.beginPath();
+      ctx.moveTo(-water.rx * water.deepScale * 0.56, water.ry * water.deepScale * offset);
+      ctx.quadraticCurveTo(0, water.ry * water.deepScale * (offset - 0.12), water.rx * water.deepScale * 0.56, water.ry * water.deepScale * offset);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(222,240,217,.55)";
+    ctx.font = "900 25px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(water.name, water.x, water.y - water.ry - 24);
+  }
+}
+
 function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile) {
   ctx.save();
   ctx.translate(projectile.x, projectile.y);
@@ -4780,24 +4960,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   if (inCave) {
     drawCaveSystemTerrain(ctx);
   } else {
-    ctx.fillStyle = "#91c66b";
-    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-    ctx.fillStyle = "#5f8f50";
-    ctx.beginPath();
-    ctx.ellipse(FOREST_X, FOREST_Y, FOREST_RX, FOREST_RY, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(232,239,195,.48)";
-    ctx.font = "900 34px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("THE BLACKWOOD", FOREST_X, Math.max(90, FOREST_Y - FOREST_RY + 85));
-    for (let i = 0; i < 420; i++) {
-      const x = seeded(i, 21) * WORLD_W;
-      const y = seeded(i, 22) * WORLD_H;
-      ctx.fillStyle = i % 2 ? "#7eb35b" : "#a3cf7b";
-      ctx.beginPath();
-      ctx.arc(x, y, 2 + seeded(i, 4) * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawMeadowTerrain(ctx);
   }
   if (game.buildMode) {
     ctx.strokeStyle = cave ? "rgba(192,210,201,.13)" : "rgba(47,89,60,.15)";
@@ -5706,7 +5869,7 @@ export default function Game() {
           <div className={"phase-chip " + phase.toLowerCase()}>{phase}</div>
         </section>
 
-        <div className="brand-pill"><span>H</span><strong>HALFLIGHT</strong><small>{game.realm === "caveSystem" ? "THE CAVES" : inForest(game.player.x, game.player.y) ? "THE BLACKWOOD" : "THE MEADOW"}</small></div>
+        <div className="brand-pill"><span>H</span><strong>HALFLIGHT</strong><small>{game.realm === "caveSystem" ? "THE CAVES" : meadowAreaName(game.player.x, game.player.y)}</small></div>
 
         <section className="resource-strip" aria-label="Resources">
           {MATERIALS.filter((material) => ["wood", "stone", "iron", "copper", "aetherium", "berries"].includes(material.id)).map((material) => (
