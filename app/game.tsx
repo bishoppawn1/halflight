@@ -261,6 +261,22 @@ const WORLD_W = 5200;
 const WORLD_H = 3800;
 const GRID = 48;
 const DAY_SECONDS = 480;
+const RESOURCE_RESPAWN_DAYS: Record<ResourceKind, readonly [number, number]> = {
+  oak: [10, 15],
+  pine: [5, 10],
+  birch: [5, 10],
+  rock: [10, 20],
+  granite: [10, 20],
+  ironOre: [10, 20],
+  copperOre: [10, 20],
+  coal: [10, 20],
+  sulfur: [10, 20],
+  aetherOre: [10, 20],
+  berryBush: [2, 4],
+  grass: [2, 4],
+  mushroom: [2, 4],
+};
+const ANIMAL_RESPAWN_DAYS = [2, 4] as const;
 const LOW_HEALTH_THRESHOLD = 30;
 const LOW_HUNGER_THRESHOLD = 25;
 const COMPANION_ATTACK_COOLDOWN_MS = 1100;
@@ -420,7 +436,6 @@ const ANIMAL_KINDS: AnimalKind[] = ["bear", "boar", "deer", "rabbit", "fox", "wo
 const BIRD_KINDS: BirdKind[] = ["crow", "owl", "turkey"];
 const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "wraith", "maw"];
 const MAX_TAMED_ANIMALS = 5;
-const ANIMAL_RESPAWN_MS = 120000;
 const ANIMAL_LURE_DISTANCE = 360;
 const WARY_ESCAPE_DISTANCE = 520;
 const WARY_NOTICE_BONUS = 120;
@@ -762,6 +777,11 @@ function equipNewItem(game: GameState, item: InventoryItem) {
 function seeded(index: number, salt: number) {
   const value = Math.sin(index * 999 + salt * 77.13) * 43758.5453;
   return value - Math.floor(value);
+}
+
+function respawnDelayMs([minimumDays, maximumDays]: readonly [number, number]) {
+  const days = minimumDays + Math.random() * (maximumDays - minimumDays);
+  return days * DAY_SECONDS * 1000;
 }
 
 function makeGame(): GameState {
@@ -1854,7 +1874,7 @@ function harvestNode(game: GameState, node: ResourceNode) {
   game.player.attackReady = now + profile.cooldown;
   const feedback: string[] = [];
   if (node.hp <= 0) {
-    node.respawnAt = now + 120000;
+    node.respawnAt = now + respawnDelayMs(RESOURCE_RESPAWN_DAYS[node.kind]);
     const dropCount = dropNodeLoot(game, node);
     feedback.push(resourceNodeLabel(node.kind) + " depleted · " + dropCount + " items dropped. Walk over them to collect");
   } else {
@@ -1955,7 +1975,7 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
   game.kills += 1;
   if (isAnimal(creature.kind)) {
     const animal = ANIMAL_DATA[creature.kind];
-    creature.respawnAt = performance.now() + ANIMAL_RESPAWN_MS;
+    creature.respawnAt = performance.now() + respawnDelayMs(ANIMAL_RESPAWN_DAYS);
     if (animal.meatDrop > 0) addMaterial(game, "meat", animal.meatDrop);
     if (animal.hideDrop > 0) addMaterial(game, "hide", animal.hideDrop);
   }

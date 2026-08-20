@@ -216,8 +216,16 @@ automatically; the slot disappears only when no copies remain.
 
 Hits only reduce node durability. When a node is fully depleted, all of its
 materials appear as illustrated ground drops near the node. Moving within 36
-units automatically collects every nearby stack. Depleted nodes return after
-120 seconds.
+units automatically collects every nearby stack. Each depleted node rolls an
+independent respawn delay measured in complete day/night cycles. Its previous
+ground drops remain until collected.
+
+| Node group | Respawn delay |
+| --- | ---: |
+| Berry bushes, wild grass, and mushrooms | 2–4 days |
+| Pine and birch trees | 5–10 days |
+| Oak trees | 10–15 days |
+| Rock and every mineable deposit | 10–20 days |
 
 Every partially damaged resource node shows a large, outlined health bar with
 no numeric durability text until it is depleted or fully respawned.
@@ -448,9 +456,9 @@ average. The player can have at most five tamed companions. Tamed animals follow
 the player, cannot be hit by the player, seek night monsters within 230 units,
 and attack at close range.
 
-Defeated wild animals leave their population slot empty for 120 seconds, then
-respawn at their original territory with full health, no prior taming attempts,
-and no remembered wariness.
+Defeated wild animals leave their population slot empty for a randomly selected
+2–4 days, then respawn at their original territory with full health and no prior
+taming attempts, and no remembered wariness.
 
 ## 12. Endless night progression
 
