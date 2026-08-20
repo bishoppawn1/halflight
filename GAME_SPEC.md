@@ -163,7 +163,11 @@ generation never chains separate deposits into a line.
 At night, the Meadow is almost completely opaque beyond light. The player has
 only 96 units of close night vision; Standing Torches, Campfires, and Fire Traps
 reveal 225, 410, and 115 units respectively. Caves remain dark at every time of
-day and give the player 112 units of close vision before placed lights extend it.
+day and give the player 112 units of close vision before placed lights extend
+it. Every light follows line of sight. Living tree crowns, completed wood,
+stone, and metal walls, closed gates and doors, and cave-rock boundaries stop
+light and leave darkness behind them. Open gates and doors pass light, and
+overlapping sources can illuminate one another's shadows.
 
 A full cycle lasts 480 seconds: 240 seconds of day and 240 seconds of night. The
 first run begins partway through daylight, leaving about 163 seconds before
@@ -496,10 +500,11 @@ Each monster's position is sampled independently from valid points across the
 current realm, at least 360 units from the player. Waves do not form a ring or
 otherwise distribute themselves evenly around the player.
 
-Night-wave spawn candidates inside the player's close-vision radius or the
-light radius of a completed Standing Torch, Campfire, or Fire Trap are rejected.
-A 30-unit safety margin keeps the monster's body fully outside the visible light
-pool. Destroyed lights and unfinished blueprints provide no spawn protection.
+Night-wave spawn candidates inside the visible, line-of-sight portion of the
+player's close vision or a completed Standing Torch, Campfire, or Fire Trap are
+rejected. A 30-unit safety margin keeps the monster's body fully outside the
+visible light pool. Darkness behind a light blocker is not protected. Destroyed
+lights and unfinished blueprints provide no spawn protection.
 
 | Monster | Earliest night | Base health | Health per day | Base speed | Base damage | Sense radius |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |

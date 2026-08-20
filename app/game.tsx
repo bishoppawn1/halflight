@@ -186,6 +186,10 @@ interface AttackFlash {
   duration: number;
 }
 
+type LightOccluder =
+  | { shape: "circle"; x: number; y: number; radius: number }
+  | { shape: "rectangle"; x: number; y: number; halfWidth: number; halfHeight: number };
+
 type HeldAction =
   | { kind: "resource"; nodeId: number }
   | { kind: "free" }
@@ -295,6 +299,16 @@ const BUILDING_LIGHT_RADIUS: Partial<Record<BuildKind, number>> = {
   campfire: 410,
   fireTrap: 115,
 };
+const LIGHT_BLOCKING_BUILDINGS = new Set<BuildKind>([
+  "woodGate",
+  "stoneGate",
+  "woodWall",
+  "stoneWall",
+  "metalWall",
+  "door",
+]);
+const LIGHT_RAY_COUNT = 96;
+const LIGHT_ANGLE_EPSILON = 0.0008;
 const MONSTER_SPAWN_LIGHT_PADDING = 30;
 const CONSTRUCTION_SECONDS = 1.5;
 const DECONSTRUCTION_SECONDS = 2.25;
@@ -1224,12 +1238,16 @@ function buildingLightRadius(building: Building) {
 function pointIsLit(game: GameState, realm: Realm, x: number, y: number, padding = 0) {
   if (
     realm === game.realm &&
-    Math.hypot(x - game.player.x, y - game.player.y) <= PLAYER_LIGHT_RADIUS[realm] + padding
+    Math.hypot(x - game.player.x, y - game.player.y) <= PLAYER_LIGHT_RADIUS[realm] + padding &&
+    lightLineIsClear(game, realm, game.player.x, game.player.y, x, y)
   ) return true;
   return game.buildings.some((building) => {
     if (building.realm !== realm) return false;
     const radius = buildingLightRadius(building);
-    return radius > 0 && Math.hypot(x - building.gx * GRID, y - building.gy * GRID) <= radius + padding;
+    if (radius <= 0) return false;
+    const center = buildingWorldCenter(building);
+    return Math.hypot(x - center.x, y - center.y) <= radius + padding &&
+      lightLineIsClear(game, realm, center.x, center.y, x, y);
   });
 }
 
@@ -1537,6 +1555,197 @@ function blocksMovementKind(kind: BuildKind) {
 function isSolidBuilding(building: Building) {
   if (building.hp <= 0 || building.construction < 1 || !blocksMovementKind(building.kind)) return false;
   return !(["woodGate", "stoneGate", "door"].includes(building.kind) && building.open);
+}
+
+function isLightBlockingBuilding(building: Building) {
+  if (building.hp <= 0 || building.construction < 1 || !LIGHT_BLOCKING_BUILDINGS.has(building.kind)) return false;
+  return !(["woodGate", "stoneGate", "door"].includes(building.kind) && building.open);
+}
+
+function collectLightOccluders(
+  game: GameState,
+  realm: Realm,
+  sourceX: number,
+  sourceY: number,
+  radius: number,
+) {
+  const occluders: LightOccluder[] = [];
+  for (const node of game.nodes) {
+    if (node.realm !== realm || node.hp <= 0 || !isTree(node.kind)) continue;
+    const blockerRadius = nodeRadius(node.kind, node.size);
+    if (Math.hypot(node.x - sourceX, node.y - sourceY) > radius + blockerRadius) continue;
+    occluders.push({ shape: "circle", x: node.x, y: node.y, radius: blockerRadius });
+  }
+  for (const building of game.buildings) {
+    if (building.realm !== realm || !isLightBlockingBuilding(building)) continue;
+    const center = buildingWorldCenter(building);
+    const halfSize = buildingHalfSize(building.kind);
+    const dx = Math.max(Math.abs(center.x - sourceX) - halfSize, 0);
+    const dy = Math.max(Math.abs(center.y - sourceY) - halfSize, 0);
+    if (Math.hypot(dx, dy) > radius) continue;
+    occluders.push({
+      shape: "rectangle",
+      x: center.x,
+      y: center.y,
+      halfWidth: halfSize,
+      halfHeight: halfSize,
+    });
+  }
+  return occluders;
+}
+
+function rayCircleDistance(
+  sourceX: number,
+  sourceY: number,
+  directionX: number,
+  directionY: number,
+  blocker: Extract<LightOccluder, { shape: "circle" }>,
+  maximum: number,
+) {
+  const offsetX = sourceX - blocker.x;
+  const offsetY = sourceY - blocker.y;
+  const projection = offsetX * directionX + offsetY * directionY;
+  const discriminant = projection * projection -
+    (offsetX * offsetX + offsetY * offsetY - blocker.radius * blocker.radius);
+  if (discriminant < 0) return null;
+  const near = -projection - Math.sqrt(discriminant);
+  if (near < 0 || near > maximum) return null;
+  return near;
+}
+
+function rayRectangleDistance(
+  sourceX: number,
+  sourceY: number,
+  directionX: number,
+  directionY: number,
+  blocker: Extract<LightOccluder, { shape: "rectangle" }>,
+  maximum: number,
+) {
+  let near = 0;
+  let far = maximum;
+  const axes = [
+    { source: sourceX, direction: directionX, minimum: blocker.x - blocker.halfWidth, maximum: blocker.x + blocker.halfWidth },
+    { source: sourceY, direction: directionY, minimum: blocker.y - blocker.halfHeight, maximum: blocker.y + blocker.halfHeight },
+  ];
+  for (const axis of axes) {
+    if (Math.abs(axis.direction) < 0.000001) {
+      if (axis.source < axis.minimum || axis.source > axis.maximum) return null;
+      continue;
+    }
+    const first = (axis.minimum - axis.source) / axis.direction;
+    const second = (axis.maximum - axis.source) / axis.direction;
+    near = Math.max(near, Math.min(first, second));
+    far = Math.min(far, Math.max(first, second));
+    if (near > far) return null;
+  }
+  return near >= 0 && near <= maximum ? near : null;
+}
+
+function caveWallRayDistance(
+  sourceX: number,
+  sourceY: number,
+  directionX: number,
+  directionY: number,
+  maximum: number,
+) {
+  if (!isCaveFloor(sourceX, sourceY)) return 0;
+  let previous = 0;
+  for (let distance = 12; distance <= maximum + 12; distance += 12) {
+    const sample = Math.min(maximum, distance);
+    if (!isCaveFloor(sourceX + directionX * sample, sourceY + directionY * sample)) {
+      let inside = previous;
+      let outside = sample;
+      for (let step = 0; step < 7; step++) {
+        const midpoint = (inside + outside) / 2;
+        if (isCaveFloor(sourceX + directionX * midpoint, sourceY + directionY * midpoint)) inside = midpoint;
+        else outside = midpoint;
+      }
+      return inside;
+    }
+    if (sample >= maximum) break;
+    previous = sample;
+  }
+  return maximum;
+}
+
+function lightRayDistance(
+  realm: Realm,
+  sourceX: number,
+  sourceY: number,
+  angle: number,
+  maximum: number,
+  occluders: LightOccluder[],
+) {
+  const directionX = Math.cos(angle);
+  const directionY = Math.sin(angle);
+  let distance = realm === "caveSystem"
+    ? caveWallRayDistance(sourceX, sourceY, directionX, directionY, maximum)
+    : maximum;
+  for (const blocker of occluders) {
+    const intersection = blocker.shape === "circle"
+      ? rayCircleDistance(sourceX, sourceY, directionX, directionY, blocker, distance)
+      : rayRectangleDistance(sourceX, sourceY, directionX, directionY, blocker, distance);
+    if (intersection !== null) distance = Math.min(distance, intersection);
+  }
+  return distance;
+}
+
+function lightLineIsClear(
+  game: GameState,
+  realm: Realm,
+  sourceX: number,
+  sourceY: number,
+  targetX: number,
+  targetY: number,
+) {
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const distance = Math.hypot(dx, dy);
+  if (distance < 1) return true;
+  const occluders = collectLightOccluders(game, realm, sourceX, sourceY, distance);
+  const visibleDistance = lightRayDistance(realm, sourceX, sourceY, Math.atan2(dy, dx), distance, occluders);
+  return visibleDistance >= distance - 0.75;
+}
+
+function normalizeLightAngle(angle: number) {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
+
+function lightVisibilityAngles(sourceX: number, sourceY: number, occluders: LightOccluder[]) {
+  const angles: number[] = [];
+  for (let ray = 0; ray < LIGHT_RAY_COUNT; ray++) {
+    angles.push(-Math.PI + (ray / LIGHT_RAY_COUNT) * Math.PI * 2);
+  }
+  for (const blocker of occluders) {
+    if (blocker.shape === "circle") {
+      const dx = blocker.x - sourceX;
+      const dy = blocker.y - sourceY;
+      const distance = Math.hypot(dx, dy);
+      if (distance <= blocker.radius) continue;
+      const center = Math.atan2(dy, dx);
+      const tangent = Math.asin(Math.min(0.999, blocker.radius / distance));
+      angles.push(normalizeLightAngle(center - tangent - LIGHT_ANGLE_EPSILON));
+      for (let sample = 0; sample <= 6; sample++) {
+        angles.push(normalizeLightAngle(center - tangent + (sample / 6) * tangent * 2));
+      }
+      angles.push(normalizeLightAngle(center + tangent + LIGHT_ANGLE_EPSILON));
+      continue;
+    }
+    for (const [cornerX, cornerY] of [
+      [blocker.x - blocker.halfWidth, blocker.y - blocker.halfHeight],
+      [blocker.x + blocker.halfWidth, blocker.y - blocker.halfHeight],
+      [blocker.x + blocker.halfWidth, blocker.y + blocker.halfHeight],
+      [blocker.x - blocker.halfWidth, blocker.y + blocker.halfHeight],
+    ] as const) {
+      const cornerAngle = Math.atan2(cornerY - sourceY, cornerX - sourceX);
+      angles.push(normalizeLightAngle(cornerAngle - LIGHT_ANGLE_EPSILON));
+      angles.push(normalizeLightAngle(cornerAngle));
+      angles.push(normalizeLightAngle(cornerAngle + LIGHT_ANGLE_EPSILON));
+    }
+  }
+  return angles
+    .sort((a, b) => a - b)
+    .filter((angle, index, sorted) => index === 0 || Math.abs(angle - sorted[index - 1]) > 0.00001);
 }
 
 function buildingHalfSize(kind: BuildKind) {
@@ -5029,25 +5238,41 @@ function drawDarkness(
   light.fillRect(0, 0, width, height);
   light.globalCompositeOperation = "destination-out";
 
-  const reveal = (x: number, y: number, radius: number, core: number) => {
-    if (x + radius < 0 || y + radius < 0 || x - radius > width || y - radius > height) return;
-    const gradient = light.createRadialGradient(x, y, Math.max(1, core), x, y, radius);
+  const reveal = (worldX: number, worldY: number, radius: number, core: number) => {
+    const x = offsetX + worldX * scale;
+    const y = offsetY + worldY * scale;
+    const screenRadius = radius * scale;
+    if (x + screenRadius < 0 || y + screenRadius < 0 || x - screenRadius > width || y - screenRadius > height) return;
+    const occluders = collectLightOccluders(game, game.realm, worldX, worldY, radius);
+    const angles = lightVisibilityAngles(worldX, worldY, occluders);
+    light.save();
+    light.beginPath();
+    angles.forEach((angle, index) => {
+      const distance = lightRayDistance(game.realm, worldX, worldY, angle, radius, occluders);
+      const pointX = offsetX + (worldX + Math.cos(angle) * distance) * scale;
+      const pointY = offsetY + (worldY + Math.sin(angle) * distance) * scale;
+      if (index === 0) light.moveTo(pointX, pointY);
+      else light.lineTo(pointX, pointY);
+    });
+    light.closePath();
+    light.clip();
+    const gradient = light.createRadialGradient(x, y, Math.max(1, core * scale), x, y, screenRadius);
     gradient.addColorStop(0, "rgba(0,0,0,1)");
     gradient.addColorStop(0.45, "rgba(0,0,0,.93)");
     gradient.addColorStop(0.76, "rgba(0,0,0,.52)");
     gradient.addColorStop(1, "rgba(0,0,0,0)");
     light.fillStyle = gradient;
-    light.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    light.fillRect(x - screenRadius, y - screenRadius, screenRadius * 2, screenRadius * 2);
+    light.restore();
   };
 
-  const playerX = width / 2 + (game.player.x - game.camera.x) * scale;
-  const playerY = height / 2 + (game.player.y - game.camera.y) * scale;
-  reveal(playerX, playerY, PLAYER_LIGHT_RADIUS[game.realm] * scale, 25 * scale);
+  reveal(game.player.x, game.player.y, PLAYER_LIGHT_RADIUS[game.realm], 25);
   game.buildings.forEach((building) => {
     if (building.realm !== game.realm) return;
     const radius = buildingLightRadius(building);
     if (!radius) return;
-    reveal(offsetX + building.gx * GRID * scale, offsetY + building.gy * GRID * scale, radius * scale, 55 * scale);
+    const center = buildingWorldCenter(building);
+    reveal(center.x, center.y, radius, 55);
   });
 
   light.globalCompositeOperation = "source-over";
