@@ -80,7 +80,8 @@ player and creatures until enough of their rock segments are mined away.
 | `1`–`9`, `0` | Select hotbar slots 1 through 10 |
 | `Q` | Open or close ready building pieces |
 | `C` | Open or close crafting |
-| `I` or `B` | Open or close inventory |
+| `I` | Open or close inventory |
+| `B` | Start or stop auto-building unfinished blueprints within three grid squares |
 | `Escape` | Cancel build mode and close panels |
 | `+`, `-`, or mouse wheel | Zoom between 68% and 155% |
 
@@ -90,8 +91,8 @@ selecting a source and destination. The hotbar is the only equipment source.
 Newly crafted weapons use the first open hotbar slot when possible, then the
 first open backpack slot.
 
-Touch players receive a directional pad, an **Interact** button, and a holdable
-**Tool** button. Holding the touch tool also supports continuous building.
+Touch players receive a directional pad, an **Interact** button, a **Build**
+button, and a holdable **Tool** button. Holding the touch tool also supports continuous building.
 Inventory and hotbar moves use the two-tap flow.
 
 ## 5. World and time
@@ -278,13 +279,22 @@ creature. A click places one blueprint and exits single-placement mode. Holding
 without repeatedly attempting the same cell. Touch tool-hold provides the same
 continuous placement behavior.
 
-Blueprints enter a first-in, first-out work queue. When the player is not giving
-movement input, the player walks to the next blueprint and builds it for three
-seconds; manual movement pauses that work. A completed solid structure blocks
-movement. Equipping the Deconstruction Hammer and aiming with left mouse queues
-a nearby structure for 2.25 seconds of deconstruction. This returns half of
-each per-piece recipe cost, rounded down to whole materials. Deconstructing a
-chest also returns everything stored inside it.
+Blueprints remain unfinished until the player presses `B` (or the touch
+**Build** button). Auto-build constructs the nearest unfinished blueprint whose
+footprint is within three grid squares (144 units), takes 1.5 seconds per piece,
+and continues through other blueprints in that local range. It never walks the
+player toward a distant job. Any movement immediately stops auto-build while
+preserving partial progress; pressing `B` after moving resumes from the nearest
+eligible blueprint. A completed solid structure blocks movement. Equipping the
+Deconstruction Hammer and aiming with left mouse queues a nearby structure for
+2.25 seconds of deconstruction. This returns half of each per-piece recipe cost,
+rounded down to whole materials. Deconstructing a chest also returns everything
+stored inside it.
+
+Every placed layer reserves its footprint as soon as its blueprint appears.
+Night monsters choose another spawn point, and depleted resources or wildlife
+whose home overlaps a blueprint, floor, roof, wall, or other structure defer
+their respawn until that footprint is clear.
 
 | Piece | Cost | Made | Health | Function |
 | --- | --- | ---: | ---: | --- |

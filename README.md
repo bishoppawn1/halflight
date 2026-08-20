@@ -21,7 +21,8 @@ The GitHub Pages deployment is available at:
 - 1–9 or 0 — select one of 10 hotbar slots
 - Q — ready building pieces
 - C — crafting menu
-- I or B — open the free 30-slot inventory
+- I — open the free 30-slot inventory
+- B — auto-build unfinished blueprints within three grid squares; moving stops it
 - + / - or mouse wheel — zoom
 
 Move tools, weapons, resources, food, and ready building pieces freely between
@@ -33,8 +34,9 @@ bench, stand near it to unlock advanced tools, weapons, ammunition, and wood,
 stone, or metal construction pieces. Construction recipes create stacks in the
 inventory; they never place a piece automatically.
 
-Placed pieces begin as blueprints and are built in order while you are not
-moving. Craft a Deconstruction Hammer to reclaim part of a structure's cost.
+Placed pieces begin as blueprints. Press B to build nearby pieces in 1.5 seconds
+each; the player never walks toward distant jobs, and moving stops construction.
+Craft a Deconstruction Hammer to reclaim part of a structure's cost.
 Storage Chests move complete resource stacks into separate storage, making those
 supplies unavailable to crafting until you retrieve them.
 

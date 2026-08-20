@@ -215,6 +215,7 @@ interface GameState {
   buildMode: BuildKind | null;
   openChestId: number | null;
   workOrders: WorkOrder[];
+  autoBuildActive: boolean;
   nodes: ResourceNode[];
   treasures: CaveTreasure[];
   creatures: Creature[];
@@ -250,9 +251,10 @@ const GRID = 48;
 const DAY_SECONDS = 110;
 const LOW_HEALTH_THRESHOLD = 30;
 const LOW_HUNGER_THRESHOLD = 25;
-const CONSTRUCTION_SECONDS = 3;
+const CONSTRUCTION_SECONDS = 1.5;
 const DECONSTRUCTION_SECONDS = 2.25;
 const BUILDING_HALF_SIZE = 23;
+const AUTO_BUILD_RANGE = GRID * 3;
 const SPAWN_X = 2780;
 const SPAWN_Y = 1940;
 const FOREST_X = 1320;
@@ -982,6 +984,7 @@ function makeGame(): GameState {
     buildMode: null,
     openChestId: null,
     workOrders: [],
+    autoBuildActive: false,
     nodes,
     treasures,
     creatures,
@@ -1030,29 +1033,8 @@ function pay(game: GameState, cost: Partial<Record<Material, number>>) {
 function spawnNightWave(game: GameState) {
   game.wave = game.day;
   const count = 6 + game.day * 3;
+  let spawned = 0;
   for (let i = 0; i < count; i++) {
-    let x = game.player.x;
-    let y = game.player.y;
-    for (let attempt = 0; attempt < 160; attempt++) {
-      const candidateIndex = i * 211 + attempt * 2;
-      const candidateX = 70 + seeded(candidateIndex, game.day * 17 + 101) * (WORLD_W - 140);
-      const candidateY = 70 + seeded(candidateIndex + 1, game.day * 19 + 103) * (WORLD_H - 140);
-      if (Math.hypot(candidateX - game.player.x, candidateY - game.player.y) < 360) continue;
-      if (game.realm === "caveSystem" && !isCaveFloor(candidateX, candidateY, 38)) continue;
-      if (blockingBuildingAt(game, game.realm, candidateX, candidateY, 24)) continue;
-      if (
-        game.nodes.some(
-          (node) =>
-            node.realm === game.realm &&
-            node.hp > 0 &&
-            (isTree(node.kind) || isMineable(node.kind)) &&
-            distanceToNodeFootprint(node, candidateX, candidateY, 20) === 0,
-        )
-      ) continue;
-      x = candidateX;
-      y = candidateY;
-      break;
-    }
     const kind: MonsterKind =
       game.day >= 5 && i % 7 === 0
         ? "maw"
@@ -1063,6 +1045,27 @@ function spawnNightWave(game: GameState) {
             : game.day >= 2 && i % 3 === 0
               ? "crawler"
               : "shade";
+    let spawnPoint: { x: number; y: number } | null = null;
+    for (let attempt = 0; attempt < 160; attempt++) {
+      const candidateIndex = i * 211 + attempt * 2;
+      const candidateX = 70 + seeded(candidateIndex, game.day * 17 + 101) * (WORLD_W - 140);
+      const candidateY = 70 + seeded(candidateIndex + 1, game.day * 19 + 103) * (WORLD_H - 140);
+      if (Math.hypot(candidateX - game.player.x, candidateY - game.player.y) < 360) continue;
+      if (game.realm === "caveSystem" && !isCaveFloor(candidateX, candidateY, 38)) continue;
+      if (reservedBuildingAt(game, game.realm, candidateX, candidateY, 30)) continue;
+      if (
+        game.nodes.some(
+          (node) =>
+            node.realm === game.realm &&
+            node.hp > 0 &&
+            (isTree(node.kind) || isMineable(node.kind)) &&
+            distanceToNodeFootprint(node, candidateX, candidateY, 20) === 0,
+        )
+      ) continue;
+      spawnPoint = { x: candidateX, y: candidateY };
+      break;
+    }
+    if (!spawnPoint) continue;
     const baseStats: Record<MonsterKind, { hp: number; hpScale: number; speed: number; damage: number }> = {
       shade: { hp: 28, hpScale: 8, speed: 66, damage: 7 },
       crawler: { hp: 23, hpScale: 6, speed: 91, damage: 6 },
@@ -1076,8 +1079,8 @@ function spawnNightWave(game: GameState) {
       id: game.lastId++,
       kind,
       realm: game.realm,
-      x,
-      y,
+      x: spawnPoint.x,
+      y: spawnPoint.y,
       hp,
       maxHp: hp,
       speed: stats.speed + game.day * 2,
@@ -1089,25 +1092,27 @@ function spawnNightWave(game: GameState) {
       phase: i,
       slowUntil: 0,
       rewarded: false,
-      dir: Math.atan2(game.player.y - y, game.player.x - x),
+      dir: Math.atan2(game.player.y - spawnPoint.y, game.player.x - spawnPoint.x),
       structureHitAt: 0,
       boss: false,
-      homeX: x,
-      homeY: y,
+      homeX: spawnPoint.x,
+      homeY: spawnPoint.y,
       provokedUntil: 0,
       respawnAt: 0,
     });
+    spawned += 1;
   }
-  notify(game, "NIGHT " + game.day + " — " + count + " horrors have entered the hunt.", 4300);
+  notify(game, "NIGHT " + game.day + " — " + spawned + " horrors have entered the hunt.", 4300);
 }
 
 function activeTool(game: GameState): Tool {
   const order = game.workOrders[0];
   const building = order && game.buildings.find((candidate) => candidate.id === order.buildingId);
   if (
+    game.autoBuildActive &&
     order?.action === "construct" &&
     building?.realm === game.realm &&
-    distanceToBuilding(building, game.player.x, game.player.y) <= 58 &&
+    distanceToBuilding(building, game.player.x, game.player.y) <= AUTO_BUILD_RANGE &&
     !movementInput(game)
   ) return "build";
   return game.selected;
@@ -1278,6 +1283,15 @@ function blockingBuildingAt(game: GameState, realm: Realm, x: number, y: number,
   ) || null;
 }
 
+function reservedBuildingAt(game: GameState, realm: Realm, x: number, y: number, radius: number) {
+  return game.buildings.find(
+    (building) =>
+      building.realm === realm &&
+      building.hp > 0 &&
+      distanceToBuilding(building, x, y, radius) === 0,
+  ) || null;
+}
+
 function creatureRadius(creature: Creature) {
   if (creature.boss) return 49;
   if (creature.kind === "maw" || creature.kind === "bear" || creature.kind === "brute") return 27;
@@ -1382,7 +1396,7 @@ function placeBuild(game: GameState, quiet = false, keepPlacing = false) {
   if (!quiet) {
     notify(
       game,
-      BUILD_DATA[kind].name + " blueprint placed. Moving in to build it.",
+      BUILD_DATA[kind].name + " blueprint placed. Press B to auto-build nearby.",
     );
   }
   if (!keepPlacing || game.kits[kind] <= 0) cancelBuildMode(game);
@@ -1448,6 +1462,7 @@ function startDeconstruction(game: GameState) {
   );
   if (activeOrder) return;
   game.workOrders = game.workOrders.filter((order) => order.buildingId !== building.id);
+  game.autoBuildActive = false;
   building.deconstruction = 0;
   game.workOrders.unshift({ buildingId: building.id, action: "deconstruct", progress: 0 });
   game.player.useReady = now + 450;
@@ -1841,7 +1856,17 @@ function primaryAction(game: GameState, repeated = false) {
 function reviveNodes(game: GameState) {
   const now = performance.now();
   for (const node of game.nodes) {
-    if (node.hp <= 0 && node.respawnAt < now) node.hp = node.maxHp;
+    if (
+      node.hp <= 0 &&
+      node.respawnAt < now &&
+      !reservedBuildingAt(
+        game,
+        node.realm,
+        node.x,
+        node.y,
+        nodeRadius(node.kind) * (isMineable(node.kind) ? 1.62 : 1),
+      )
+    ) node.hp = node.maxHp;
   }
 }
 
@@ -1876,6 +1901,10 @@ function updateCreatures(game: GameState, dt: number) {
   for (const creature of game.creatures) {
     if (creature.hp <= 0) {
       if (!isAnimal(creature.kind) || creature.respawnAt <= 0 || now < creature.respawnAt) continue;
+      if (reservedBuildingAt(game, creature.realm, creature.homeX, creature.homeY, creatureRadius(creature))) {
+        creature.respawnAt = now + 1000;
+        continue;
+      }
       creature.hp = creature.maxHp;
       creature.x = creature.homeX;
       creature.y = creature.homeY;
@@ -2066,6 +2095,48 @@ function movementInput(game: GameState) {
   return ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].some((key) => game.keys.has(key));
 }
 
+function nearbyConstructionOrderIndex(game: GameState) {
+  let nearestIndex = -1;
+  let nearestDistance = Infinity;
+  game.workOrders.forEach((order, index) => {
+    if (order.action !== "construct") return;
+    const building = game.buildings.find((candidate) => candidate.id === order.buildingId);
+    if (!building || building.realm !== game.realm || building.construction >= 1) return;
+    const distance = distanceToBuilding(building, game.player.x, game.player.y);
+    if (distance > AUTO_BUILD_RANGE || distance >= nearestDistance) return;
+    nearestIndex = index;
+    nearestDistance = distance;
+  });
+  return nearestIndex;
+}
+
+function startNearbyAutoBuild(game: GameState) {
+  if (movementInput(game)) {
+    notify(game, "Stop moving, then press B to auto-build nearby blueprints.");
+    return false;
+  }
+  const orderIndex = nearbyConstructionOrderIndex(game);
+  if (orderIndex < 0) {
+    game.autoBuildActive = false;
+    notify(game, "No unfinished blueprints within three squares.");
+    return false;
+  }
+  const [order] = game.workOrders.splice(orderIndex, 1);
+  game.workOrders.unshift(order);
+  game.autoBuildActive = true;
+  notify(game, "Auto-building within three squares · movement stops construction.", 2200);
+  return true;
+}
+
+function toggleNearbyAutoBuild(game: GameState) {
+  if (game.autoBuildActive) {
+    game.autoBuildActive = false;
+    notify(game, "Auto-build stopped. Press B to resume nearby.", 1400);
+    return;
+  }
+  startNearbyAutoBuild(game);
+}
+
 function movePlayerToward(game: GameState, targetX: number, targetY: number, dt: number) {
   const dx = targetX - game.player.x;
   const dy = targetY - game.player.y;
@@ -2105,14 +2176,37 @@ function updateWorkOrders(game: GameState, dt: number) {
   while (game.workOrders.length > 0 && !game.buildings.some((building) => building.id === game.workOrders[0].buildingId)) {
     game.workOrders.shift();
   }
+  if (movementInput(game)) {
+    if (game.autoBuildActive) {
+      game.autoBuildActive = false;
+      notify(game, "Auto-build stopped by movement. Press B to resume nearby.", 1500);
+    }
+    return;
+  }
+  if (game.autoBuildActive) {
+    const orderIndex = nearbyConstructionOrderIndex(game);
+    if (orderIndex < 0) {
+      game.autoBuildActive = false;
+      return;
+    }
+    if (orderIndex > 0) {
+      const [nearbyOrder] = game.workOrders.splice(orderIndex, 1);
+      game.workOrders.unshift(nearbyOrder);
+    }
+  }
   const order = game.workOrders[0];
-  if (!order || movementInput(game)) return;
+  if (!order || (order.action === "construct" && !game.autoBuildActive)) return;
   const building = game.buildings.find((candidate) => candidate.id === order.buildingId);
   if (!building || building.realm !== game.realm) return;
   const targetX = building.gx * GRID;
   const targetY = building.gy * GRID;
   game.player.dir = Math.atan2(targetY - game.player.y, targetX - game.player.x);
-  if (distanceToBuilding(building, game.player.x, game.player.y) > 58) {
+  const workRange = order.action === "construct" ? AUTO_BUILD_RANGE : 58;
+  if (distanceToBuilding(building, game.player.x, game.player.y) > workRange) {
+    if (order.action === "construct") {
+      game.autoBuildActive = false;
+      return;
+    }
     movePlayerToward(game, targetX, targetY, dt);
     return;
   }
@@ -2126,7 +2220,13 @@ function updateWorkOrders(game: GameState, dt: number) {
       building.construction = 1;
       building.hp = building.maxHp;
       game.workOrders.shift();
-      notify(game, BUILD_DATA[building.kind].name + " finished · " + building.maxHp + " health.", 1800);
+      if (nearbyConstructionOrderIndex(game) < 0) game.autoBuildActive = false;
+      notify(
+        game,
+        BUILD_DATA[building.kind].name + " finished · " + building.maxHp + " health" +
+          (game.autoBuildActive ? "." : " · no nearby blueprints remain."),
+        1800,
+      );
     }
     return;
   }
@@ -4470,9 +4570,14 @@ export default function Game() {
         game.openChestId = null;
         setPanel((value) => (value === "craft" ? null : "craft"));
       }
-      if (key === "i" || key === "b") {
+      if (key === "i") {
         game.openChestId = null;
         setPanel((value) => (value === "inventory" ? null : "inventory"));
+      }
+      if (key === "b") {
+        game.openChestId = null;
+        setPanel(null);
+        toggleNearbyAutoBuild(game);
       }
       if (key === "escape") {
         cancelBuildMode(game);
@@ -4805,6 +4910,7 @@ export default function Game() {
         <span><kbd>E</kbd> Interact</span>
         <span><kbd>HOLD LMB</kbd> Use tool</span>
         <span><kbd>SHIFT+LMB</kbd> Keep building</span>
+        <span><kbd>B</kbd> Auto-build nearby</span>
         <span><kbd>C</kbd> Craft</span>
       </aside>
 
@@ -4840,6 +4946,17 @@ export default function Game() {
           >↓</button>
         </div>
         <button className="touch-e" onClick={() => { interact(game); refresh(); }}>E<small>Interact</small></button>
+        <button
+          className="touch-build"
+          aria-pressed={game.autoBuildActive}
+          onClick={() => {
+            game.openChestId = null;
+            setPanel(null);
+            toggleNearbyAutoBuild(game);
+            refresh();
+            canvasRef.current?.focus();
+          }}
+        >B<small>{game.autoBuildActive ? "Stop" : "Build"}</small></button>
         <button
           className="touch-attack"
           onPointerDown={() => {
@@ -4922,7 +5039,7 @@ export default function Game() {
                       return (
                         <article key={kind}>
                           <div className="build-badge"><BuildIcon kind={kind} /></div>
-                          <div><h3>{data.name}</h3><p>{data.detail}</p><small>{data.hp} health · 3s build time</small></div>
+                          <div><h3>{data.name}</h3><p>{data.detail}</p><small>{data.hp} health · 1.5s build time</small></div>
                           <footer><span>{game.kits[kind]} ready</span><button disabled={game.kits[kind] <= 0} onClick={() => chooseBuild(kind)}>{game.kits[kind] > 0 ? "Place" : "Not crafted"}</button></footer>
                         </article>
                       );
