@@ -72,7 +72,9 @@ type Material =
   | "hide"
   | "arrows"
   | "bullets";
-type AnimalKind = "bear" | "boar" | "deer" | "rabbit" | "fox" | "wolf";
+type GroundAnimalKind = "bear" | "boar" | "deer" | "rabbit" | "fox" | "wolf" | "raccoon";
+type BirdKind = "crow" | "owl" | "turkey";
+type AnimalKind = GroundAnimalKind | BirdKind;
 type MonsterKind = "shade" | "crawler" | "brute" | "wraith" | "maw";
 type CreatureKind = MonsterKind | AnimalKind;
 type ArmorKind = "none" | "copper" | "iron" | "blacksteel";
@@ -393,7 +395,8 @@ const BUILD_ORDER: BuildKind[] = [
   "crop",
 ];
 
-const ANIMAL_KINDS: AnimalKind[] = ["bear", "boar", "deer", "rabbit", "fox", "wolf"];
+const ANIMAL_KINDS: AnimalKind[] = ["bear", "boar", "deer", "rabbit", "fox", "wolf", "raccoon", "crow", "owl", "turkey"];
+const BIRD_KINDS: BirdKind[] = ["crow", "owl", "turkey"];
 const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "wraith", "maw"];
 const MAX_TAMED_ANIMALS = 5;
 const ANIMAL_RESPAWN_MS = 120000;
@@ -409,14 +412,23 @@ const ANIMAL_DATA: Record<
     noticeDistance: number;
     tameChance: number;
     startingCount: number;
+    habitat: "forest" | "meadow";
+    flying: boolean;
+    meatDrop: number;
+    hideDrop: number;
+    companionDamage: number;
   }
 > = {
-  bear: { hp: 70, speed: 48, damage: 9, temperament: "aggressive", noticeDistance: 135, tameChance: 0.1, startingCount: 1 },
-  boar: { hp: 44, speed: 55, damage: 6, temperament: "aggressive", noticeDistance: 90, tameChance: 0.24, startingCount: 2 },
-  deer: { hp: 36, speed: 74, damage: 0, temperament: "skittish", noticeDistance: 150, tameChance: 0.42, startingCount: 7 },
-  rabbit: { hp: 18, speed: 84, damage: 0, temperament: "skittish", noticeDistance: 110, tameChance: 0.6, startingCount: 10 },
-  fox: { hp: 30, speed: 78, damage: 0, temperament: "skittish", noticeDistance: 125, tameChance: 0.32, startingCount: 3 },
-  wolf: { hp: 50, speed: 70, damage: 8, temperament: "aggressive", noticeDistance: 120, tameChance: 0.16, startingCount: 1 },
+  bear: { hp: 70, speed: 48, damage: 9, temperament: "aggressive", noticeDistance: 135, tameChance: 0.1, startingCount: 1, habitat: "forest", flying: false, meatDrop: 4, hideDrop: 2, companionDamage: 16 },
+  boar: { hp: 44, speed: 55, damage: 6, temperament: "aggressive", noticeDistance: 90, tameChance: 0.24, startingCount: 2, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 10 },
+  deer: { hp: 36, speed: 74, damage: 0, temperament: "skittish", noticeDistance: 150, tameChance: 0.42, startingCount: 7, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 2, companionDamage: 9 },
+  rabbit: { hp: 18, speed: 84, damage: 0, temperament: "skittish", noticeDistance: 110, tameChance: 0.6, startingCount: 10, habitat: "forest", flying: false, meatDrop: 1, hideDrop: 1, companionDamage: 7 },
+  fox: { hp: 30, speed: 78, damage: 0, temperament: "skittish", noticeDistance: 125, tameChance: 0.32, startingCount: 3, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 7 },
+  wolf: { hp: 50, speed: 70, damage: 8, temperament: "aggressive", noticeDistance: 120, tameChance: 0.16, startingCount: 1, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 14 },
+  raccoon: { hp: 28, speed: 72, damage: 0, temperament: "skittish", noticeDistance: 115, tameChance: 0.35, startingCount: 5, habitat: "forest", flying: false, meatDrop: 1, hideDrop: 1, companionDamage: 7 },
+  crow: { hp: 14, speed: 102, damage: 0, temperament: "skittish", noticeDistance: 85, tameChance: 0.68, startingCount: 7, habitat: "meadow", flying: true, meatDrop: 1, hideDrop: 0, companionDamage: 5 },
+  owl: { hp: 24, speed: 82, damage: 0, temperament: "skittish", noticeDistance: 105, tameChance: 0.38, startingCount: 3, habitat: "forest", flying: true, meatDrop: 1, hideDrop: 0, companionDamage: 8 },
+  turkey: { hp: 34, speed: 62, damage: 0, temperament: "skittish", noticeDistance: 130, tameChance: 0.28, startingCount: 4, habitat: "meadow", flying: false, meatDrop: 3, hideDrop: 0, companionDamage: 8 },
 };
 
 const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
@@ -453,6 +465,10 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
 
 function isAnimal(kind: CreatureKind): kind is AnimalKind {
   return ANIMAL_KINDS.includes(kind as AnimalKind);
+}
+
+function isBird(kind: CreatureKind): kind is BirdKind {
+  return BIRD_KINDS.includes(kind as BirdKind);
 }
 
 function isMonster(kind: CreatureKind): kind is MonsterKind {
@@ -882,8 +898,43 @@ function makeGame(): GameState {
     [wildlifeRoster[i], wildlifeRoster[swapIndex]] = [wildlifeRoster[swapIndex], wildlifeRoster[i]];
   }
   for (let i = 0; i < wildlifeRoster.length; i++) {
-    const x = FOREST_X + (seeded(i, 61) - 0.5) * FOREST_RX * 1.55;
-    const y = FOREST_Y + (seeded(i, 62) - 0.5) * FOREST_RY * 1.55;
+    const kind = wildlifeRoster[i];
+    const stats = ANIMAL_DATA[kind];
+    let x = FOREST_X;
+    let y = FOREST_Y;
+    const firstOfSpecies = wildlifeRoster.indexOf(kind) === i;
+    if (kind === "crow" && firstOfSpecies) {
+      x = SPAWN_X + 410;
+      y = SPAWN_Y - 145;
+    } else if (kind === "owl" && firstOfSpecies) {
+      x = SPAWN_X - 500;
+      y = SPAWN_Y - 220;
+    } else if (kind === "turkey" && firstOfSpecies) {
+      x = SPAWN_X + 555;
+      y = SPAWN_Y + 130;
+    } else {
+      for (let attempt = 0; attempt < 18; attempt++) {
+        const sample = i * 19 + attempt;
+        if (stats.habitat === "forest") {
+          const angle = seeded(sample, 61) * Math.PI * 2;
+          const distance = Math.sqrt(seeded(sample, 62)) * 0.78;
+          x = FOREST_X + Math.cos(angle) * FOREST_RX * distance;
+          y = FOREST_Y + Math.sin(angle) * FOREST_RY * distance;
+        } else {
+          x = 180 + seeded(sample, 161) * (WORLD_W - 360);
+          y = 180 + seeded(sample, 162) * (WORLD_H - 360);
+          if (inForest(x, y)) continue;
+        }
+        const blocked = !stats.flying && nodes.some(
+          (node) =>
+            node.realm === "meadow" &&
+            node.hp > 0 &&
+            (isTree(node.kind) || isMineable(node.kind)) &&
+            Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind, node.size) + 30,
+        );
+        if (!blocked) break;
+      }
+    }
     addAnimal(wildlifeRoster[i], x, y, i * 0.73);
   }
   creatures.push({
@@ -1296,6 +1347,9 @@ function creatureRadius(creature: Creature) {
   if (creature.boss) return 49;
   if (creature.kind === "maw" || creature.kind === "bear" || creature.kind === "brute") return 27;
   if (creature.kind === "rabbit") return 14;
+  if (creature.kind === "crow") return 13;
+  if (creature.kind === "owl") return 17;
+  if (creature.kind === "turkey") return 22;
   return 20;
 }
 
@@ -1779,9 +1833,10 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
   creature.rewarded = true;
   game.kills += 1;
   if (isAnimal(creature.kind)) {
+    const animal = ANIMAL_DATA[creature.kind];
     creature.respawnAt = performance.now() + ANIMAL_RESPAWN_MS;
-    addMaterial(game, "meat", creature.kind === "rabbit" ? 1 : creature.kind === "bear" ? 4 : 2);
-    addMaterial(game, "hide", creature.kind === "bear" || creature.kind === "deer" ? 2 : 1);
+    if (animal.meatDrop > 0) addMaterial(game, "meat", animal.meatDrop);
+    if (animal.hideDrop > 0) addMaterial(game, "hide", animal.hideDrop);
   }
   if (creature.kind === "brute") addMaterial(game, "iron", 1);
   if (creature.kind === "wraith") addMaterial(game, "sulfur", 1);
@@ -1881,6 +1936,11 @@ function ridgeBlocksCreature(game: GameState, realm: Realm, x: number, y: number
 }
 
 function moveCreatureWithBuildings(game: GameState, creature: Creature, dx: number, dy: number, distance: number, step: number) {
+  if (isAnimal(creature.kind) && ANIMAL_DATA[creature.kind].flying) {
+    creature.x = Math.max(35, Math.min(WORLD_W - 35, creature.x + (dx / distance) * step));
+    creature.y = Math.max(35, Math.min(WORLD_H - 35, creature.y + (dy / distance) * step));
+    return null;
+  }
   const radius = creatureRadius(creature);
   const nextX = Math.max(35, Math.min(WORLD_W - 35, creature.x + (dx / distance) * step));
   const nextY = Math.max(35, Math.min(WORLD_H - 35, creature.y + (dy / distance) * step));
@@ -1953,8 +2013,7 @@ function updateCreatures(game: GameState, dt: number) {
         targetY = enemy.y;
         const enemyDistance = Math.hypot(enemy.x - creature.x, enemy.y - creature.y);
         if (enemyDistance < 45 && now - creature.hitAt > 800) {
-          const tameDamage = creature.kind === "bear" ? 16 : creature.kind === "wolf" ? 14 : creature.kind === "boar" ? 10 : creature.kind === "deer" ? 9 : 7;
-          enemy.hp -= tameDamage;
+          enemy.hp -= ANIMAL_DATA[creature.kind as AnimalKind].companionDamage;
           creature.hitAt = now;
           if (enemy.hp <= 0) awardCreatureDrop(game, enemy);
         }
@@ -1967,8 +2026,9 @@ function updateCreatures(game: GameState, dt: number) {
       const animal = ANIMAL_DATA[creature.kind];
       const homeDistance = Math.hypot(creature.homeX - creature.x, creature.homeY - creature.y);
       const roamAngle = now / 4300 + creature.phase;
-      targetX = creature.homeX + Math.cos(roamAngle) * 42;
-      targetY = creature.homeY + Math.sin(roamAngle * 0.83) * 42;
+      const roamRadius = animal.flying ? 92 : animal.habitat === "meadow" ? 58 : 42;
+      targetX = creature.homeX + Math.cos(roamAngle) * roamRadius;
+      targetY = creature.homeY + Math.sin(roamAngle * 0.83) * roamRadius;
 
       if (animal.temperament === "skittish" && now < creature.provokedUntil) {
         creature.angry = true;
@@ -3093,15 +3153,97 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: GameState) {
   ctx.restore();
 }
 
+function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind: BirdKind) {
+  const style: Record<BirdKind, { body: string; light: string; outline: string; length: number; width: number; headX: number; headLength: number; headWidth: number }> = {
+    crow: { body: "#28323a", light: "#617886", outline: "#11191e", length: 25, width: 12, headX: 20, headLength: 11, headWidth: 10 },
+    owl: { body: "#806847", light: "#c7ad76", outline: "#3d3328", length: 26, width: 18, headX: 21, headLength: 14, headWidth: 16 },
+    turkey: { body: "#704b39", light: "#bd7747", outline: "#342720", length: 32, width: 20, headX: 28, headLength: 12, headWidth: 11 },
+  };
+  const { body, light, outline, length, width, headX, headLength, headWidth } = style[kind];
+
+  ctx.fillStyle = body;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(-3, 0, length, width, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = light;
+  ctx.globalAlpha = kind === "crow" ? 0.45 : 0.72;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(-5, side * width * 0.38, length * 0.62, width * 0.32, side * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-length * 0.72, 0);
+  ctx.lineTo(length * 0.32, 0);
+  ctx.stroke();
+  if (kind === "turkey") {
+    ctx.strokeStyle = "rgba(237,175,91,.68)";
+    for (const x of [-19, -13, -7]) {
+      ctx.beginPath();
+      ctx.moveTo(x, -width * 0.7);
+      ctx.lineTo(x - 2, width * 0.7);
+      ctx.stroke();
+    }
+  } else if (kind === "owl") {
+    ctx.fillStyle = "rgba(61,51,40,.45)";
+    for (const [x, y] of [[-11, -7], [-2, 7], [7, -6]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.fillStyle = kind === "owl" ? light : body;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(headX, 0, headLength, headWidth, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = kind === "crow" ? "#8498a2" : kind === "owl" ? "#ead6a5" : "#bd7747";
+  ctx.beginPath();
+  ctx.ellipse(headX + headLength * 0.18, 0, headLength * 0.56, headWidth * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#171a19";
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(headX + headLength * 0.22, side * headWidth * 0.42, kind === "owl" ? 2.6 : 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (creature.tame) {
+    ctx.strokeStyle = "#f1bf4f";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(13, -width * 0.78);
+    ctx.lineTo(13, width * 0.78);
+    ctx.stroke();
+  }
+}
+
 function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
   const kind = creature.kind as AnimalKind;
-  const style: Record<AnimalKind, { body: string; light: string; length: number; width: number; headX: number; headLength: number; headWidth: number }> = {
+  if (isBird(kind)) {
+    drawTopDownBird(ctx, creature, kind);
+    return;
+  }
+  const style: Record<GroundAnimalKind, { body: string; light: string; length: number; width: number; headX: number; headLength: number; headWidth: number }> = {
     bear: { body: "#77513c", light: "#a97857", length: 34, width: 23, headX: 27, headLength: 18, headWidth: 16 },
     boar: { body: "#9a6444", light: "#bd7b56", length: 31, width: 19, headX: 27, headLength: 18, headWidth: 14 },
     deer: { body: "#b57a48", light: "#d39a63", length: 30, width: 14, headX: 29, headLength: 15, headWidth: 10 },
     rabbit: { body: "#b9b6aa", light: "#ded9cd", length: 24, width: 15, headX: 21, headLength: 12, headWidth: 11 },
     fox: { body: "#d36f3d", light: "#f0b27d", length: 29, width: 15, headX: 27, headLength: 15, headWidth: 12 },
     wolf: { body: "#697773", light: "#9aa4a0", length: 31, width: 17, headX: 28, headLength: 16, headWidth: 13 },
+    raccoon: { body: "#69716d", light: "#aeb4ad", length: 27, width: 16, headX: 24, headLength: 14, headWidth: 12 },
   };
   const { body, light, length, width, headX, headLength, headWidth } = style[kind];
   const outline = kind === "rabbit" ? "#56544e" : "#3e322c";
@@ -3135,6 +3277,15 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
     ctx.moveTo(-21, 0);
     ctx.lineTo(10, 0);
     ctx.stroke();
+  } else if (kind === "raccoon") {
+    ctx.strokeStyle = "rgba(37,43,42,.72)";
+    ctx.lineWidth = 3;
+    for (const x of [-18, -10, -2]) {
+      ctx.beginPath();
+      ctx.moveTo(x, -width * 0.72);
+      ctx.lineTo(x, width * 0.72);
+      ctx.stroke();
+    }
   }
 
   ctx.fillStyle = body;
@@ -3166,6 +3317,16 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
   ctx.arc(headX + headLength * 0.2, -headWidth * 0.42, 2.1, 0, Math.PI * 2);
   ctx.arc(headX + headLength * 0.2, headWidth * 0.42, 2.1, 0, Math.PI * 2);
   ctx.fill();
+  if (kind === "raccoon") {
+    ctx.strokeStyle = "rgba(37,43,42,.82)";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(headX + 1, -headWidth * 0.55);
+    ctx.lineTo(headX + 8, -headWidth * 0.28);
+    ctx.moveTo(headX + 1, headWidth * 0.55);
+    ctx.lineTo(headX + 8, headWidth * 0.28);
+    ctx.stroke();
+  }
   if (creature.tame) {
     ctx.strokeStyle = "#f1bf4f";
     ctx.lineWidth = 5;
@@ -3177,11 +3338,29 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
 }
 
 function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
-  const scale = creature.boss ? 1.82 : creature.kind === "brute" ? 1.28 : creature.kind === "bear" ? 1.2 : creature.kind === "rabbit" ? 0.78 : creature.kind === "boar" ? 0.92 : 1;
+  const scale = creature.boss
+    ? 1.82
+    : creature.kind === "brute"
+      ? 1.28
+      : creature.kind === "bear"
+        ? 1.2
+        : creature.kind === "rabbit"
+          ? 0.78
+          : creature.kind === "crow"
+            ? 0.72
+            : creature.kind === "owl"
+              ? 0.86
+              : creature.kind === "turkey"
+                ? 0.95
+                : creature.kind === "raccoon" || creature.kind === "boar"
+                  ? 0.92
+                  : 1;
+  const flying = isAnimal(creature.kind) && ANIMAL_DATA[creature.kind].flying;
+  const bob = Math.sin(now / (flying ? 150 : 230) + creature.phase) * (flying ? 5 : 2) - (flying ? 5 : 0);
   ctx.save();
-  ctx.translate(creature.x, creature.y + Math.sin(now / 230 + creature.phase) * 2);
+  ctx.translate(creature.x, creature.y + bob);
   ctx.scale(scale, scale);
-  ctx.fillStyle = "rgba(12,27,24,.23)";
+  ctx.fillStyle = flying ? "rgba(12,27,24,.14)" : "rgba(12,27,24,.23)";
   ctx.beginPath();
   ctx.ellipse(5, 14, 25, 12, 0, 0, Math.PI * 2);
   ctx.fill();

@@ -52,10 +52,11 @@ Axes always use one broad, offset chopping blade. Pickaxes use a narrow,
 double-ended head so the two tool families remain distinct at gameplay scale.
 
 Every world object and creature is presented from directly overhead. Wildlife
-uses a clean two-part silhouette made from a torso and head. Legs are omitted
-because they would not be clearly visible from this camera height. Animals are
-never represented as a front-facing or side-profile face, and creatures turn
-their whole overhead body in their direction of travel.
+uses a clean silhouette made from a torso and head. Birds add contained folded-
+wing markings inside that torso, while ground animals use coat markings. Legs
+are omitted because they would not be clearly visible from this camera height.
+Animals are never represented as a front-facing or side-profile face, and
+creatures turn their whole overhead body in their direction of travel.
 
 The player moves at 190 world units per second. Trees and mineable deposits use
 their full visible top-down footprint as solid hitboxes. Movement slides along
@@ -363,9 +364,10 @@ thrust animation; axes, pickaxes, swords, and improvised attacks use arcs.
 | Deconstruction hammer | 3 | 78 | 600 ms |
 | Hands, food, or build tool | 3 | 78 | 430 ms |
 
-Wildlife drops meat and hide. Brutes drop iron, wraiths drop sulfur, and maws
-drop 2 iron and 2 sulfur. Every creature defeated by the player, a tame, or a
-trap increases the threat count.
+Wildlife drops species-specific amounts of meat and hide; birds provide meat
+but no hide. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2
+sulfur. Every creature defeated by the player, a tame, or a trap increases the
+threat count.
 
 The cave guardian is an oversized maw with 240 health, 34 speed, 22 contact
 damage, and a 240-unit sense radius. Defeating it awards the maw's normal drop
@@ -374,29 +376,38 @@ Aetherium.
 
 ## 11. Wildlife and taming
 
-Twenty-four animals are distributed around the Blackwood at the start. Common
-prey greatly outnumber the larger and stronger species:
+Forty-three animals are distributed between the Blackwood and open Meadow at
+the start. Common prey and birds greatly outnumber larger predators.
 
 Each species is drawn as a full overhead animal rather than an animal face.
 Body and head proportions, color, and contained markings distinguish the
 species without visible legs or other small exterior details.
 
-| Animal | Starting population | Health | Speed | Contact damage | Behavior / notice distance | Tame chance per berry |
-| --- | ---: | ---: | ---: | ---: | --- | ---: |
-| Rabbit | 10 | 18 | 84 | 0 | Flees within 110 | 60% |
-| Deer | 7 | 36 | 74 | 0 | Flees within 150 | 42% |
-| Fox | 3 | 30 | 78 | 0 | Flees within 125 | 32% |
-| Boar | 2 | 44 | 55 | 6 | Attacks within 90 | 24% |
-| Wolf | 1 | 50 | 70 | 8 | Attacks within 120 | 16% |
-| Bear | 1 | 70 | 48 | 9 | Attacks within 135 | 10% |
+| Animal | Population | Habitat | Health | Speed | Contact damage | Wild behavior | Tame chance | Companion hit | Drops |
+| --- | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | --- |
+| Rabbit | 10 | Blackwood | 18 | 84 | 0 | Flees within 110 | 60% | 7 | 1 meat, 1 hide |
+| Crow | 7 | Meadow | 14 | 102 | 0 | Flies; flees within 85 | 68% | 5 | 1 meat |
+| Deer | 7 | Blackwood | 36 | 74 | 0 | Flees within 150 | 42% | 9 | 2 meat, 2 hide |
+| Raccoon | 5 | Blackwood | 28 | 72 | 0 | Flees within 115 | 35% | 7 | 1 meat, 1 hide |
+| Wild turkey | 4 | Meadow | 34 | 62 | 0 | Flees within 130 | 28% | 8 | 3 meat |
+| Fox | 3 | Blackwood | 30 | 78 | 0 | Flees within 125 | 32% | 7 | 2 meat, 1 hide |
+| Owl | 3 | Blackwood | 24 | 82 | 0 | Flies; flees within 105 | 38% | 8 | 1 meat |
+| Boar | 2 | Blackwood | 44 | 55 | 6 | Attacks within 90 | 24% | 10 | 2 meat, 1 hide |
+| Wolf | 1 | Blackwood | 50 | 70 | 8 | Attacks within 120 | 16% | 14 | 2 meat, 1 hide |
+| Bear | 1 | Blackwood | 70 | 48 | 9 | Attacks within 135 | 10% | 16 | 4 meat, 2 hide |
+
+Crows and owls fly over trees, stone ridges, and player-built structures while
+roaming, fleeing, following, or attacking. Wild turkeys remain on the ground.
+Flying birds range farther from their home point and visibly bob above their
+softer shadow; all three bird species retain a body-and-head overhead shape.
 
 Selecting berries lures wild animals from up to 360 units away and suppresses
 aggression while the berries remain selected and available. Without that lure,
 bears, boars, and wolves attack within their notice distance and stop chasing
-beyond 340 units. Rabbits, deer, and foxes never deal contact damage: they flee
-when approached or attacked, remain frightened for five seconds after a hit,
-and return to their original territory once safe. Other disengaged wildlife
-also returns to its original territory.
+beyond 340 units. Rabbits, deer, foxes, raccoons, crows, owls, and wild turkeys
+never deal contact damage: they flee when approached or attacked, remain
+frightened for five seconds after a hit, and return to their original territory
+once safe. Other disengaged wildlife also returns to its original territory.
 
 Pressing `E` near a lured animal consumes one berry and makes one independent
 taming roll. Failed attempts leave the animal wild, so the lower success rates
