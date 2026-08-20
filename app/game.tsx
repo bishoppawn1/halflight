@@ -753,7 +753,7 @@ function makeGame(): GameState {
   };
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = animalStats[kind];
-    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, boss: false });
+    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, boss: false, homeX: x, homeY: y, provokedUntil: 0, respawnAt: 0 });
   };
   for (let i = 0; i < 24; i++) {
     const x = FOREST_X + (seeded(i, 61) - 0.5) * FOREST_RX * 1.55;
@@ -781,6 +781,10 @@ function makeGame(): GameState {
     dir: Math.atan2(CAVE_HUB.y - guardianPoint.y, CAVE_HUB.x - guardianPoint.x),
     structureHitAt: 0,
     boss: true,
+    homeX: guardianPoint.x,
+    homeY: guardianPoint.y,
+    provokedUntil: 0,
+    respawnAt: 0,
   });
   const startingCampfire: Building = {
     id: id++,
@@ -964,6 +968,10 @@ function spawnNightWave(game: GameState) {
       dir: Math.atan2(game.player.y - y, game.player.x - x),
       structureHitAt: 0,
       boss: false,
+      homeX: x,
+      homeY: y,
+      provokedUntil: 0,
+      respawnAt: 0,
     });
   }
   notify(game, "NIGHT " + game.day + " — " + count + " horrors have entered the hunt.", 4300);
