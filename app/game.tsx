@@ -31,7 +31,7 @@ type DurableTool =
   | "stonePickaxe"
   | "ironPickaxe"
   | "aetheriumPickaxe";
-type Tool = DurableTool | "hammer" | "spear" | "sword" | "bow" | "pistol" | FoodMaterial | "build" | "hands";
+type Tool = DurableTool | "hammer" | "spear" | "sword" | "bow" | "ironBow" | "pistol" | FoodMaterial | "build" | "hands";
 type ToolGlyphKind = "axe" | "pickaxe" | "hammer" | "spear" | "sword" | "bow" | "pistol" | "pack";
 type BuildKind =
   | "craftingBench"
@@ -217,6 +217,7 @@ interface GameState {
     spear: boolean;
     sword: boolean;
     bow: boolean;
+    ironBow: boolean;
     pistol: boolean;
     hammer: boolean;
     toolDurability: Record<DurableTool, number[]>;
@@ -225,7 +226,7 @@ interface GameState {
   kits: Record<BuildKind, number>;
   selected: Tool;
   selectedSlot: number;
-  weapon: "spear" | "sword" | "bow" | "pistol";
+  weapon: "spear" | "sword" | "bow" | "ironBow" | "pistol";
   inventory: (InventoryItem | null)[];
   hotbar: (InventoryItem | null)[];
   buildMode: BuildKind | null;
@@ -521,6 +522,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   spear: "Stone Spear",
   sword: "Iron Sword",
   bow: "Hunting Bow",
+  ironBow: "Iron Bow",
   pistol: "Scrap Pistol",
   wood: "Wood",
   stone: "Stone",
@@ -613,6 +615,7 @@ const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
   spear: { damage: 17, range: 102, cooldown: 620, animationSeconds: 0.34, arc: 0.38, style: "thrust" },
   sword: { damage: 25, range: 102, cooldown: 480, animationSeconds: 0.3, arc: 1.15, style: "slash" },
   bow: { damage: 18, range: 520, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
+  ironBow: { damage: 28, range: 600, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
   pistol: { damage: 34, range: 640, cooldown: 460, animationSeconds: 0.24, arc: 0, style: "shot" },
 };
 
@@ -661,6 +664,7 @@ function itemCount(game: GameState, item: InventoryItem | null) {
   if (item === "spear") return game.gear.spear ? 1 : 0;
   if (item === "sword") return game.gear.sword ? 1 : 0;
   if (item === "bow") return game.gear.bow ? 1 : 0;
+  if (item === "ironBow") return game.gear.ironBow ? 1 : 0;
   if (item === "pistol") return game.gear.pistol ? 1 : 0;
   return 0;
 }
@@ -1140,6 +1144,7 @@ function makeGame(): GameState {
       spear: false,
       sword: false,
       bow: false,
+      ironBow: false,
       pistol: false,
       hammer: false,
       toolDurability: {
@@ -1376,7 +1381,7 @@ function selectSlot(game: GameState, slot: number) {
     return;
   }
   game.selected = item;
-  if (item === "spear" || item === "sword" || item === "bow" || item === "pistol") game.weapon = item;
+  if (item === "spear" || item === "sword" || item === "bow" || item === "ironBow" || item === "pistol") game.weapon = item;
 }
 
 function nearestCreature(game: GameState, maxDistance: number) {
@@ -2028,8 +2033,9 @@ function attack(game: GameState) {
   if (now < game.player.attackReady || game.dead || !game.started) return;
   const tool = activeTool(game);
   const profile = attackProfile(tool);
-  if (tool === "bow" || tool === "pistol") {
-    const ammo: Material = tool === "bow" ? "arrows" : "bullets";
+  const isBow = tool === "bow" || tool === "ironBow";
+  if (isBow || tool === "pistol") {
+    const ammo: Material = isBow ? "arrows" : "bullets";
     if (game.resources[ammo] <= 0) {
       notify(game, "Out of " + ammo + ". Craft more ammunition.", 1000);
       game.player.attackReady = now + 500;
@@ -2050,16 +2056,16 @@ function attack(game: GameState) {
       startedAt: now,
       duration: tool === "pistol" ? 120 : 155,
     };
-    const speed = tool === "bow" ? 620 : 1120;
+    const speed = tool === "ironBow" ? 720 : tool === "bow" ? 620 : 1120;
     game.projectiles.push({
       id: game.lastId++,
-      kind: tool === "bow" ? "arrow" : "bullet",
+      kind: isBow ? "arrow" : "bullet",
       realm: game.realm,
       x: game.player.x + Math.cos(game.player.dir) * 34,
       y: game.player.y + Math.sin(game.player.dir) * 34,
       vx: Math.cos(game.player.dir) * speed,
       vy: Math.sin(game.player.dir) * speed,
-      life: tool === "bow" ? 0.9 : 0.58,
+      life: tool === "ironBow" ? 0.84 : tool === "bow" ? 0.9 : 0.58,
       damage: profile.damage,
     });
     return;
@@ -3194,7 +3200,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
   const motion = swing > 0 ? Math.sin(progress * Math.PI) : 0;
   const angle = tool === "spear"
     ? -0.08
-    : tool === "bow" || tool === "pistol"
+    : tool === "bow" || tool === "ironBow" || tool === "pistol"
       ? -0.22
       : -0.22 - motion * 0.68;
   const forwardMotion = tool === "spear" ? motion * 30 : tool === "pistol" ? -motion * 7 : 0;
@@ -3230,12 +3236,23 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.restore();
     return;
   }
-  if (tool === "bow") {
-    ctx.strokeStyle = "#8c5a37";
-    ctx.lineWidth = 5;
+  if (tool === "bow" || tool === "ironBow") {
+    const isIronBow = tool === "ironBow";
+    ctx.strokeStyle = isIronBow ? "#aebfbd" : "#8c5a37";
+    ctx.lineWidth = isIronBow ? 6 : 5;
     ctx.beginPath();
     ctx.arc(26, 0, 23, -1.1, 1.1);
     ctx.stroke();
+    if (isIronBow) {
+      ctx.strokeStyle = "#344744";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(26, 0, 23, -1.1, 1.1);
+      ctx.stroke();
+      ctx.fillStyle = "#596d69";
+      roundedRect(ctx, 11, -5, 10, 10, 3);
+      ctx.fill();
+    }
     ctx.strokeStyle = "#e7dfca";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -3647,13 +3664,76 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: GameState) {
   ctx.restore();
 }
 
-function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind: BirdKind) {
+function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind: BirdKind, now: number) {
   const style: Record<BirdKind, { body: string; light: string; outline: string; length: number; width: number; headX: number; headLength: number; headWidth: number }> = {
     crow: { body: "#28323a", light: "#617886", outline: "#11191e", length: 25, width: 12, headX: 20, headLength: 11, headWidth: 10 },
     owl: { body: "#806847", light: "#c7ad76", outline: "#3d3328", length: 26, width: 18, headX: 21, headLength: 14, headWidth: 16 },
     turkey: { body: "#704b39", light: "#bd7747", outline: "#342720", length: 32, width: 20, headX: 28, headLength: 12, headWidth: 11 },
   };
   const { body, light, outline, length, width, headX, headLength, headWidth } = style[kind];
+
+  if (kind === "turkey") {
+    ctx.fillStyle = "#8e5339";
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-length + 5, -width * 0.7);
+    ctx.quadraticCurveTo(-length - 34, -width * 1.75, -length - 45, 0);
+    ctx.quadraticCurveTo(-length - 34, width * 1.75, -length + 5, width * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#d49255";
+    ctx.lineWidth = 3;
+    for (const side of [-1, -0.5, 0, 0.5, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(-length + 1, 0);
+      ctx.lineTo(-length - 38, side * width * 1.18);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "#3d2b25";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-length - 34, -width * 1.04);
+    ctx.quadraticCurveTo(-length - 45, 0, -length - 34, width * 1.04);
+    ctx.stroke();
+  } else {
+    const flap = (Math.sin(now / 125 + creature.phase) + 1) / 2;
+    const reach = kind === "owl" ? 37 + flap * 13 : 34 + flap * 15;
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = body;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 4;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(-13, side * 4);
+      if (kind === "owl") {
+        ctx.bezierCurveTo(-18, side * 18, -8, side * (reach - 3), 8, side * reach);
+        ctx.bezierCurveTo(20, side * (reach - 4), 17, side * 17, 5, side * 7);
+      } else {
+        ctx.bezierCurveTo(-18, side * 15, -6, side * (reach * 0.7), 12, side * reach);
+        ctx.lineTo(7, side * (reach * 0.68));
+        ctx.lineTo(16, side * (reach * 0.76));
+        ctx.lineTo(8, side * (reach * 0.48));
+        ctx.lineTo(15, side * (reach * 0.53));
+        ctx.bezierCurveTo(10, side * 18, 4, side * 8, -4, side * 5);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = light;
+      ctx.globalAlpha = kind === "crow" ? 0.55 : 0.68;
+      ctx.lineWidth = 2.4;
+      for (const featherOffset of [0, 7, 14]) {
+        ctx.beginPath();
+        ctx.moveTo(-5 + featherOffset * 0.35, side * 9);
+        ctx.lineTo(7 + featherOffset * 0.45, side * Math.max(17, reach - featherOffset));
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
 
   ctx.fillStyle = body;
   ctx.strokeStyle = outline;
@@ -3664,10 +3744,10 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
   ctx.stroke();
 
   ctx.fillStyle = light;
-  ctx.globalAlpha = kind === "crow" ? 0.45 : 0.72;
+  ctx.globalAlpha = kind === "turkey" ? 0.72 : 0.36;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.ellipse(-5, side * width * 0.38, length * 0.62, width * 0.32, side * 0.08, 0, Math.PI * 2);
+    ctx.ellipse(-5, side * width * 0.38, length * (kind === "turkey" ? 0.62 : 0.42), width * 0.32, side * 0.08, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -3714,6 +3794,23 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
     ctx.fill();
   }
 
+  ctx.fillStyle = kind === "turkey" || kind === "owl" ? "#d99a3f" : "#171d20";
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(headX + headLength - 2, -4);
+  ctx.lineTo(headX + headLength + (kind === "crow" ? 15 : 10), 0);
+  ctx.lineTo(headX + headLength - 2, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  if (kind === "turkey") {
+    ctx.fillStyle = "#b94335";
+    ctx.beginPath();
+    ctx.ellipse(headX + headLength * 0.72, 6, 3.5, 7, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   if (creature.tame) {
     ctx.strokeStyle = "#f1bf4f";
     ctx.lineWidth = 5;
@@ -3724,10 +3821,10 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
   }
 }
 
-function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature) {
+function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
   const kind = creature.kind as AnimalKind;
   if (isBird(kind)) {
-    drawTopDownBird(ctx, creature, kind);
+    drawTopDownBird(ctx, creature, kind, now);
     return;
   }
   const style: Record<GroundAnimalKind, { body: string; light: string; length: number; width: number; headX: number; headLength: number; headWidth: number }> = {
@@ -4041,7 +4138,7 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
   ctx.fill();
   ctx.rotate(creature.dir);
   if (isAnimal(creature.kind)) {
-    drawTopDownAnimal(ctx, creature);
+    drawTopDownAnimal(ctx, creature, now);
   } else {
     const pulse = Math.sin(now / 120 + creature.phase) * 2;
     const tentacleCount = creature.kind === "maw" ? 10 : creature.kind === "crawler" ? 8 : creature.kind === "wraith" ? 7 : creature.kind === "brute" ? 6 : 5;
@@ -5249,6 +5346,19 @@ const CRAFT_RECIPES: Recipe[] = [
     },
   },
   {
+    id: "ironBow",
+    name: "Iron Bow",
+    detail: "Tier 2 · 600 range · 28 damage",
+    cost: { wood: 6, fiber: 4, iron: 5 },
+    requiresBench: true,
+    owned: (game) => game.gear.ironBow,
+    action: (game) => {
+      game.gear.ironBow = true;
+      game.weapon = "ironBow";
+      equipNewItem(game, "ironBow");
+    },
+  },
+  {
     id: "arrows",
     name: "Arrow Bundle ×12",
     detail: "Ammunition for bows",
@@ -5471,7 +5581,7 @@ function RecipeVisual({ recipe }: { recipe: Recipe }) {
   if (recipe.id === "hammer") return <ToolGlyph type="hammer" />;
   if (recipe.id === "spear") return <ToolGlyph type="spear" />;
   if (recipe.id === "sword") return <ToolGlyph type="sword" />;
-  if (recipe.id === "bow") return <ToolGlyph type="bow" />;
+  if (recipe.id === "bow" || recipe.id === "ironBow") return <ToolGlyph type="bow" tier={tier} />;
   if (recipe.id === "pistol") return <ToolGlyph type="pistol" />;
   if (recipe.id === "arrows") return <MaterialIcon material="arrows" />;
   if (recipe.id === "bullets") return <MaterialIcon material="bullets" />;
@@ -5483,6 +5593,9 @@ function ItemVisual({ item }: { item: InventoryItem; game: GameState }) {
   const durableTool = durableToolInfo(item);
   if (durableTool) {
     return <ToolGlyph type={durableTool.family} tier={durableTool.tier} />;
+  }
+  if (item === "ironBow") {
+    return <ToolGlyph type="bow" tier="iron" />;
   }
   if (["hammer", "spear", "sword", "bow", "pistol"].includes(item)) {
     return <ToolGlyph type={item as ToolGlyphKind} />;
@@ -5788,6 +5901,8 @@ export default function Game() {
         ? "Stone Spear"
         : game.selected === "bow"
           ? "Hunting Bow · " + game.resources.arrows + " arrows"
+        : game.selected === "ironBow"
+          ? "Iron Bow · " + game.resources.arrows + " arrows"
       : game.selected === "pistol"
             ? "Scrap Pistol · " + game.resources.bullets + " bullets"
       : isDurableTool(game.selected)

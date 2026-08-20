@@ -819,6 +819,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .tool-food b { left: 18px; top: 8px; }
 .tool-bow i { left: 8px; top: 3px; width: 25px; height: 30px; border: 4px solid #9d653d; border-left-color: transparent; border-radius: 50%; background: transparent; transform: none; }
 .tool-bow b { left: 17px; top: 4px; width: 2px; height: 28px; background: #e5ddc7; transform: none; }
+.tool-bow.tier-iron i { border-color: #b8c8c5; border-left-color: transparent; box-shadow: inset -2px 0 #405350, 2px 0 #405350; }
+.tool-bow.tier-iron b { background: #f0ead8; }
 .tool-pistol i { left: 4px; top: 6px; width: 33px; height: 13px; border: 3px solid #2d3838; border-radius: 3px 7px 4px 3px; background: linear-gradient(#91a0a3 0 42%, #657477 43% 100%); transform: none; }
 .tool-pistol i:after { content: ""; position: absolute; right: 4px; top: 3px; width: 8px; height: 4px; border-radius: 1px; background: #30393b; }
 .tool-pistol b { left: 10px; top: 17px; width: 14px; height: 17px; border: 3px solid #3f322a; border-radius: 2px 3px 5px 4px; background: #795238; clip-path: polygon(5% 0, 100% 0, 78% 100%, 22% 100%); transform: skew(-8deg); }

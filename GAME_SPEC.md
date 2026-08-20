@@ -53,9 +53,10 @@ handle. Pickaxes use a narrow, double-ended head so the two tool families remain
 distinct at gameplay scale.
 
 Every world object and creature is presented from directly overhead. Wildlife
-uses a clean silhouette made from a torso and head. Birds add contained folded-
-wing markings inside that torso, while ground animals use coat markings. Legs
-are omitted because they would not be clearly visible from this camera height.
+uses a clean silhouette made from a torso and head. Airborne crows and owls have
+extended, flapping wings and visible beaks. Grounded wild turkeys have a broad
+fan tail, beak, and red wattle. Ground animals use coat markings. Legs are
+omitted because they would not be clearly visible from this camera height.
 Deer have large, branched antlers and visible side ears; wolves have a broad
 head, triangular ears, a defined muzzle, and a bushy tail; rabbits have two
 long, splayed ears; foxes have pointed ears, a narrow muzzle, and a large bushy
@@ -298,6 +299,7 @@ button.
 | Stone Spear | 5 wood, 3 stone | 17-damage melee weapon |
 | Iron Sword | 4 wood, 7 iron | Fast 25-damage melee weapon |
 | Hunting Bow | 6 wood, 4 fiber, 2 copper | 18-damage ranged weapon |
+| Iron Bow | 6 wood, 4 fiber, 5 iron | Tier-two 28-damage ranged weapon |
 | Arrow Bundle | 2 wood, 1 stone | 12 arrows |
 | Scrap Pistol | 8 iron, 6 copper, 3 coal, 2 sulfur | 34-damage ranged weapon |
 | Bullet Bundle | 2 iron, 1 coal, 2 sulfur | 12 bullets |
@@ -402,6 +404,7 @@ thrust animation; axes, pickaxes, swords, and improvised attacks use arcs.
 | Stone spear | 17 | 102 | 620 ms |
 | Iron sword | 25 | 102 | 480 ms |
 | Hunting bow | 18 | 520 | 780 ms |
+| Iron bow | 28 | 600 | 780 ms |
 | Scrap pistol | 34 | 640 | 460 ms |
 | Deconstruction hammer | 3 | 78 | 750 ms |
 | Hands, food, or build tool | 3 | 78 | 600 ms |
@@ -426,8 +429,8 @@ Forty-three animals are distributed between the Blackwood and open Meadow at
 the start. Common prey and birds greatly outnumber larger predators.
 
 Each species is drawn as a full overhead animal rather than an animal face.
-Body and head proportions, color, and contained markings distinguish the
-species without visible legs or other small exterior details.
+Body and head proportions, color, markings, wings, beaks, and tails distinguish
+the species without relying on visible legs.
 
 | Animal | Population | Habitat | Health | Speed | Contact damage | Wild behavior | Tame chance | Companion hit | Drops |
 | --- | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | --- |
@@ -443,9 +446,11 @@ species without visible legs or other small exterior details.
 | Bear | 1 | Blackwood | 70 | 48 | 9 | Attacks within 135 | 10% | 16 | 4 meat, 2 hide |
 
 Crows and owls fly over trees, mineable outcrops, water, and player-built
-structures while roaming, fleeing, following, or attacking. Wild turkeys remain on the ground.
-Flying birds range farther from their home point and visibly bob above their
-softer shadow; all three bird species retain a body-and-head overhead shape.
+structures while roaming, fleeing, following, or attacking. Their wings extend
+beyond the torso and flap while airborne. Wild turkeys remain on the ground and
+carry their tail in a visible fan. Flying birds range farther from their home
+point and visibly bob above their softer shadow; all three bird species retain a
+body-and-head overhead shape.
 Wildlife follows smooth roaming paths and turns progressively instead of
 snapping back and forth when it reaches a roaming target or returns home.
 
