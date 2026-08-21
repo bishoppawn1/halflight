@@ -129,6 +129,9 @@ interface Creature {
   rewarded: boolean;
   dir: number;
   structureHitAt: number;
+  rangedAt: number;
+  rangedChargeUntil: number;
+  rangedAim: number;
   boss: boolean;
   homeX: number;
   homeY: number;
@@ -163,7 +166,7 @@ interface WorkOrder {
 
 interface Projectile {
   id: number;
-  kind: "arrow" | "bullet";
+  kind: "arrow" | "bullet" | "guardianOrb";
   realm: Realm;
   x: number;
   y: number;
@@ -521,6 +524,14 @@ const MONSTER_ATTACK_REACH: Record<MonsterKind, number> = {
   maw: 96,
 };
 const BOSS_ATTACK_REACH_BONUS = 18;
+const BOSS_SPEED = 78;
+const BOSS_SENSE_DISTANCE = 540;
+const BOSS_RANGED_MIN_DISTANCE = 220;
+const BOSS_RANGED_RANGE = 520;
+const BOSS_RANGED_DAMAGE = 14;
+const BOSS_RANGED_COOLDOWN_MS = 2600;
+const BOSS_RANGED_WINDUP_MS = 650;
+const BOSS_PROJECTILE_SPEED = 315;
 const MAX_TAMED_ANIMALS = 5;
 const ANIMAL_LURE_DISTANCE = 360;
 const WARY_ESCAPE_DISTANCE = 520;
@@ -1097,7 +1108,7 @@ function makeGame(): GameState {
   const creatures: Creature[] = [];
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = ANIMAL_DATA[kind];
-    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false });
+    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false });
   };
   const wildlifeRoster = ANIMAL_KINDS.flatMap((kind) =>
     Array.from({ length: ANIMAL_DATA[kind].startingCount }, () => kind),
@@ -1159,7 +1170,7 @@ function makeGame(): GameState {
     y: guardianPoint.y,
     hp: 240,
     maxHp: 240,
-    speed: 50,
+    speed: BOSS_SPEED,
     damage: 22,
     fed: 0,
     tame: false,
@@ -1170,6 +1181,9 @@ function makeGame(): GameState {
     rewarded: false,
     dir: Math.atan2(CAVE_HUB.y - guardianPoint.y, CAVE_HUB.x - guardianPoint.x),
     structureHitAt: 0,
+    rangedAt: -BOSS_RANGED_COOLDOWN_MS,
+    rangedChargeUntil: 0,
+    rangedAim: Math.atan2(CAVE_HUB.y - guardianPoint.y, CAVE_HUB.x - guardianPoint.x),
     boss: true,
     homeX: guardianPoint.x,
     homeY: guardianPoint.y,
@@ -1388,6 +1402,9 @@ function spawnNightWave(game: GameState) {
       rewarded: false,
       dir: Math.atan2(game.player.y - spawnPoint.y, game.player.x - spawnPoint.x),
       structureHitAt: 0,
+      rangedAt: 0,
+      rangedChargeUntil: 0,
+      rangedAim: 0,
       boss: false,
       homeX: spawnPoint.x,
       homeY: spawnPoint.y,
@@ -2450,8 +2467,16 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
     addMaterial(game, "iron", 5);
     addMaterial(game, "sulfur", 5);
     addMaterial(game, "aetherium", 3);
+    game.projectiles = game.projectiles.filter((projectile) => projectile.kind !== "guardianOrb");
     notify(game, "Cave guardian defeated · 7 iron · 7 sulfur · 3 Aetherium", 4500);
   }
+}
+
+function damagePlayer(game: GameState, damage: number, source = "") {
+  const armorReduction = game.gear.armor === "blacksteel" ? 0.55 : game.gear.armor === "iron" ? 0.35 : game.gear.armor === "copper" ? 0.18 : 0;
+  const received = damage * (1 - armorReduction);
+  game.player.hp -= received;
+  notify(game, source ? source + " · " + Math.round(received) + " damage!" : "You took " + Math.round(received) + " damage!", 1100);
 }
 
 function updateProjectiles(game: GameState, dt: number) {
@@ -2461,6 +2486,24 @@ function updateProjectiles(game: GameState, dt: number) {
     projectile.life -= dt;
     if (projectile.realm === "caveSystem" && !isCaveFloor(projectile.x, projectile.y, 5)) {
       projectile.life = 0;
+      continue;
+    }
+    if (projectile.kind === "guardianOrb") {
+      const blocker = blockingBuildingAt(game, projectile.realm, projectile.x, projectile.y, 10);
+      if (blocker) {
+        blocker.hp -= projectile.damage;
+        projectile.life = 0;
+        continue;
+      }
+      if (
+        projectile.realm === game.realm &&
+        game.player.hp > 0 &&
+        Math.hypot(game.player.x - projectile.x, game.player.y - projectile.y) < 32
+      ) {
+        damagePlayer(game, projectile.damage, "Guardian orb hit");
+        projectile.life = 0;
+      }
+      if (projectile.x < 0 || projectile.y < 0 || projectile.x > WORLD_W || projectile.y > WORLD_H) projectile.life = 0;
       continue;
     }
     const target = game.creatures.find(
@@ -2578,6 +2621,26 @@ function steerCreatureFacing(current: number, target: number, maxTurn: number) {
   return Math.atan2(Math.sin(current + turn), Math.cos(current + turn));
 }
 
+function launchGuardianVolley(game: GameState, guardian: Creature) {
+  const muzzleDistance = creatureRadius(guardian) + 20;
+  for (const spread of [-0.22, 0, 0.22]) {
+    const direction = guardian.rangedAim + spread;
+    game.projectiles.push({
+      id: game.lastId++,
+      kind: "guardianOrb",
+      realm: guardian.realm,
+      x: guardian.x + Math.cos(direction) * muzzleDistance,
+      y: guardian.y + Math.sin(direction) * muzzleDistance,
+      vx: Math.cos(direction) * BOSS_PROJECTILE_SPEED,
+      vy: Math.sin(direction) * BOSS_PROJECTILE_SPEED,
+      life: BOSS_RANGED_RANGE / BOSS_PROJECTILE_SPEED + 0.2,
+      damage: BOSS_RANGED_DAMAGE,
+    });
+  }
+  guardian.rangedChargeUntil = 0;
+  notify(game, "The cave guardian launches a void volley!", 900);
+}
+
 function updateCreatures(game: GameState, dt: number) {
   const now = performance.now();
   for (const creature of game.creatures) {
@@ -2599,6 +2662,9 @@ function updateCreatures(game: GameState, dt: number) {
       creature.respawnAt = 0;
       creature.rewarded = false;
       creature.dir = creature.phase;
+      creature.rangedAt = 0;
+      creature.rangedChargeUntil = 0;
+      creature.rangedAim = creature.phase;
     }
     if (creature.realm !== game.realm) continue;
     let targetX = creature.x + Math.cos(now / 1400 + creature.phase) * 15;
@@ -2616,7 +2682,7 @@ function updateCreatures(game: GameState, dt: number) {
         wraith: 440,
         maw: 240,
       };
-      const sense = senseDistance[creature.kind];
+      const sense = creature.boss ? BOSS_SENSE_DISTANCE : senseDistance[creature.kind];
       if (playerDistance < sense) creature.angry = true;
       if (playerDistance > sense * 1.8) creature.angry = false;
       if (creature.angry) {
@@ -2702,7 +2768,9 @@ function updateCreatures(game: GameState, dt: number) {
     const dy = targetY - creature.y;
     const distance = Math.max(1, Math.hypot(dx, dy));
     const attackReach = creatureAttackReach(creature);
-    const needsAttackPathCheck = attackingPlayer && isMonster(creature.kind) && playerDistance <= attackReach + 24;
+    const needsAttackPathCheck = attackingPlayer && isMonster(creature.kind) && (
+      playerDistance <= attackReach + 24 || (creature.boss && playerDistance <= BOSS_RANGED_RANGE)
+    );
     const attackPathClear = !needsAttackPathCheck || monsterAttackLineIsClear(
       game,
       creature.realm,
@@ -2711,11 +2779,34 @@ function updateCreatures(game: GameState, dt: number) {
       game.player.x,
       game.player.y,
     );
-    const chaseStopDistance = isMonster(creature.kind) && attackPathClear
-      ? Math.max(30, attackReach - 12)
-      : 30;
+    const bossCanShoot = creature.boss &&
+      attackingPlayer &&
+      attackPathClear &&
+      playerDistance >= BOSS_RANGED_MIN_DISTANCE &&
+      playerDistance <= BOSS_RANGED_RANGE;
+    if (bossCanShoot) {
+      if (creature.rangedChargeUntil > 0 && now >= creature.rangedChargeUntil) {
+        launchGuardianVolley(game, creature);
+      } else if (creature.rangedChargeUntil <= 0 && now - creature.rangedAt >= BOSS_RANGED_COOLDOWN_MS) {
+        creature.rangedAt = now;
+        creature.rangedChargeUntil = now + BOSS_RANGED_WINDUP_MS;
+        creature.rangedAim = Math.atan2(game.player.y - creature.y, game.player.x - creature.x);
+        notify(game, "The cave guardian is charging a ranged attack!", BOSS_RANGED_WINDUP_MS);
+      }
+    } else if (creature.rangedChargeUntil > 0) {
+      creature.rangedChargeUntil = 0;
+    }
+    const chargingRangedAttack = creature.rangedChargeUntil > now;
+    if (chargingRangedAttack) {
+      creature.dir = steerCreatureFacing(creature.dir, creature.rangedAim, 9 * dt);
+    }
+    const chaseStopDistance = creature.boss && bossCanShoot
+      ? 280
+      : isMonster(creature.kind) && attackPathClear
+        ? Math.max(30, attackReach - 12)
+        : 30;
     const stopDistance = movement === "follow" ? 58 : movement === "lure" ? 52 : movement === "chase" ? chaseStopDistance : 2;
-    const shouldMove = distance > stopDistance;
+    const shouldMove = distance > stopDistance && !chargingRangedAttack;
     if (shouldMove) {
       const slowFactor = now < creature.slowUntil ? 0.42 : 1;
       const paceMultiplier =
@@ -2748,11 +2839,8 @@ function updateCreatures(game: GameState, dt: number) {
       }
     }
     if (attackingPlayer && attackPathClear && playerDistance < attackReach && now - creature.hitAt > CREATURE_ATTACK_COOLDOWN_MS) {
-      const armorReduction = game.gear.armor === "blacksteel" ? 0.55 : game.gear.armor === "iron" ? 0.35 : game.gear.armor === "copper" ? 0.18 : 0;
-      const received = creature.damage * (1 - armorReduction);
-      game.player.hp -= received;
+      damagePlayer(game, creature.damage, creature.boss ? "Cave guardian hit" : "");
       creature.hitAt = now;
-      notify(game, "You took " + Math.round(received) + " damage!", 1100);
     }
     for (const building of game.buildings) {
       if (building.realm !== game.realm || building.hp <= 0 || building.construction < 1) continue;
@@ -4805,6 +4893,29 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
         ctx.fill();
       }
     }
+    if (creature.boss && creature.rangedChargeUntil > now) {
+      const chargeProgress = Math.max(0, Math.min(1, 1 - (creature.rangedChargeUntil - now) / BOSS_RANGED_WINDUP_MS));
+      const chargePulse = 0.75 + Math.sin(now / 42) * 0.25;
+      ctx.strokeStyle = "rgba(244,103,94,.9)";
+      ctx.lineWidth = 3 + chargeProgress * 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 40 + chargeProgress * 7, -Math.PI * 0.78, Math.PI * 0.78);
+      ctx.stroke();
+      const chargeGlow = ctx.createRadialGradient(42, 0, 1, 42, 0, 15);
+      chargeGlow.addColorStop(0, "#fff0c4");
+      chargeGlow.addColorStop(0.28, "#ff7967");
+      chargeGlow.addColorStop(1, "rgba(91,24,78,0)");
+      ctx.fillStyle = chargeGlow;
+      ctx.beginPath();
+      ctx.arc(42, 0, (7 + chargeProgress * 7) * chargePulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,189,104,.68)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(48, 0);
+      ctx.lineTo(73 + chargeProgress * 12, 0);
+      ctx.stroke();
+    }
   }
   ctx.rotate(-creature.dir);
   if (creature.boss) {
@@ -5608,6 +5719,33 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile) {
     ctx.lineTo(-11, 5);
     ctx.closePath();
     ctx.fill();
+  } else if (projectile.kind === "guardianOrb") {
+    const pulse = 0.84 + Math.sin(performance.now() / 45 + projectile.id) * 0.16;
+    const trail = ctx.createLinearGradient(-36, 0, 9, 0);
+    trail.addColorStop(0, "rgba(91,24,78,0)");
+    trail.addColorStop(0.6, "rgba(205,64,104,.48)");
+    trail.addColorStop(1, "rgba(255,137,91,.9)");
+    ctx.strokeStyle = trail;
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.moveTo(-38, 0);
+    ctx.lineTo(3, 0);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(244,78,92,.25)";
+    ctx.beginPath();
+    ctx.arc(7, 0, 17 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#6b205b";
+    ctx.strokeStyle = "#ff9b64";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(7, 0, 10 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#fff0bd";
+    ctx.beginPath();
+    ctx.arc(10, -3, 3.5, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     const trail = ctx.createLinearGradient(-28, 0, 10, 0);
     trail.addColorStop(0, "rgba(255,211,91,0)");
@@ -5720,6 +5858,19 @@ function drawDarkness(
     if (!radius) return;
     const center = buildingWorldCenter(building);
     reveal(center.x, center.y, radius, 55);
+  });
+  game.creatures.forEach((creature) => {
+    if (
+      creature.realm === game.realm &&
+      creature.boss &&
+      creature.hp > 0 &&
+      creature.rangedChargeUntil > performance.now()
+    ) reveal(creature.x, creature.y, 145, 36);
+  });
+  game.projectiles.forEach((projectile) => {
+    if (projectile.realm === game.realm && projectile.kind === "guardianOrb") {
+      reveal(projectile.x, projectile.y, 86, 18);
+    }
   });
 
   light.globalCompositeOperation = "source-over";

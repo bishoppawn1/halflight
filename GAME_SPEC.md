@@ -436,10 +436,18 @@ but no hide. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2
 sulfur. Every creature defeated by the player, a tame, or a trap increases the
 threat count.
 
-The cave guardian is an oversized maw with 240 health, 50 speed, 22 damage, a
-114-unit attack reach, and a 240-unit sense radius. Defeating it awards the
-maw's normal drop plus 5 iron, 5 sulfur, and 3 Aetherium, for a total of 7 iron,
-7 sulfur, and 3 Aetherium.
+The cave guardian is an oversized maw with 240 health, 78 speed, 22 melee
+damage, a 114-unit melee reach, and a 540-unit sense radius. From 220 to 520
+units away with a clear line to the player, it holds its ground, locks its aim,
+and visibly charges for 650 ms before firing a three-orb spread. Each orb moves
+at 315 units per second, deals 14 damage before armor, and can be dodged or
+blocked by cave rock and completed solid structures; an orb that hits a
+structure deals the same 14 damage to it. The charge and moving orbs cast their
+own warning light in the cave darkness. The ranged attack begins a new charge at
+most once every 2.6 seconds. Closing inside 220 units makes the guardian resume
+its faster melee pursuit. Defeating it awards the maw's normal drop plus 5 iron,
+5 sulfur, and 3 Aetherium, for a total of 7 iron, 7 sulfur, and 3 Aetherium. Any
+remaining guardian orbs disappear when it dies.
 
 ## 11. Wildlife and taming
 
