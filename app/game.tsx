@@ -198,6 +198,7 @@ type LightOccluder =
 
 type HeldAction =
   | { kind: "resource"; nodeId: number }
+  | { kind: "bow" }
   | { kind: "free" }
   | null;
 
@@ -253,6 +254,7 @@ interface GameState {
   keys: Set<string>;
   mouseHeld: boolean;
   heldAction: HeldAction;
+  bowChargeStartedAt: number | null;
   buildDrag: boolean;
   lastBuildCell: string | null;
   pointer: { x: number; y: number; worldX: number; worldY: number; active: boolean };
@@ -561,6 +563,10 @@ const BOSS_RANGED_WINDUP_MS = 650;
 const BOSS_PROJECTILE_SPEED = 315;
 const MAX_TAMED_ANIMALS = 5;
 const ANIMAL_LURE_DISTANCE = 360;
+const ANIMAL_LURE_STANDOFF_DISTANCE = 135;
+const ANIMAL_FEED_DISTANCE = 162;
+const BOW_MAX_CHARGE_MS = 1200;
+const BOW_MAX_DAMAGE_BONUS = 0.75;
 const WARY_ESCAPE_DISTANCE = 520;
 const WARY_NOTICE_BONUS = 120;
 const MEAT_EATING_ANIMALS: AnimalKind[] = ["bear", "fox", "wolf"];
@@ -706,6 +712,10 @@ const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
 
 function attackProfile(tool: Tool) {
   return ATTACK_PROFILES[tool] ?? BASIC_ATTACK;
+}
+
+function isBowTool(tool: Tool): tool is "bow" | "ironBow" {
+  return tool === "bow" || tool === "ironBow";
 }
 
 function isDurableTool(item: InventoryItem | null): item is DurableTool {
@@ -1308,6 +1318,7 @@ function makeGame(): GameState {
     keys: new Set(),
     mouseHeld: false,
     heldAction: null,
+    bowChargeStartedAt: null,
     buildDrag: false,
     lastBuildCell: null,
     pointer: { x: 0, y: 0, worldX: 0, worldY: 0, active: false },
@@ -1367,13 +1378,11 @@ function pay(game: GameState, cost: Partial<Record<Material, number>>) {
   removeDepletedMaterialStacks(game);
 }
 
-function spawnNightWave(game: GameState) {
-  game.wave = game.day;
-  const count = 6 + game.day * 3;
-  const roster = MONSTER_WAVE_ROSTERS[game.realm].filter(
-    (kind) => MONSTER_DATA[kind].realm === game.realm && MONSTER_DATA[kind].earliestNight <= game.day,
+function spawnNightWaveInRealm(game: GameState, realm: Realm, count: number) {
+  const roster = MONSTER_WAVE_ROSTERS[realm].filter(
+    (kind) => MONSTER_DATA[kind].realm === realm && MONSTER_DATA[kind].earliestNight <= game.day,
   );
-  if (roster.length === 0) return;
+  if (roster.length === 0) return 0;
   let spawned = 0;
   for (let i = 0; i < count; i++) {
     const kind = roster[i % roster.length];
@@ -1383,14 +1392,14 @@ function spawnNightWave(game: GameState) {
       const candidateX = 70 + seeded(candidateIndex, game.day * 17 + 101) * (WORLD_W - 140);
       const candidateY = 70 + seeded(candidateIndex + 1, game.day * 19 + 103) * (WORLD_H - 140);
       if (Math.hypot(candidateX - game.player.x, candidateY - game.player.y) < 360) continue;
-      if (game.realm === "caveSystem" && !isCaveFloor(candidateX, candidateY, 38)) continue;
-      if (game.realm === "meadow" && inDeepWater(candidateX, candidateY, 30)) continue;
-      if (pointIsLit(game, game.realm, candidateX, candidateY, MONSTER_SPAWN_LIGHT_PADDING)) continue;
-      if (reservedBuildingAt(game, game.realm, candidateX, candidateY, 30)) continue;
+      if (realm === "caveSystem" && !isCaveFloor(candidateX, candidateY, 38)) continue;
+      if (realm === "meadow" && inDeepWater(candidateX, candidateY, 30)) continue;
+      if (pointIsLit(game, realm, candidateX, candidateY, MONSTER_SPAWN_LIGHT_PADDING)) continue;
+      if (reservedBuildingAt(game, realm, candidateX, candidateY, 30)) continue;
       if (
         game.nodes.some(
           (node) =>
-            node.realm === game.realm &&
+            node.realm === realm &&
             node.hp > 0 &&
             (isTree(node.kind) || isMineable(node.kind)) &&
             distanceToNodeFootprint(node, candidateX, candidateY, 20) === 0,
@@ -1405,7 +1414,7 @@ function spawnNightWave(game: GameState) {
     game.creatures.push({
       id: game.lastId++,
       kind,
-      realm: game.realm,
+      realm,
       x: spawnPoint.x,
       y: spawnPoint.y,
       hp,
@@ -1438,7 +1447,19 @@ function spawnNightWave(game: GameState) {
     });
     spawned += 1;
   }
-  notify(game, "NIGHT " + game.day + " — " + spawned + " horrors have entered the hunt.", 4300);
+  return spawned;
+}
+
+function spawnNightWave(game: GameState) {
+  game.wave = game.day;
+  const count = 6 + game.day * 3;
+  const meadowSpawned = spawnNightWaveInRealm(game, "meadow", count);
+  const caveSpawned = spawnNightWaveInRealm(game, "caveSystem", count);
+  notify(
+    game,
+    "NIGHT " + game.day + " — " + meadowSpawned + " horrors prowl the meadow and " + caveSpawned + " stalk the caves.",
+    4300,
+  );
 }
 
 function activeTool(game: GameState): Tool {
@@ -1504,6 +1525,24 @@ function nearestCreature(game: GameState, maxDistance: number) {
     }
   }
   return found;
+}
+
+function nearestLuredAnimal(game: GameState, maxDistance: number) {
+  return game.creatures
+    .filter(
+      (creature) =>
+        creature.realm === game.realm &&
+        creature.hp > 0 &&
+        !creature.tame &&
+        isAnimal(creature.kind) &&
+        isHoldingAnimalLure(game, creature.kind) &&
+        Math.hypot(creature.x - game.player.x, creature.y - game.player.y) <= maxDistance,
+    )
+    .sort(
+      (a, b) =>
+        Math.hypot(a.x - game.player.x, a.y - game.player.y) -
+        Math.hypot(b.x - game.player.x, b.y - game.player.y),
+    )[0] || null;
 }
 
 function tamedAnimalCount(game: GameState) {
@@ -1927,6 +1966,24 @@ function blockingBuildingAt(game: GameState, realm: Realm, x: number, y: number,
   ) || null;
 }
 
+function blockingNodeAt(game: GameState, realm: Realm, x: number, y: number, radius: number) {
+  return game.nodes.find(
+    (node) =>
+      node.realm === realm &&
+      node.hp > 0 &&
+      (isTree(node.kind) || isMineable(node.kind)) &&
+      Math.hypot(node.x - x, node.y - y) < nodeRadius(node.kind, node.size) + radius,
+  ) || null;
+}
+
+function creaturePositionIsOpen(game: GameState, creature: Creature, realm: Realm, x: number, y: number) {
+  if (isAnimal(creature.kind) && ANIMAL_DATA[creature.kind].flying) return true;
+  const radius = creatureRadius(creature);
+  if (realm === "caveSystem" && !isCaveFloor(x, y, radius + 4)) return false;
+  if (realm === "meadow" && inDeepWater(x, y, radius)) return false;
+  return !blockingBuildingAt(game, realm, x, y, radius) && !blockingNodeAt(game, realm, x, y, radius);
+}
+
 function reservedBuildingAt(game: GameState, realm: Realm, x: number, y: number, radius: number) {
   return game.buildings.find(
     (building) =>
@@ -1953,11 +2010,34 @@ function creatureAttackReach(creature: Creature) {
   return creatureRadius(creature) + 24;
 }
 
-function releasePrimaryInput(game: GameState) {
+function bowChargeRatio(game: GameState, now = performance.now()) {
+  if (game.bowChargeStartedAt === null) return 0;
+  return Math.max(0, Math.min(1, (now - game.bowChargeStartedAt) / BOW_MAX_CHARGE_MS));
+}
+
+function beginBowCharge(game: GameState) {
+  const now = performance.now();
+  const tool = activeTool(game);
+  if (!isBowTool(tool) || game.dead || !game.started) return;
+  if (now < game.player.attackReady) return;
+  game.heldAction = { kind: "bow" };
+  if (game.resources.arrows <= 0) {
+    notify(game, "Out of arrows. Craft more ammunition.", 1000);
+    game.player.attackReady = now + 500;
+    return;
+  }
+  game.bowChargeStartedAt = now;
+}
+
+function releasePrimaryInput(game: GameState, fireChargedBow = false) {
+  const chargedBow = game.bowChargeStartedAt !== null && isBowTool(activeTool(game));
+  const charge = bowChargeRatio(game);
   game.mouseHeld = false;
   game.heldAction = null;
+  game.bowChargeStartedAt = null;
   game.buildDrag = false;
   game.lastBuildCell = null;
+  if (fireChargedBow && chargedBow) attack(game, charge);
 }
 
 function resetTransientInput(game: GameState) {
@@ -2139,6 +2219,31 @@ function startDeconstruction(game: GameState) {
   notify(game, "Deconstructing " + BUILD_DATA[building.kind].name + "…", 1200);
 }
 
+function bringTamedCompanionsToPlayer(game: GameState) {
+  const companions = game.creatures.filter(
+    (creature) => creature.hp > 0 && creature.tame && isAnimal(creature.kind),
+  );
+  companions.forEach((companion, index) => {
+    companion.realm = game.realm;
+    const centeredIndex = index - (companions.length - 1) / 2;
+    const baseAngle = game.player.dir + Math.PI + centeredIndex * 0.52;
+    let destination = { x: game.player.x, y: game.player.y };
+    for (const distance of [68, 92, 118]) {
+      const candidateX = Math.max(35, Math.min(WORLD_W - 35, game.player.x + Math.cos(baseAngle) * distance));
+      const candidateY = Math.max(35, Math.min(WORLD_H - 35, game.player.y + Math.sin(baseAngle) * distance));
+      if (!creaturePositionIsOpen(game, companion, game.realm, candidateX, candidateY)) continue;
+      destination = { x: candidateX, y: candidateY };
+      break;
+    }
+    companion.x = destination.x;
+    companion.y = destination.y;
+    companion.homeX = destination.x;
+    companion.homeY = destination.y;
+    companion.angry = false;
+    companion.provokedUntil = 0;
+  });
+}
+
 function interact(game: GameState) {
   if (game.buildMode) {
     placeBuild(game, false, game.keys.has("shift"));
@@ -2159,6 +2264,7 @@ function interact(game: GameState) {
       game.player.y = caveExit.entranceY + 90;
       notify(game, "Back in the meadow.");
     }
+    bringTamedCompanionsToPlayer(game);
     game.camera.x = game.player.x;
     game.camera.y = game.player.y;
     return;
@@ -2212,7 +2318,10 @@ function interact(game: GameState) {
     }
     return;
   }
-  const creature = nearestCreature(game, 92);
+  const nearbyCreature = nearestCreature(game, 92);
+  const creature = nearbyCreature && isAnimal(nearbyCreature.kind) && !nearbyCreature.tame
+    ? nearbyCreature
+    : nearestLuredAnimal(game, ANIMAL_FEED_DISTANCE);
   if (creature && isAnimal(creature.kind) && !creature.tame) {
     if (isPermanentlyWaryPrey(creature.kind) && creature.waryOfPlayer) {
       notify(game, "This " + creature.kind + " no longer trusts you and refuses bait.");
@@ -2387,12 +2496,12 @@ function harvestNode(game: GameState, node: ResourceNode) {
   notify(game, feedback.join(" · "), node.hp <= 0 ? 2200 : 900);
 }
 
-function attack(game: GameState) {
+function attack(game: GameState, bowCharge = 0) {
   const now = performance.now();
   if (now < game.player.attackReady || game.dead || !game.started) return;
   const tool = activeTool(game);
   const profile = attackProfile(tool);
-  const isBow = tool === "bow" || tool === "ironBow";
+  const isBow = isBowTool(tool);
   if (isBow || tool === "pistol") {
     const ammo: Material = isBow ? "arrows" : "bullets";
     if (game.resources[ammo] <= 0) {
@@ -2415,7 +2524,12 @@ function attack(game: GameState) {
       startedAt: now,
       duration: tool === "pistol" ? 120 : 155,
     };
-    const speed = tool === "ironBow" ? 720 : tool === "bow" ? 620 : 1120;
+    const charge = isBow ? Math.max(0, Math.min(1, bowCharge)) : 0;
+    const baseSpeed = tool === "ironBow" ? 720 : tool === "bow" ? 620 : 1120;
+    const speed = isBow ? baseSpeed * (0.9 + charge * 0.15) : baseSpeed;
+    const damage = isBow
+      ? Math.round(profile.damage * (1 + charge * BOW_MAX_DAMAGE_BONUS))
+      : profile.damage;
     game.projectiles.push({
       id: game.lastId++,
       kind: isBow ? "arrow" : "bullet",
@@ -2425,7 +2539,7 @@ function attack(game: GameState) {
       vx: Math.cos(game.player.dir) * speed,
       vy: Math.sin(game.player.dir) * speed,
       life: tool === "ironBow" ? 0.84 : tool === "bow" ? 0.9 : 0.58,
-      damage: profile.damage,
+      damage,
     });
     return;
   }
@@ -2456,8 +2570,14 @@ function attack(game: GameState) {
       creature.angry = true;
       creature.provokedUntil = now + 5000;
       makePreyPermanentlyWary(creature);
-      creature.x += Math.cos(game.player.dir) * 22;
-      creature.y += Math.sin(game.player.dir) * 22;
+      moveCreatureWithBuildings(
+        game,
+        creature,
+        Math.cos(game.player.dir),
+        Math.sin(game.player.dir),
+        1,
+        22,
+      );
       hit = true;
       if (creature.hp <= 0) {
         awardCreatureDrop(game, creature);
@@ -2570,6 +2690,10 @@ function primaryAction(game: GameState, repeated = false) {
     startDeconstruction(game);
     return;
   }
+  if (game.mouseHeld && isBowTool(activeTool(game))) {
+    if (game.heldAction?.kind !== "bow") beginBowCharge(game);
+    return;
+  }
   if (repeated && game.heldAction?.kind === "resource") {
     const lockedNodeId = game.heldAction.nodeId;
     const lockedNode = game.nodes.find(
@@ -2627,13 +2751,15 @@ function moveCreatureWithBuildings(game: GameState, creature: Creature, dx: numb
   const nextX = Math.max(35, Math.min(WORLD_W - 35, creature.x + (dx / distance) * terrainStep));
   const nextY = Math.max(35, Math.min(WORLD_H - 35, creature.y + (dy / distance) * terrainStep));
   let blocker = blockingBuildingAt(game, creature.realm, nextX, creature.y, radius);
+  const xNodeBlocker = blockingNodeAt(game, creature.realm, nextX, creature.y, radius);
   const xInsideCave = creature.realm !== "caveSystem" || isCaveFloor(nextX, creature.y, radius + 4);
   const xOutsideDeepWater = creature.realm !== "meadow" || !inDeepWater(nextX, creature.y, radius);
-  if (!blocker && xInsideCave && xOutsideDeepWater) creature.x = nextX;
+  if (!blocker && !xNodeBlocker && xInsideCave && xOutsideDeepWater) creature.x = nextX;
   const yBlocker = blockingBuildingAt(game, creature.realm, creature.x, nextY, radius);
+  const yNodeBlocker = blockingNodeAt(game, creature.realm, creature.x, nextY, radius);
   const yInsideCave = creature.realm !== "caveSystem" || isCaveFloor(creature.x, nextY, radius + 4);
   const yOutsideDeepWater = creature.realm !== "meadow" || !inDeepWater(creature.x, nextY, radius);
-  if (!yBlocker && yInsideCave && yOutsideDeepWater) creature.y = nextY;
+  if (!yBlocker && !yNodeBlocker && yInsideCave && yOutsideDeepWater) creature.y = nextY;
   blocker ||= yBlocker;
   return blocker;
 }
@@ -2809,8 +2935,11 @@ function updateCreatures(game: GameState, dt: number) {
         creature.angry = true;
       } else if (isHoldingAnimalLure(game, creature.kind) && playerDistance < ANIMAL_LURE_DISTANCE) {
         creature.angry = false;
-        targetX = game.player.x;
-        targetY = game.player.y;
+        const lureDirection = playerDistance > 1
+          ? Math.atan2(creature.y - game.player.y, creature.x - game.player.x)
+          : creature.phase;
+        targetX = game.player.x + Math.cos(lureDirection) * ANIMAL_LURE_STANDOFF_DISTANCE;
+        targetY = game.player.y + Math.sin(lureDirection) * ANIMAL_LURE_STANDOFF_DISTANCE;
         movement = "lure";
       } else if (animal.temperament === "skittish") {
         if (playerDistance < animal.noticeDistance) creature.angry = true;
@@ -2883,7 +3012,7 @@ function updateCreatures(game: GameState, dt: number) {
       : isMonster(creature.kind) && attackPathClear
         ? Math.max(30, attackReach - 12)
         : 30;
-    const stopDistance = movement === "follow" ? 58 : movement === "lure" ? 52 : movement === "chase" ? chaseStopDistance : 2;
+    const stopDistance = movement === "follow" ? 58 : movement === "lure" ? 5 : movement === "chase" ? chaseStopDistance : 2;
     const shouldMove = distance > stopDistance && !chargingRangedAttack;
     if (shouldMove) {
       const slowFactor = now < creature.slowUntil ? 0.42 : 1;
@@ -3705,6 +3834,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
   const tool = activeTool(game);
   const durableTool = durableToolInfo(tool);
   const profile = attackProfile(tool);
+  const bowCharge = isBowTool(tool) ? bowChargeRatio(game) : 0;
   const progress = swing > 0
     ? Math.max(0, Math.min(1, 1 - swing / profile.animationSeconds))
     : 0;
@@ -3749,6 +3879,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
   }
   if (tool === "bow" || tool === "ironBow") {
     const isIronBow = tool === "ironBow";
+    const nockX = 13 - bowCharge * 21;
     ctx.strokeStyle = isIronBow ? "#aebfbd" : "#8c5a37";
     ctx.lineWidth = isIronBow ? 6 : 5;
     ctx.beginPath();
@@ -3768,13 +3899,13 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(36, -20);
-    ctx.lineTo(13, 0);
+    ctx.lineTo(nockX, 0);
     ctx.lineTo(36, 20);
     ctx.stroke();
     ctx.strokeStyle = "#4b3a30";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(9, 0);
+    ctx.moveTo(nockX - 4, 0);
     ctx.lineTo(55, 0);
     ctx.stroke();
     ctx.fillStyle = "#c8d1cc";
@@ -3784,6 +3915,14 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.lineTo(49, 5);
     ctx.closePath();
     ctx.fill();
+    if (game.bowChargeStartedAt !== null) {
+      ctx.fillStyle = "rgba(20,35,31,.82)";
+      roundedRect(ctx, 2, -31, 52, 6, 3);
+      ctx.fill();
+      ctx.fillStyle = bowCharge >= 1 ? "#f4c65a" : "#dce8c2";
+      roundedRect(ctx, 3, -30, 50 * bowCharge, 4, 2);
+      ctx.fill();
+    }
     ctx.restore();
     return;
   }
@@ -4556,6 +4695,25 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature, no
     ctx.beginPath();
     ctx.ellipse(-length - 28, -width * 0.29, 8, 4.2, 0.18, 0, Math.PI * 2);
     ctx.fill();
+  } else if (kind === "raccoon") {
+    ctx.save();
+    ctx.translate(-length + 3, 2);
+    ctx.rotate(-0.24);
+    ctx.fillStyle = "#7c8580";
+    ctx.strokeStyle = "#343b38";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(-24, 0, 29, 10.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(-24, 0, 27, 8.7, 0, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = "#343b38";
+    for (const x of [-42, -28, -14]) ctx.fillRect(x, -12, 7, 24);
+    ctx.restore();
+    ctx.restore();
   }
 
   ctx.fillStyle = body;
@@ -4588,14 +4746,10 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature, no
     ctx.lineTo(10, 0);
     ctx.stroke();
   } else if (kind === "raccoon") {
-    ctx.strokeStyle = "rgba(37,43,42,.72)";
-    ctx.lineWidth = 3;
-    for (const x of [-18, -10, -2]) {
-      ctx.beginPath();
-      ctx.moveTo(x, -width * 0.72);
-      ctx.lineTo(x, width * 0.72);
-      ctx.stroke();
-    }
+    ctx.fillStyle = "rgba(187,194,187,.48)";
+    ctx.beginPath();
+    ctx.ellipse(-7, 0, 15, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   if (kind === "deer") {
@@ -4692,6 +4846,20 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature, no
       ctx.closePath();
       ctx.fill();
     }
+  } else if (kind === "raccoon") {
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = body;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(headX - 5, side * (headWidth * 0.78), 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#343b38";
+      ctx.beginPath();
+      ctx.arc(headX - 4, side * (headWidth * 0.8), 2.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   ctx.fillStyle = body;
@@ -4729,7 +4897,17 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature, no
   ctx.beginPath();
   ctx.ellipse(headX + headLength * 0.38, 0, headLength * 0.48, headWidth * 0.55, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#20211f";
+  if (kind === "raccoon") {
+    ctx.fillStyle = "#303735";
+    ctx.beginPath();
+    ctx.moveTo(headX - 4, -headWidth * 0.62);
+    ctx.quadraticCurveTo(headX + 4, -headWidth * 0.92, headX + 10, -headWidth * 0.35);
+    ctx.lineTo(headX + 8, headWidth * 0.35);
+    ctx.quadraticCurveTo(headX + 4, headWidth * 0.92, headX - 4, headWidth * 0.62);
+    ctx.quadraticCurveTo(headX + 1, 0, headX - 4, -headWidth * 0.62);
+    ctx.fill();
+  }
+  ctx.fillStyle = kind === "raccoon" ? "#eee5d6" : "#20211f";
   ctx.beginPath();
   ctx.arc(headX + headLength * 0.2, -headWidth * 0.42, 2.1, 0, Math.PI * 2);
   ctx.arc(headX + headLength * 0.2, headWidth * 0.42, 2.1, 0, Math.PI * 2);
@@ -4772,14 +4950,10 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature, no
     ctx.fill();
   }
   if (kind === "raccoon") {
-    ctx.strokeStyle = "rgba(37,43,42,.82)";
-    ctx.lineWidth = 5;
+    ctx.fillStyle = "#1f2523";
     ctx.beginPath();
-    ctx.moveTo(headX + 1, -headWidth * 0.55);
-    ctx.lineTo(headX + 8, -headWidth * 0.28);
-    ctx.moveTo(headX + 1, headWidth * 0.55);
-    ctx.lineTo(headX + 8, headWidth * 0.28);
-    ctx.stroke();
+    ctx.ellipse(headX + headLength * 0.92, 0, 3.4, 4.2, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
   if (creature.tame) {
     ctx.strokeStyle = "#f1bf4f";
@@ -6274,7 +6448,10 @@ function nearbyPrompt(game: GameState) {
     if (building.kind === "crop") return "E · " + (building.growth >= 1 ? "Harvest crop" : "Check crop");
     return "E · " + (building.open ? "Close" : "Open") + " " + BUILD_DATA[building.kind].name;
   }
-  const creature = nearestCreature(game, 92);
+  const nearbyCreature = nearestCreature(game, 92);
+  const creature = nearbyCreature && isAnimal(nearbyCreature.kind) && !nearbyCreature.tame
+    ? nearbyCreature
+    : nearestLuredAnimal(game, ANIMAL_FEED_DISTANCE);
   if (creature && isAnimal(creature.kind) && !creature.tame) {
     if (isPermanentlyWaryPrey(creature.kind) && creature.waryOfPlayer) {
       return "This " + creature.kind + " is wary and refuses bait";
@@ -6373,7 +6550,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "bow",
     name: "Hunting Bow",
-    detail: "520 range · 18 damage",
+    detail: "520 range · 18–32 charged damage",
     cost: { wood: 6, fiber: 4, copper: 2 },
     requiresBench: true,
     owned: (game) => game.gear.bow,
@@ -6386,7 +6563,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "ironBow",
     name: "Iron Bow",
-    detail: "Tier 2 · 600 range · 28 damage",
+    detail: "Tier 2 · 600 range · 28–49 charged damage",
     cost: { wood: 6, fiber: 4, iron: 5 },
     requiresBench: true,
     owned: (game) => game.gear.ironBow,
@@ -6751,7 +6928,7 @@ export default function Game() {
       refresh();
     };
     const up = (event: KeyboardEvent) => game.keys.delete(event.key.toLowerCase());
-    const releasePrimary = () => releasePrimaryInput(game);
+    const releasePrimary = () => releasePrimaryInput(game, true);
     const resetInput = () => resetTransientInput(game);
     const resetHiddenInput = () => {
       if (document.visibilityState === "hidden") resetTransientInput(game);
@@ -6932,15 +7109,18 @@ export default function Game() {
     );
   };
 
+  const bowChargeLabel = game.bowChargeStartedAt !== null
+    ? " · draw " + Math.round(bowChargeRatio(game) * 100) + "%"
+    : "";
   const toolName =
     game.selected === "sword"
       ? "Iron Sword"
       : game.selected === "spear"
         ? "Stone Spear"
         : game.selected === "bow"
-          ? "Hunting Bow · " + game.resources.arrows + " arrows"
+          ? "Hunting Bow · " + game.resources.arrows + " arrows" + bowChargeLabel
         : game.selected === "ironBow"
-          ? "Iron Bow · " + game.resources.arrows + " arrows"
+          ? "Iron Bow · " + game.resources.arrows + " arrows" + bowChargeLabel
       : game.selected === "pistol"
             ? "Scrap Pistol · " + game.resources.bullets + " bullets"
       : isDurableTool(game.selected)
@@ -6974,7 +7154,6 @@ export default function Game() {
         onPointerMove={pointerMove}
         onPointerLeave={() => {
           game.pointer.active = false;
-          releasePrimaryInput(game);
         }}
         onPointerDown={(event) => {
           if (event.button === 2) {
@@ -6997,7 +7176,7 @@ export default function Game() {
           refresh();
         }}
         onPointerUp={(event) => {
-          releasePrimaryInput(game);
+          releasePrimaryInput(game, true);
           if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
         }}
         onPointerCancel={() => releasePrimaryInput(game)}
@@ -7140,7 +7319,7 @@ export default function Game() {
             primaryAction(game);
             refresh();
           }}
-          onPointerUp={() => releasePrimaryInput(game)}
+          onPointerUp={() => releasePrimaryInput(game, true)}
           onPointerLeave={() => releasePrimaryInput(game)}
           onPointerCancel={() => releasePrimaryInput(game)}
         >Hold tool</button>

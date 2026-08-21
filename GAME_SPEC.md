@@ -64,18 +64,20 @@ omitted because they would not be clearly visible from this camera height.
 Deer have large, branched antlers and visible side ears; wolves have a broad
 head, triangular ears, a defined muzzle, and a bushy tail; rabbits have two
 long, splayed ears; foxes have pointed ears, a narrow muzzle, and a large bushy
-tail with a pale tip. These defining features remain prominent at gameplay zoom.
+tail with a pale tip; raccoons have rounded ears, a black eye mask, and a long,
+dark-ringed tail. These defining features remain prominent at gameplay zoom.
 Animals are never represented as a front-facing or side-profile face, and
 creatures turn their whole overhead body in their direction of travel.
 
 The player moves at 190 world units per second. Trees and mineable deposits use
-their full visible top-down footprint as solid hitboxes. Movement slides along
-their edges so the dense forest remains navigable. The player does not collide
-with forage nodes or creatures. Completed walls, fences, gates, doors, benches,
-chests, and other solid structures block the player and creatures; an open gate
-or door can be crossed. Dark deep water is impassable to the player and every
-ground creature. Pale shallow water can be crossed, but reduces their movement
-speed to 48%. Flying crows and owls ignore both water depths.
+their full visible top-down footprint as solid hitboxes for the player, ground
+wildlife, monsters, and grounded companions. Movement slides along their edges
+so the dense forest remains navigable. The player does not collide with forage
+nodes or creatures. Completed walls, fences, gates, doors, benches, chests, and
+other solid structures block the player and creatures; an open gate or door can
+be crossed. Dark deep water is impassable to the player and every ground
+creature. Pale shallow water can be crossed, but reduces their movement speed
+to 48%. Flying crows and owls ignore resource, structure, and water collision.
 
 ## 4. Controls and inventory
 
@@ -83,7 +85,7 @@ speed to 48%. Flying crows and owls ignore both water depths.
 | --- | --- |
 | `WASD` or arrow keys | Move |
 | Pointer position | Aim the equipped tool independently of movement and choose targets |
-| Hold left mouse | Repeatedly gather, attack, fire, or start hammer deconstruction at the item's cooldown |
+| Hold left mouse | Repeatedly gather or use melee weapons; hold a bow to draw it, then release to fire; start hammer deconstruction |
 | Left click in build mode | Place one ready building piece |
 | Hold `Shift` and left-drag | Place ready pieces across each valid grid cell crossed |
 | Right click in build mode | Cancel placement without using a ready piece |
@@ -312,8 +314,8 @@ button.
 | Deconstruction Hammer | 4 wood, 2 stone | Removes an aimed structure and recovers part of its materials |
 | Stone Spear | 5 wood, 3 stone | 17-damage melee weapon |
 | Iron Sword | 4 wood, 7 iron | Fast 25-damage melee weapon |
-| Hunting Bow | 6 wood, 4 fiber, 2 copper | 18-damage ranged weapon |
-| Iron Bow | 6 wood, 4 fiber, 5 iron | Tier-two 28-damage ranged weapon |
+| Hunting Bow | 6 wood, 4 fiber, 2 copper | 18-damage bow; up to 32 damage at full draw |
+| Iron Bow | 6 wood, 4 fiber, 5 iron | Tier-two 28-damage bow; up to 49 damage at full draw |
 | Arrow Bundle | 2 wood, 1 stone | 12 arrows |
 | Scrap Pistol | 8 iron, 6 copper, 3 coal, 2 sulfur | 34-damage ranged weapon |
 | Bullet Bundle | 2 iron, 1 coal, 2 sulfur | 12 bullets |
@@ -406,6 +408,13 @@ projectile in the exact pointer-facing direction. A projectile only deals
 damage if its path intersects a creature. Every completed attack produces a
 brief white directional flash. Spears use a narrow straight-ahead hit area and
 thrust animation; axes, pickaxes, swords, and improvised attacks use arcs.
+
+Holding the left mouse button with either bow starts a draw that reaches full
+strength after 1.2 seconds. The bowstring and nocked arrow visibly pull farther
+back while held, and an on-character meter and equipped-item label show charge.
+Releasing fires one arrow. Damage scales continuously from the listed base
+damage at a quick release to 175% at full draw; arrow speed also rises slightly.
+The `Space`/`F` alternate attack remains an immediate base-damage shot.
 
 | Item | Damage | Range | Cooldown |
 | --- | ---: | ---: | ---: |
@@ -502,6 +511,11 @@ selected meat, and otherwise attack within their notice distance before giving
 up beyond 340 units. Boars remain berry-lured but aggressive when unbaited. All
 other wildlife follows selected berries. Deer and rabbits approach their berries
 slowly and, without bait, flee at the enlarged 220- and 170-unit notice ranges.
+An animal following bait stops about 135 units from the player instead of
+walking into melee range. It can still be fed with `E` from up to 162 units
+while the correct food remains selected. Switching away from the bait restores
+the animal's ordinary flee or aggressive behavior, and the stand-off position
+keeps it beyond a spear's 102-unit reach at the moment of the switch.
 
 Once the player hits a deer or rabbit, that animal becomes permanently wary for
 its current life. It refuses all future bait, runs until it is at least 520 units
@@ -516,7 +530,9 @@ makes one independent taming roll. Failed attempts leave the animal wild, so
 lower success rates make larger and stronger companions require more bait on
 average. The player can have at most five tamed companions. Tamed animals follow
 the player, cannot be hit by the player, seek night monsters within 230 units,
-and attack at close range.
+and attack at close range. When the player enters or exits a cave, every living
+tamed companion transfers to the destination realm and reforms behind the
+player at an open position.
 
 Defeated wild animals leave their population slot empty for a randomly selected
 2–4 days, then respawn at their original territory with full health and no prior
@@ -524,18 +540,21 @@ taming attempts, and no remembered wariness.
 
 ## 12. Endless night progression
 
-Every night spawns `6 + 3 × day` new monsters in the player's current realm,
-with no wave-size cap. Night 1 therefore spawns 9; night 10 spawns 36. Meadow
+Every night spawns `6 + 3 × day` new monsters in each realm, with no wave-size
+cap. Night 1 therefore spawns 9 in the meadow and 9 in the cave system; night
+10 spawns 36 in each. Monsters in the inactive realm remain there while the
+player travels, so leaving a cave never makes the outside night empty. Meadow
 waves use only shades, crawlers, and brutes. Cave-system waves use only wraiths
 and maws; surface horrors never spawn underground and cave horrors never spawn
-outside. The game checks throughout the night whether the current day's wave
-has spawned, so a missed transition frame cannot suppress a wave. Each day
+outside. The game checks throughout the night whether the current day's waves
+have spawned, so a missed transition frame cannot suppress them. Each day
 advances after dawn, and each monster gains 2 speed and 1.4 contact damage per
 day.
 
-Each monster's position is sampled independently from valid points across the
-current realm, at least 360 units from the player. Waves do not form a ring or
-otherwise distribute themselves evenly around the player.
+Each monster's position is sampled independently from valid points across its
+realm, at least 360 units from the player's corresponding world coordinates.
+Waves do not form a ring or otherwise distribute themselves evenly around the
+player.
 
 Night-wave spawn candidates inside the visible, line-of-sight portion of the
 player's close vision or a completed Standing Torch, Campfire, or Fire Trap are
