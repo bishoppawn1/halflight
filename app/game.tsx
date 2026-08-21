@@ -139,6 +139,10 @@ interface Creature {
   waryOfPlayer: boolean;
   respawnAt: number;
   fleeing: boolean;
+  abilityReadyAt: number;
+  abilityStartedAt: number;
+  abilityTargetX: number;
+  abilityTargetY: number;
 }
 
 interface Building {
@@ -294,6 +298,13 @@ const LOW_HUNGER_THRESHOLD = 25;
 const COMPANION_ATTACK_COOLDOWN_MS = 1100;
 const CREATURE_ATTACK_COOLDOWN_MS = 1250;
 const CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS = 1200;
+const BRUTE_LEAP_COOLDOWN_MS = 4200;
+const BRUTE_LEAP_WINDUP_MS = 420;
+const BRUTE_LEAP_TRAVEL_MS = 560;
+const BRUTE_LEAP_SPEED = 620;
+const BRUTE_LEAP_MIN_DISTANCE = 120;
+const BRUTE_LEAP_MAX_DISTANCE = 320;
+const BRUTE_LEAP_IMPACT_RADIUS = 78;
 const PLAYER_LIGHT_RADIUS: Record<Realm, number> = { meadow: 96, caveSystem: 112 };
 const BUILDING_LIGHT_RADIUS: Partial<Record<BuildKind, number>> = {
   torch: 225,
@@ -516,12 +527,28 @@ const BUILD_ORDER: BuildKind[] = [
 const ANIMAL_KINDS: AnimalKind[] = ["bear", "boar", "deer", "rabbit", "fox", "wolf", "raccoon", "crow", "owl", "turkey"];
 const BIRD_KINDS: BirdKind[] = ["crow", "owl", "turkey"];
 const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "wraith", "maw"];
-const MONSTER_ATTACK_REACH: Record<MonsterKind, number> = {
-  shade: 76,
-  crawler: 82,
-  brute: 88,
-  wraith: 108,
-  maw: 96,
+const MONSTER_DATA: Record<
+  MonsterKind,
+  {
+    realm: Realm;
+    earliestNight: number;
+    hp: number;
+    hpScale: number;
+    speed: number;
+    damage: number;
+    attackReach: number;
+    senseRadius: number;
+  }
+> = {
+  shade: { realm: "meadow", earliestNight: 1, hp: 28, hpScale: 8, speed: 84, damage: 7, attackReach: 76, senseRadius: 320 },
+  crawler: { realm: "meadow", earliestNight: 2, hp: 23, hpScale: 6, speed: 116, damage: 6, attackReach: 142, senseRadius: 390 },
+  brute: { realm: "meadow", earliestNight: 3, hp: 54, hpScale: 13, speed: 60, damage: 12, attackReach: 88, senseRadius: 300 },
+  wraith: { realm: "caveSystem", earliestNight: 1, hp: 42, hpScale: 10, speed: 96, damage: 10, attackReach: 108, senseRadius: 440 },
+  maw: { realm: "caveSystem", earliestNight: 3, hp: 92, hpScale: 17, speed: 56, damage: 17, attackReach: 96, senseRadius: 260 },
+};
+const MONSTER_WAVE_ROSTERS: Record<Realm, MonsterKind[]> = {
+  meadow: ["shade", "shade", "crawler", "shade", "brute"],
+  caveSystem: ["wraith", "wraith", "maw"],
 };
 const BOSS_ATTACK_REACH_BONUS = 18;
 const BOSS_SPEED = 78;
@@ -1108,7 +1135,7 @@ function makeGame(): GameState {
   const creatures: Creature[] = [];
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = ANIMAL_DATA[kind];
-    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false });
+    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false, abilityReadyAt: 0, abilityStartedAt: 0, abilityTargetX: x, abilityTargetY: y });
   };
   const wildlifeRoster = ANIMAL_KINDS.flatMap((kind) =>
     Array.from({ length: ANIMAL_DATA[kind].startingCount }, () => kind),
@@ -1191,6 +1218,10 @@ function makeGame(): GameState {
     waryOfPlayer: false,
     respawnAt: 0,
     fleeing: false,
+    abilityReadyAt: 0,
+    abilityStartedAt: 0,
+    abilityTargetX: guardianPoint.x,
+    abilityTargetY: guardianPoint.y,
   });
   const startingCampfire: Building = {
     id: id++,
@@ -1339,18 +1370,13 @@ function pay(game: GameState, cost: Partial<Record<Material, number>>) {
 function spawnNightWave(game: GameState) {
   game.wave = game.day;
   const count = 6 + game.day * 3;
+  const roster = MONSTER_WAVE_ROSTERS[game.realm].filter(
+    (kind) => MONSTER_DATA[kind].realm === game.realm && MONSTER_DATA[kind].earliestNight <= game.day,
+  );
+  if (roster.length === 0) return;
   let spawned = 0;
   for (let i = 0; i < count; i++) {
-    const kind: MonsterKind =
-      game.day >= 5 && i % 7 === 0
-        ? "maw"
-        : game.day >= 4 && i % 5 === 0
-          ? "wraith"
-          : game.day >= 2 && i % 4 === 0
-            ? "brute"
-            : game.day >= 2 && i % 3 === 0
-              ? "crawler"
-              : "shade";
+    const kind = roster[i % roster.length];
     let spawnPoint: { x: number; y: number } | null = null;
     for (let attempt = 0; attempt < 160; attempt++) {
       const candidateIndex = i * 211 + attempt * 2;
@@ -1374,14 +1400,7 @@ function spawnNightWave(game: GameState) {
       break;
     }
     if (!spawnPoint) continue;
-    const baseStats: Record<MonsterKind, { hp: number; hpScale: number; speed: number; damage: number }> = {
-      shade: { hp: 28, hpScale: 8, speed: 84, damage: 7 },
-      crawler: { hp: 23, hpScale: 6, speed: 116, damage: 6 },
-      brute: { hp: 54, hpScale: 13, speed: 60, damage: 12 },
-      wraith: { hp: 42, hpScale: 10, speed: 96, damage: 10 },
-      maw: { hp: 92, hpScale: 17, speed: 56, damage: 17 },
-    };
-    const stats = baseStats[kind];
+    const stats = MONSTER_DATA[kind];
     const hp = stats.hp + game.day * stats.hpScale;
     game.creatures.push({
       id: game.lastId++,
@@ -1412,6 +1431,10 @@ function spawnNightWave(game: GameState) {
       waryOfPlayer: false,
       respawnAt: 0,
       fleeing: false,
+      abilityReadyAt: 0,
+      abilityStartedAt: 0,
+      abilityTargetX: spawnPoint.x,
+      abilityTargetY: spawnPoint.y,
     });
     spawned += 1;
   }
@@ -1925,7 +1948,7 @@ function creatureRadius(creature: Creature) {
 
 function creatureAttackReach(creature: Creature) {
   if (isMonster(creature.kind)) {
-    return MONSTER_ATTACK_REACH[creature.kind] + (creature.boss ? BOSS_ATTACK_REACH_BONUS : 0);
+    return MONSTER_DATA[creature.kind].attackReach + (creature.boss ? BOSS_ATTACK_REACH_BONUS : 0);
   }
   return creatureRadius(creature) + 24;
 }
@@ -2641,6 +2664,52 @@ function launchGuardianVolley(game: GameState, guardian: Creature) {
   notify(game, "The cave guardian launches a void volley!", 900);
 }
 
+function updateBruteLeap(game: GameState, creature: Creature, dt: number, now: number) {
+  if (creature.kind !== "brute" || creature.abilityStartedAt <= 0) return false;
+  const elapsed = now - creature.abilityStartedAt;
+  creature.dir = steerCreatureFacing(
+    creature.dir,
+    Math.atan2(creature.abilityTargetY - creature.y, creature.abilityTargetX - creature.x),
+    9 * dt,
+  );
+  if (elapsed < BRUTE_LEAP_WINDUP_MS) return true;
+
+  if (elapsed < BRUTE_LEAP_WINDUP_MS + BRUTE_LEAP_TRAVEL_MS) {
+    const dx = creature.abilityTargetX - creature.x;
+    const dy = creature.abilityTargetY - creature.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > 1) {
+      const blocker = moveCreatureWithBuildings(
+        game,
+        creature,
+        dx,
+        dy,
+        distance,
+        Math.min(BRUTE_LEAP_SPEED * dt, distance),
+      );
+      if (blocker) {
+        if (now - creature.structureHitAt > CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS) {
+          blocker.hp -= creature.damage * 1.5;
+          creature.structureHitAt = now;
+        }
+        creature.abilityStartedAt = 0;
+      }
+    }
+    return true;
+  }
+
+  creature.abilityStartedAt = 0;
+  const playerDistance = Math.hypot(game.player.x - creature.x, game.player.y - creature.y);
+  if (
+    playerDistance < BRUTE_LEAP_IMPACT_RADIUS &&
+    monsterAttackLineIsClear(game, creature.realm, creature.x, creature.y, game.player.x, game.player.y)
+  ) {
+    damagePlayer(game, creature.damage * 1.5, "Brute impact dealt");
+    creature.hitAt = now;
+  }
+  return true;
+}
+
 function updateCreatures(game: GameState, dt: number) {
   const now = performance.now();
   for (const creature of game.creatures) {
@@ -2675,14 +2744,7 @@ function updateCreatures(game: GameState, dt: number) {
     const cautiousPrey = isAnimal(creature.kind) && isPermanentlyWaryPrey(creature.kind);
     const permanentlyWary = cautiousPrey && creature.waryOfPlayer;
     if (isMonster(creature.kind)) {
-      const senseDistance: Record<MonsterKind, number> = {
-        shade: 320,
-        crawler: 390,
-        brute: 270,
-        wraith: 440,
-        maw: 240,
-      };
-      const sense = creature.boss ? BOSS_SENSE_DISTANCE : senseDistance[creature.kind];
+      const sense = creature.boss ? BOSS_SENSE_DISTANCE : MONSTER_DATA[creature.kind].senseRadius;
       if (playerDistance < sense) creature.angry = true;
       if (playerDistance > sense * 1.8) creature.angry = false;
       if (creature.angry) {
@@ -2690,6 +2752,20 @@ function updateCreatures(game: GameState, dt: number) {
         targetY = game.player.y;
         movement = "chase";
         attackingPlayer = true;
+      }
+      if (
+        creature.kind === "brute" &&
+        creature.angry &&
+        creature.abilityStartedAt <= 0 &&
+        now >= creature.abilityReadyAt &&
+        playerDistance >= BRUTE_LEAP_MIN_DISTANCE &&
+        playerDistance <= BRUTE_LEAP_MAX_DISTANCE &&
+        monsterAttackLineIsClear(game, creature.realm, creature.x, creature.y, game.player.x, game.player.y)
+      ) {
+        creature.abilityStartedAt = now;
+        creature.abilityReadyAt = now + BRUTE_LEAP_COOLDOWN_MS;
+        creature.abilityTargetX = game.player.x;
+        creature.abilityTargetY = game.player.y;
       }
     }
     if (creature.tame) {
@@ -2764,6 +2840,8 @@ function updateCreatures(game: GameState, dt: number) {
         movement = "return";
       }
     }
+    if (updateBruteLeap(game, creature, dt, now)) continue;
+
     const dx = targetX - creature.x;
     const dy = targetY - creature.y;
     const distance = Math.max(1, Math.hypot(dx, dy));
@@ -4713,6 +4791,262 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature, no
   }
 }
 
+function drawMonsterLimb(
+  ctx: CanvasRenderingContext2D,
+  points: readonly (readonly [number, number])[],
+  width: number,
+  color: string,
+) {
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  points.forEach(([x, y], index) => {
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#111522";
+  ctx.lineWidth = width + 5;
+  ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
+
+function drawMonsterCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
+  const pulse = Math.sin(now / 150 + creature.phase) * 1.5;
+
+  if (creature.kind === "shade") {
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2 + Math.sin(now / 520 + creature.phase + i) * 0.12;
+      const inner = 14;
+      const outer = 34 + (i % 2) * 7;
+      const bend = Math.sin(now / 290 + i * 1.8) * 7;
+      ctx.strokeStyle = "#111522";
+      ctx.lineWidth = 11;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+      ctx.quadraticCurveTo(
+        Math.cos(angle) * 25 - Math.sin(angle) * bend,
+        Math.sin(angle) * 25 + Math.cos(angle) * bend,
+        Math.cos(angle) * outer,
+        Math.sin(angle) * outer,
+      );
+      ctx.stroke();
+      ctx.strokeStyle = "#303b62";
+      ctx.lineWidth = 7;
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#252d49";
+    ctx.strokeStyle = "#111522";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 26 + pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#090b12";
+    ctx.beginPath();
+    ctx.ellipse(10, 0, 10, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f35a58";
+    for (const y of [-8, 0, 8]) {
+      ctx.beginPath();
+      ctx.ellipse(13, y, 4.5, 2.5, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    return;
+  }
+
+  if (creature.kind === "crawler") {
+    const attackAge = now - creature.hitAt;
+    const lash = attackAge >= 0 && attackAge < 260
+      ? Math.sin((attackAge / 260) * Math.PI) * 24
+      : 0;
+    for (const side of [-1, 1] as const) {
+      drawMonsterLimb(
+        ctx,
+        [[8, side * 9], [38, side * 29], [76, side * 20], [104 + lash, side * 7]],
+        6,
+        "#465773",
+      );
+      drawMonsterLimb(ctx, [[-4, side * 12], [20, side * 38], [58, side * 45]], 5, "#35445f");
+      drawMonsterLimb(ctx, [[-14, side * 9], [-30, side * 31], [-57, side * 36]], 5, "#35445f");
+    }
+    ctx.fillStyle = "#283449";
+    ctx.strokeStyle = "#111522";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.ellipse(-2, 0, 28 + pulse, 19, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#1b2334";
+    ctx.beginPath();
+    ctx.ellipse(-16, 0, 12, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#0b0d12";
+    ctx.beginPath();
+    ctx.ellipse(15, 0, 12, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ead9bd";
+    for (const y of [-5, 0, 5]) {
+      ctx.beginPath();
+      ctx.moveTo(9, y - 3);
+      ctx.lineTo(22, y);
+      ctx.lineTo(9, y + 3);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#ff655f";
+    for (const [x, y] of [[-9, -8], [-2, -11], [-9, 8], [-2, 11]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    return;
+  }
+
+  if (creature.kind === "brute") {
+    const windup = creature.abilityStartedAt > 0
+      ? Math.max(0, Math.min(1, (now - creature.abilityStartedAt) / BRUTE_LEAP_WINDUP_MS))
+      : 0;
+    for (const side of [-1, 1] as const) {
+      drawMonsterLimb(ctx, [[6, side * 18], [31, side * 33], [52, side * 27]], 13, "#76516f");
+      ctx.fillStyle = windup > 0 ? "#e29a67" : "#9a708c";
+      ctx.strokeStyle = "#211621";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(45, side * 36);
+      ctx.lineTo(67 + windup * 8, side * 27);
+      ctx.lineTo(49, side * 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#4e3152";
+    ctx.strokeStyle = "#1b1420";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(-30, 0);
+    ctx.quadraticCurveTo(-22, -30, 6, -31);
+    ctx.lineTo(31, -18);
+    ctx.lineTo(35, 0);
+    ctx.lineTo(31, 18);
+    ctx.quadraticCurveTo(-4, 37, -30, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#75536d";
+    for (const x of [-17, -1, 15]) {
+      ctx.beginPath();
+      ctx.moveTo(x - 8, -24);
+      ctx.lineTo(x, -32 - windup * 5);
+      ctx.lineTo(x + 8, -23);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = "#100b11";
+    ctx.beginPath();
+    ctx.ellipse(22, 0, 10, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ff755f";
+    ctx.beginPath();
+    ctx.arc(25, -7, 3.5, 0, Math.PI * 2);
+    ctx.arc(25, 7, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    if (windup > 0) {
+      ctx.strokeStyle = `rgba(255,175,96,${0.35 + windup * 0.6})`;
+      ctx.lineWidth = 3 + windup * 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 39 + windup * 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    return;
+  }
+
+  if (creature.kind === "wraith") {
+    for (const side of [-1, 1] as const) {
+      for (let trail = 0; trail < 3; trail++) {
+        const y = side * (7 + trail * 8);
+        const wave = Math.sin(now / 280 + creature.phase + trail * 1.6) * 6;
+        ctx.strokeStyle = "#17182b";
+        ctx.lineWidth = 9 - trail;
+        ctx.beginPath();
+        ctx.moveTo(-10, y * 0.65);
+        ctx.bezierCurveTo(-31, y + wave, -42, y - wave, -61 - trail * 5, y + wave);
+        ctx.stroke();
+        ctx.strokeStyle = trail % 2 ? "#5d5486" : "#49416f";
+        ctx.lineWidth = 5 - trail * 0.6;
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = "#3d385f";
+    ctx.strokeStyle = "#17182b";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(-28, 0);
+    ctx.quadraticCurveTo(-10, -31 - pulse, 23, -21);
+    ctx.quadraticCurveTo(35, 0, 23, 21);
+    ctx.quadraticCurveTo(-10, 31 + pulse, -28, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#090911";
+    ctx.beginPath();
+    ctx.ellipse(11, 0, 10, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ff6670";
+    ctx.beginPath();
+    ctx.arc(15, -6, 3, 0, Math.PI * 2);
+    ctx.arc(15, 7, 3, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const length = creature.boss ? 48 : 40;
+    drawMonsterLimb(
+      ctx,
+      [[Math.cos(angle) * 22, Math.sin(angle) * 22], [Math.cos(angle) * length, Math.sin(angle) * length]],
+      creature.boss ? 10 : 8,
+      "#75435b",
+    );
+  }
+  ctx.fillStyle = "#553044";
+  ctx.strokeStyle = "#25131d";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(0, 0, 34 + pulse, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#09070a";
+  ctx.beginPath();
+  ctx.arc(6, 0, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#ead8bd";
+  for (let tooth = 0; tooth < 12; tooth++) {
+    const angle = (tooth / 12) * Math.PI * 2;
+    ctx.save();
+    ctx.translate(6, 0);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(18, -4);
+    ctx.lineTo(8, 0);
+    ctx.lineTo(18, 4);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = "#ff625a";
+  for (const [x, y] of [[-18, -19], [-22, 14], [4, -29]] as const) {
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#171014";
+    ctx.beginPath();
+    ctx.arc(x + 1, y, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ff625a";
+  }
+}
+
 function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
   const scale = creature.boss
     ? 1.82
@@ -4732,7 +5066,34 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
                   ? 0.92
                   : 1;
   const flying = isAnimal(creature.kind) && ANIMAL_DATA[creature.kind].flying;
-  const bob = Math.sin(now / (flying ? 150 : 230) + creature.phase) * (flying ? 5 : 2) - (flying ? 5 : 0);
+  const leapElapsed = creature.kind === "brute" && creature.abilityStartedAt > 0
+    ? now - creature.abilityStartedAt
+    : -1;
+  const leapProgress = leapElapsed >= BRUTE_LEAP_WINDUP_MS
+    ? Math.max(0, Math.min(1, (leapElapsed - BRUTE_LEAP_WINDUP_MS) / BRUTE_LEAP_TRAVEL_MS))
+    : 0;
+  const leapHeight = leapElapsed >= BRUTE_LEAP_WINDUP_MS
+    ? Math.sin(leapProgress * Math.PI) * 34
+    : 0;
+  const bob = Math.sin(now / (flying ? 150 : 230) + creature.phase) * (flying ? 5 : 2) -
+    (flying ? 5 : 0) - leapHeight;
+  if (creature.kind === "brute" && creature.abilityStartedAt > 0) {
+    const telegraphProgress = Math.max(
+      0,
+      Math.min(1, leapElapsed / (BRUTE_LEAP_WINDUP_MS + BRUTE_LEAP_TRAVEL_MS)),
+    );
+    ctx.save();
+    ctx.translate(creature.abilityTargetX, creature.abilityTargetY);
+    ctx.fillStyle = `rgba(207,74,60,${0.08 + telegraphProgress * 0.1})`;
+    ctx.strokeStyle = `rgba(255,159,91,${0.55 + telegraphProgress * 0.4})`;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.arc(0, 0, BRUTE_LEAP_IMPACT_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.save();
   ctx.translate(creature.x, creature.y + bob);
   ctx.scale(scale, scale);
@@ -4744,155 +5105,7 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
   if (isAnimal(creature.kind)) {
     drawTopDownAnimal(ctx, creature, now);
   } else {
-    const pulse = Math.sin(now / 120 + creature.phase) * 2;
-    const tentacleCount = creature.kind === "maw" ? 10 : creature.kind === "crawler" ? 8 : creature.kind === "wraith" ? 7 : creature.kind === "brute" ? 6 : 5;
-    const tentacleLength = creature.kind === "wraith" ? 52 : creature.kind === "maw" ? 43 : creature.kind === "brute" ? 39 : 34;
-    const tentacleWidth = creature.kind === "brute" || creature.kind === "maw" ? 9 : creature.kind === "wraith" ? 5 : 7;
-    const tentacleColor = creature.kind === "maw" ? "#67354f" : creature.kind === "wraith" ? "#514775" : creature.kind === "brute" ? "#5c385c" : creature.kind === "crawler" ? "#303a51" : "#2b3452";
-    ctx.lineCap = "round";
-    for (let i = 0; i < tentacleCount; i++) {
-      const angle = (Math.PI * 2 * i) / tentacleCount + (creature.kind === "crawler" ? 0.35 : 0);
-      const wave = Math.sin(now / 260 + creature.phase + i * 1.7) * 8;
-      const startRadius = creature.kind === "maw" ? 24 : creature.kind === "brute" ? 21 : 17;
-      const endRadius = tentacleLength + (i % 2) * 7;
-      const startX = Math.cos(angle) * startRadius;
-      const startY = Math.sin(angle) * startRadius;
-      const endX = Math.cos(angle) * endRadius - Math.sin(angle) * wave;
-      const endY = Math.sin(angle) * endRadius + Math.cos(angle) * wave;
-      const controlRadius = (startRadius + endRadius) * 0.55;
-      const controlX = Math.cos(angle) * controlRadius + Math.sin(angle) * wave;
-      const controlY = Math.sin(angle) * controlRadius - Math.cos(angle) * wave;
-      ctx.strokeStyle = "#111522";
-      ctx.lineWidth = tentacleWidth + 4;
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.quadraticCurveTo(controlX, controlY, endX, endY);
-      ctx.stroke();
-      ctx.strokeStyle = tentacleColor;
-      ctx.lineWidth = tentacleWidth;
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.quadraticCurveTo(controlX, controlY, endX, endY);
-      ctx.stroke();
-    }
-    ctx.strokeStyle = "#111522";
-    ctx.lineCap = "round";
-    if (creature.kind === "crawler") {
-      ctx.lineWidth = 5;
-      for (const side of [-1, 1]) {
-        for (let i = -1; i <= 1; i++) {
-          ctx.beginPath();
-          ctx.moveTo(side * 12, i * 9);
-          ctx.lineTo(side * (29 + Math.abs(i) * 4), i * 17 - 4);
-          ctx.lineTo(side * 38, i * 22 + 4);
-          ctx.stroke();
-        }
-      }
-      ctx.fillStyle = "#283044";
-      ctx.beginPath();
-      ctx.arc(0, 0, 24 + pulse, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#0b0d12";
-      ctx.beginPath();
-      ctx.ellipse(13, 1, 11, 8, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#ead9bd";
-      for (const y of [-5, 0, 5]) {
-        ctx.beginPath();
-        ctx.moveTo(7, y - 3);
-        ctx.lineTo(18, y);
-        ctx.lineTo(7, y + 3);
-        ctx.fill();
-      }
-      ctx.fillStyle = "#e94f4f";
-      for (const [x, y] of [[-9, -8], [-2, -12], [-10, 8], [-2, 12]] as const) {
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (creature.kind === "wraith") {
-      ctx.fillStyle = "#3d385f";
-      ctx.strokeStyle = "#17182b";
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(0, 0, 27 + pulse, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#05060b";
-      ctx.beginPath();
-      ctx.ellipse(8, 1, 11, 16, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#f15b63";
-      ctx.beginPath();
-      ctx.arc(13, -6, 3, 0, Math.PI * 2);
-      ctx.arc(13, 7, 3, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (creature.kind === "maw") {
-      ctx.fillStyle = "#553044";
-      ctx.strokeStyle = "#25131d";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.arc(0, 0, 34 + pulse, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#09070a";
-      ctx.beginPath();
-      ctx.arc(5, 0, 22, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#ead8bd";
-      for (let i = 0; i < 12; i++) {
-        const angle = (Math.PI * 2 * i) / 12;
-        ctx.save();
-        ctx.rotate(angle);
-        ctx.beginPath();
-        ctx.moveTo(17, -4);
-        ctx.lineTo(7, 0);
-        ctx.lineTo(17, 4);
-        ctx.fill();
-        ctx.restore();
-      }
-      ctx.fillStyle = "#ff5e55";
-      for (const [x, y] of [[-18, -19], [-22, 14], [4, -29]] as const) {
-        ctx.beginPath();
-        ctx.arc(x, y, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#171014";
-        ctx.beginPath();
-        ctx.arc(x + 1, y, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#ff5e55";
-      }
-    } else {
-      ctx.fillStyle = creature.kind === "brute" ? "#4e3152" : "#252d49";
-      ctx.strokeStyle = "#111522";
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(0, 0, (creature.kind === "brute" ? 30 : 26) + pulse, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      if (creature.kind === "brute") {
-        ctx.fillStyle = "#8a697f";
-        for (const y of [-18, 18]) {
-          ctx.beginPath();
-          ctx.moveTo(-12, y);
-          ctx.lineTo(-34, y * 1.55);
-          ctx.lineTo(-19, y * 0.55);
-          ctx.closePath();
-          ctx.fill();
-        }
-      }
-      ctx.fillStyle = "#090b12";
-      ctx.beginPath();
-      ctx.ellipse(11, 0, 11, 15, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#f35a58";
-      for (const y of [-8, 0, 8]) {
-        ctx.beginPath();
-        ctx.ellipse(14, y, 5, 2.5, -0.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+    drawMonsterCreature(ctx, creature, now);
     if (creature.boss && creature.rangedChargeUntil > now) {
       const chargeProgress = Math.max(0, Math.min(1, 1 - (creature.rangedChargeUntil - now) / BOSS_RANGED_WINDUP_MS));
       const chargePulse = 0.75 + Math.sin(now / 42) * 0.25;

@@ -431,6 +431,14 @@ attacks from aggressive wildlife, can deal damage at most once every 1.25
 seconds. Monsters can damage a blocking structure at most once every 1.2
 seconds. Tamed companions can attack a nearby horror once every 1.1 seconds.
 
+The fast Meadow crawler fights with two exceptionally long forward arms. Its
+142-unit lash is a true ranged melee attack, and the arms visibly extend when it
+strikes. A Meadow brute can begin a leap while it is 120–320 units from the
+player and has a clear path. A 420 ms wind-up and marked 78-unit landing circle
+telegraph the attack before the brute spends 560 ms airborne. Landing in the
+circle deals 150% of its normal damage. A brute waits 4.2 seconds before it can
+leap again, and a solid structure stops the leap and takes the impact instead.
+
 Wildlife drops species-specific amounts of meat and hide; birds provide meat
 but no hide. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2
 sulfur. Every creature defeated by the player, a tame, or a trap increases the
@@ -517,10 +525,13 @@ taming attempts, and no remembered wariness.
 ## 12. Endless night progression
 
 Every night spawns `6 + 3 × day` new monsters in the player's current realm,
-with no wave-size cap. Night 1 therefore spawns 9; night 10 spawns 36. The game
-checks throughout the night whether the current day's wave has spawned, so a
-missed transition frame cannot suppress a wave. Each day advances after dawn,
-and each monster gains 2 speed and 1.4 contact damage per day.
+with no wave-size cap. Night 1 therefore spawns 9; night 10 spawns 36. Meadow
+waves use only shades, crawlers, and brutes. Cave-system waves use only wraiths
+and maws; surface horrors never spawn underground and cave horrors never spawn
+outside. The game checks throughout the night whether the current day's wave
+has spawned, so a missed transition frame cannot suppress a wave. Each day
+advances after dawn, and each monster gains 2 speed and 1.4 contact damage per
+day.
 
 Each monster's position is sampled independently from valid points across the
 current realm, at least 360 units from the player. Waves do not form a ring or
@@ -532,23 +543,28 @@ rejected. A 30-unit safety margin keeps the monster's body fully outside the
 visible light pool. Darkness behind a light blocker is not protected. Destroyed
 lights and unfinished blueprints provide no spawn protection.
 
-| Monster | Earliest night | Base health | Health per day | Base speed | Base damage | Attack reach | Sense radius |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Shade | 1 | 28 | 8 | 84 | 7 | 76 | 320 |
-| Crawler | 2 | 23 | 6 | 116 | 6 | 82 | 390 |
-| Brute | 2 | 54 | 13 | 60 | 12 | 88 | 270 |
-| Wraith | 4 | 42 | 10 | 96 | 10 | 108 | 440 |
-| Maw | 5 | 92 | 17 | 56 | 17 | 96 | 240 |
+| Monster | Realm | Earliest night | Base health | Health per day | Base speed | Base damage | Attack reach | Sense radius |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Shade | Meadow | 1 | 28 | 8 | 84 | 7 | 76 | 320 |
+| Crawler | Meadow | 2 | 23 | 6 | 116 | 6 | 142 | 390 |
+| Brute | Meadow | 3 | 54 | 13 | 60 | 12 | 88 | 300 |
+| Wraith | Cave system | 1 | 42 | 10 | 96 | 10 | 108 | 440 |
+| Maw | Cave system | 3 | 92 | 17 | 56 | 17 | 96 | 260 |
 
-Every monster has a round main body surrounded by animated tentacles. Body size,
-tentacle count and thickness, color, eyes, horns, and tooth patterns distinguish
-shades, crawlers, brutes, wraiths, and maws. Monsters initially prowl instead of
-knowing the player's location. They chase after sensing the player or being
-attacked, stop at their extended attack reach when the path is clear, and close
-the distance when terrain or a structure blocks the attack. They return to
-prowling after the player moves beyond 1.8 times that monster's sense radius.
-Any surviving ordinary night-wave monsters disappear at dawn before the next
-day begins.
+Each monster family has a separate overhead silhouette instead of sharing one
+round tentacled base. Shades are compact pulsing cores with five short wisps.
+Crawlers have narrow carapaces, six jointed limbs, and two much longer striking
+arms. Brutes have broad plated bodies, massive forelimbs, and claws that flare
+during their leap wind-up. Wraiths are tapered spectral bodies trailing six
+flowing ribbons. Maws have a circular toothed mouth and eight short, heavy
+limbs; the cave guardian is an oversized maw.
+
+Monsters initially prowl instead of knowing the player's location. They chase
+after sensing the player or being attacked, stop at their attack reach when the
+path is clear, and close the distance when terrain or a structure blocks the
+attack. They return to prowling after the player moves beyond 1.8 times that
+monster's sense radius. Any surviving ordinary night-wave monsters disappear at
+dawn before the next day begins.
 
 ## 13. Current scope
 
