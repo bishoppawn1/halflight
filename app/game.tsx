@@ -217,6 +217,8 @@ interface Player {
 interface GameState {
   started: boolean;
   dead: boolean;
+  paused: boolean;
+  pausedAt: number;
   day: number;
   clock: number;
   wasNight: boolean;
@@ -1251,6 +1253,8 @@ function makeGame(): GameState {
   return {
     started: false,
     dead: false,
+    paused: false,
+    pausedAt: 0,
     day: 1,
     clock: 0.16,
     wasNight: false,
@@ -2043,6 +2047,45 @@ function releasePrimaryInput(game: GameState, fireChargedBow = false) {
 function resetTransientInput(game: GameState) {
   releasePrimaryInput(game);
   game.keys.clear();
+}
+
+function setGamePaused(game: GameState, paused: boolean, now = performance.now()) {
+  if (paused === game.paused) return;
+  if (paused) {
+    game.paused = true;
+    game.pausedAt = now;
+    resetTransientInput(game);
+    return;
+  }
+
+  const pausedAt = game.pausedAt;
+  const pauseDuration = Math.max(0, now - pausedAt);
+  const shiftDeadline = (value: number) => value > pausedAt ? value + pauseDuration : value;
+  const shiftTimestamp = (value: number) => value > 0 ? value + pauseDuration : value;
+
+  game.player.attackReady = shiftDeadline(game.player.attackReady);
+  game.player.useReady = shiftDeadline(game.player.useReady);
+  game.messageUntil = shiftDeadline(game.messageUntil);
+  game.nodes.forEach((node) => {
+    node.respawnAt = shiftDeadline(node.respawnAt);
+  });
+  game.creatures.forEach((creature) => {
+    creature.hitAt = shiftTimestamp(creature.hitAt);
+    creature.structureHitAt = shiftTimestamp(creature.structureHitAt);
+    creature.rangedAt = shiftTimestamp(creature.rangedAt);
+    creature.rangedChargeUntil = shiftDeadline(creature.rangedChargeUntil);
+    creature.slowUntil = shiftDeadline(creature.slowUntil);
+    creature.provokedUntil = shiftDeadline(creature.provokedUntil);
+    creature.respawnAt = shiftDeadline(creature.respawnAt);
+    creature.abilityReadyAt = shiftDeadline(creature.abilityReadyAt);
+    creature.abilityStartedAt = shiftTimestamp(creature.abilityStartedAt);
+  });
+  game.buildings.forEach((building) => {
+    building.triggerAt = shiftDeadline(building.triggerAt);
+  });
+  if (game.attackFlash) game.attackFlash.startedAt = shiftTimestamp(game.attackFlash.startedAt);
+  game.paused = false;
+  game.pausedAt = 0;
 }
 
 function cancelBuildMode(game: GameState) {
@@ -5402,7 +5445,7 @@ function drawTreasure(ctx: CanvasRenderingContext2D, treasure: CaveTreasure, now
   ctx.restore();
 }
 
-function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha = 1) {
+function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha = 1, now = performance.now()) {
   const { x, y } = buildingWorldCenter(building);
   const halfSize = buildingHalfSize(building.kind);
   ctx.save();
@@ -5590,7 +5633,7 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
     ctx.stroke();
     ctx.restore();
   } else if (kind === "torch") {
-    const flicker = Math.sin(performance.now() / 85 + building.id) * 2;
+    const flicker = Math.sin(now / 85 + building.id) * 2;
     ctx.fillStyle = "rgba(243,159,57,.2)";
     ctx.beginPath();
     ctx.arc(0, -7, 24 + flicker, 0, Math.PI * 2);
@@ -5617,7 +5660,7 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
     ctx.closePath();
     ctx.fill();
   } else if (kind === "campfire") {
-    const flicker = Math.sin(performance.now() / 95 + building.id) * 2.5;
+    const flicker = Math.sin(now / 95 + building.id) * 2.5;
     ctx.fillStyle = "rgba(239,143,47,.22)";
     ctx.beginPath();
     ctx.arc(0, 0, 31 + flicker, 0, Math.PI * 2);
@@ -6081,7 +6124,7 @@ function drawMeadowTerrain(ctx: CanvasRenderingContext2D) {
   }
 }
 
-function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile) {
+function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, now: number) {
   ctx.save();
   ctx.translate(projectile.x, projectile.y);
   ctx.rotate(Math.atan2(projectile.vy, projectile.vx));
@@ -6107,7 +6150,7 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile) {
     ctx.closePath();
     ctx.fill();
   } else if (projectile.kind === "guardianOrb") {
-    const pulse = 0.84 + Math.sin(performance.now() / 45 + projectile.id) * 0.16;
+    const pulse = 0.84 + Math.sin(now / 45 + projectile.id) * 0.16;
     const trail = ctx.createLinearGradient(-36, 0, 9, 0);
     trail.addColorStop(0, "rgba(91,24,78,0)");
     trail.addColorStop(0.6, "rgba(205,64,104,.48)");
@@ -6163,6 +6206,7 @@ function drawDarkness(
   offsetX: number,
   offsetY: number,
   inCave: boolean,
+  now: number,
 ) {
   if (!lightingLayer) lightingLayer = document.createElement("canvas");
   const pixelWidth = Math.max(1, Math.round(width * dpr));
@@ -6251,7 +6295,7 @@ function drawDarkness(
       creature.realm === game.realm &&
       creature.boss &&
       creature.hp > 0 &&
-      creature.rangedChargeUntil > performance.now()
+      creature.rangedChargeUntil > now
     ) reveal(creature.x, creature.y, 145, 36);
   });
   game.projectiles.forEach((projectile) => {
@@ -6268,6 +6312,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const now = game.paused ? game.pausedAt : performance.now();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
   const inCave = game.realm === "caveSystem";
@@ -6331,7 +6376,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
     const center = buildingWorldCenter(building);
     return building.realm === game.realm && onScreen(center.x, center.y);
   });
-  visibleBuildings.filter((building) => building.kind === "floor").forEach((building) => drawBuilding(ctx, building));
+  visibleBuildings.filter((building) => building.kind === "floor").forEach((building) => drawBuilding(ctx, building, 1, now));
 
   const drawables: { y: number; draw: () => void }[] = [];
   game.nodes.forEach((node) => {
@@ -6348,32 +6393,32 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   });
   game.drops.forEach((drop) => {
     if (drop.realm !== game.realm || !onScreen(drop.x, drop.y)) return;
-    drawables.push({ y: drop.y + 18, draw: () => drawGroundDrop(ctx, drop, performance.now()) });
+    drawables.push({ y: drop.y + 18, draw: () => drawGroundDrop(ctx, drop, now) });
   });
   game.treasures.forEach((treasure) => {
     if (treasure.realm === game.realm && onScreen(treasure.x, treasure.y)) {
-      drawables.push({ y: treasure.y, draw: () => drawTreasure(ctx, treasure, performance.now()) });
+      drawables.push({ y: treasure.y, draw: () => drawTreasure(ctx, treasure, now) });
     }
   });
   visibleBuildings
     .filter((building) => building.kind !== "floor" && building.kind !== "roof")
-    .forEach((building) => drawables.push({ y: buildingWorldCenter(building).y, draw: () => drawBuilding(ctx, building) }));
+    .forEach((building) => drawables.push({ y: buildingWorldCenter(building).y, draw: () => drawBuilding(ctx, building, 1, now) }));
   game.creatures.forEach((creature) => {
     if (creature.realm === game.realm && creature.hp > 0 && onScreen(creature.x, creature.y)) {
-      drawables.push({ y: creature.y, draw: () => drawCreature(ctx, creature, performance.now()) });
+      drawables.push({ y: creature.y, draw: () => drawCreature(ctx, creature, now) });
     }
   });
   game.projectiles.forEach((projectile) => {
     if (projectile.realm === game.realm && onScreen(projectile.x, projectile.y)) {
-      drawables.push({ y: projectile.y + 40, draw: () => drawProjectile(ctx, projectile) });
+      drawables.push({ y: projectile.y + 40, draw: () => drawProjectile(ctx, projectile, now) });
     }
   });
   drawables.push({ y: game.player.y, draw: () => drawPlayer(ctx, game) });
   drawables.sort((a, b) => a.y - b.y).forEach((item) => item.draw());
   if (game.attackFlash?.realm === game.realm) {
-    drawAttackFlash(ctx, game.attackFlash, performance.now());
+    drawAttackFlash(ctx, game.attackFlash, now);
   }
-  visibleBuildings.filter((building) => building.kind === "roof").forEach((building) => drawBuilding(ctx, building, 0.78));
+  visibleBuildings.filter((building) => building.kind === "roof").forEach((building) => drawBuilding(ctx, building, 0.78, now));
 
   if (game.buildMode) {
     const cell = previewCell(game);
@@ -6403,12 +6448,13 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
         restedDay: 0,
       },
       0.62,
+      now,
     );
   }
   ctx.restore();
 
   if (isNight(game) || inCave) {
-    drawDarkness(ctx, width, height, dpr, game, scale, offsetX, offsetY, inCave);
+    drawDarkness(ctx, width, height, dpr, game, scale, offsetX, offsetY, inCave, now);
   } else if (game.clock > 0.4) {
     ctx.fillStyle = "rgba(210,126,68," + ((game.clock - 0.4) * 0.9) + ")";
     ctx.fillRect(0, 0, width, height);
@@ -6828,6 +6874,7 @@ interface SlotAddress {
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pauseResumeRef = useRef<HTMLButtonElement>(null);
   const gameRef = useRef<GameState>(makeGame());
   const [panel, setPanel] = useState<Panel>(null);
   const [started, setStarted] = useState(false);
@@ -6838,6 +6885,21 @@ export default function Game() {
     (building) => building.id === game.openChestId && building.kind === "storageChest",
   );
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  const togglePause = useCallback(() => {
+    const currentGame = gameRef.current;
+    if (!currentGame.started || currentGame.dead) return;
+    const nextPaused = !currentGame.paused;
+    setGamePaused(currentGame, nextPaused);
+    if (nextPaused) {
+      currentGame.openChestId = null;
+      setPanel(null);
+      setMoveSource(null);
+      requestAnimationFrame(() => pauseResumeRef.current?.focus());
+    } else {
+      canvasRef.current?.focus();
+    }
+    refresh();
+  }, [refresh]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -6863,13 +6925,13 @@ export default function Game() {
       }
       const dt = Math.min(0.035, (now - last) / 1000);
       last = now;
-      if (game.started && !game.dead) {
+      if (game.started && !game.dead && !game.paused) {
         updateGame(game, dt, canvas.clientWidth, canvas.clientHeight);
       }
       drawWorld(context, canvas, game);
       if (now - lastHud > 120) {
         lastHud = now;
-        if (game.messageUntil > 0 && now >= game.messageUntil) game.messageUntil = 0;
+        if (!game.paused && game.messageUntil > 0 && now >= game.messageUntil) game.messageUntil = 0;
         refresh();
       }
       frame = requestAnimationFrame(loop);
@@ -6884,6 +6946,15 @@ export default function Game() {
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      if (key === "p") {
+        event.preventDefault();
+        if (!event.repeat) togglePause();
+        return;
+      }
+      if (game.paused) {
+        event.preventDefault();
+        return;
+      }
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
         event.preventDefault();
         game.keys.add(key);
@@ -6947,11 +7018,13 @@ export default function Game() {
       window.removeEventListener("blur", resetInput);
       document.removeEventListener("visibilitychange", resetHiddenInput);
     };
-  }, [game, refresh]);
+  }, [game, refresh, togglePause]);
 
   const start = () => {
     game.started = true;
     game.dead = false;
+    game.paused = false;
+    game.pausedAt = 0;
     setStarted(true);
     canvasRef.current?.focus();
     notify(game, "Day 1 — your Wood Axe is ready in hotbar slot 2.", 3200);
@@ -6964,6 +7037,7 @@ export default function Game() {
   };
 
   const pointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (game.paused) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -7145,7 +7219,7 @@ export default function Game() {
   const lowHunger = game.started && !game.dead && game.player.hunger <= LOW_HUNGER_THRESHOLD;
 
   return (
-    <main className="survival-game" data-revision={revision}>
+    <main className={"survival-game" + (game.paused ? " game-paused" : "")} data-revision={revision}>
       <canvas
         ref={canvasRef}
         className="world-canvas"
@@ -7156,6 +7230,7 @@ export default function Game() {
           game.pointer.active = false;
         }}
         onPointerDown={(event) => {
+          if (game.paused) return;
           if (event.button === 2) {
             if (game.buildMode) {
               cancelBuildMode(game);
@@ -7235,11 +7310,39 @@ export default function Game() {
         <small>{game.kills} threats defeated · {tamedAnimalCount(game)}/{MAX_TAMED_ANIMALS} companions · wave {game.wave || "—"} · {game.gear.armor === "none" ? "no armor" : game.gear.armor + " armor"}</small>
       </section>
 
-      <section className="zoom-panel" aria-label="Camera zoom">
-        <button onClick={() => zoom(0.12)} aria-label="Zoom in">+</button>
-        <span>{Math.round(game.zoom * 100)}%</span>
-        <button onClick={() => zoom(-0.12)} aria-label="Zoom out">−</button>
-      </section>
+      <div className="game-controls">
+        <section className="zoom-panel" aria-label="Camera zoom">
+          <button onClick={() => zoom(0.12)} aria-label="Zoom in">+</button>
+          <span>{Math.round(game.zoom * 100)}%</span>
+          <button onClick={() => zoom(-0.12)} aria-label="Zoom out">−</button>
+        </section>
+        {started && !game.dead && (
+          <button
+            className={"pause-button" + (game.paused ? " paused" : "")}
+            type="button"
+            onClick={togglePause}
+            aria-label={game.paused ? "Resume game" : "Pause game"}
+            aria-pressed={game.paused}
+          >
+            <span aria-hidden="true">{game.paused ? "▶" : "Ⅱ"}</span>
+            <b>{game.paused ? "Resume" : "Pause"}</b>
+            <kbd>P</kbd>
+          </button>
+        )}
+      </div>
+
+      {started && game.paused && !game.dead && (
+        <div className="pause-scrim">
+          <section className="pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+            <small>SIMULATION FROZEN</small>
+            <h2 id="pause-title">Game paused</h2>
+            <p>Time, hunger, creatures, crops, projectiles, and construction are stopped.</p>
+            <button ref={pauseResumeRef} type="button" onClick={togglePause}>
+              Resume game <kbd>P</kbd>
+            </button>
+          </section>
+        </div>
+      )}
 
       {messageVisible && <div className="game-toast">{game.message}</div>}
       {prompt && <div className="interact-prompt"><kbd>{promptKey}</kbd><span>{promptText}</span></div>}
@@ -7260,6 +7363,7 @@ export default function Game() {
         <span><kbd>SHIFT+LMB</kbd> Keep building</span>
         <span><kbd>B</kbd> Auto-build nearby</span>
         <span><kbd>C</kbd> Craft</span>
+        <span><kbd>P</kbd> Pause</span>
       </aside>
 
       <div className="touch-controls" aria-label="Touch controls">

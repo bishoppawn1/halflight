@@ -96,8 +96,15 @@ to 48%. Flying crows and owls ignore resource, structure, and water collision.
 | `C` | Open or close crafting |
 | `I` | Open or close inventory |
 | `B` | Start or stop auto-building unfinished blueprints within three grid squares |
+| `P` or the **Pause** button | Pause or resume the game |
 | `Escape` | Cancel build mode and close panels |
 | `+`, `-`, or mouse wheel | Zoom between 68% and 155% |
+
+Pausing freezes the day/night clock, hunger and health loss, player and creature
+movement, attacks and projectiles, crop growth, construction, respawns,
+cooldowns, messages, and world animation. The pause screen remains until the
+player presses `P` or chooses **Resume game**. Camera zoom remains available
+while paused.
 
 The backpack has 30 unrestricted slots and the hotbar has 10. Tools, weapons,
 individual foods, resource stacks, and ready building pieces can be moved by dragging or by
@@ -588,5 +595,6 @@ dawn before the next day begins.
 ## 13. Current scope
 
 The game is local to one browser run. It has no multiplayer, accounts, save
-files, true pause, tool repair, building repair, trading, quests, or finite
-ending. Panels do not pause the simulation.
+files, tool repair, building repair, trading, quests, or finite ending. Opening
+an inventory, crafting, building, or storage panel does not pause the
+simulation; the dedicated Pause control does.

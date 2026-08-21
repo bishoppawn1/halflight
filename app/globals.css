@@ -466,16 +466,22 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .vital-row.hunger > i em { background: #dca744; }
 .vitals > small { display: block; color: #82998e; font-size: 7px; letter-spacing: .03em; }
 
-.zoom-panel {
+.game-controls {
   position: absolute;
-  z-index: 4;
+  z-index: 26;
   right: 20px;
   top: 98px;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.zoom-panel {
   display: grid;
   grid-template-columns: 32px 42px 32px;
   align-items: center;
   padding: 5px;
-  pointer-events: auto;
   border: 1px solid rgba(255,255,255,.12);
   border-radius: 12px;
   background: rgba(17,34,29,.88);
@@ -494,6 +500,75 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 
 .zoom-panel button:hover { background: #435d52; }
 .zoom-panel span { color: #a8bcb2; text-align: center; font-size: 8px; font-weight: 900; }
+
+.pause-button {
+  display: grid;
+  grid-template-columns: 24px 1fr 19px;
+  align-items: center;
+  gap: 7px;
+  width: 116px;
+  min-height: 38px;
+  padding: 6px 7px;
+  color: var(--cream);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 11px;
+  background: rgba(17,34,29,.92);
+  box-shadow: 0 5px 0 rgba(10,22,18,.31), 0 10px 22px rgba(9,24,18,.18);
+  cursor: pointer;
+}
+
+.pause-button > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: #25372f;
+  border-radius: 7px;
+  background: var(--sun);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.pause-button > b { font-size: 9px; text-align: left; }
+.pause-button kbd { color: var(--sun); font-size: 8px; font-weight: 950; }
+.pause-button:hover { border-color: rgba(240,185,71,.65); background: #263f35; transform: translateY(-1px); }
+.pause-button:focus-visible { outline: 3px solid #fff0b2; outline-offset: 3px; }
+.pause-button.paused { color: #26372f; border-color: #f5cf78; background: var(--sun); box-shadow: 0 5px 0 #8f6426, 0 11px 24px rgba(34,24,8,.28); }
+.pause-button.paused > span { color: var(--cream); background: #25372f; }
+.pause-button.paused kbd { color: #26372f; }
+
+.pause-scrim {
+  position: absolute;
+  z-index: 25;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(7,16,13,.67);
+  backdrop-filter: blur(5px);
+}
+
+.pause-card {
+  width: min(390px, calc(100vw - 32px));
+  padding: 30px;
+  color: var(--cream);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 22px;
+  background: #172a23;
+  box-shadow: 0 11px 0 rgba(7,16,13,.42), 0 24px 54px rgba(4,13,9,.38);
+  text-align: center;
+}
+
+.pause-card > small { color: var(--sun); font-size: 8px; font-weight: 950; letter-spacing: .18em; }
+.pause-card h2 { margin: 7px 0 8px; font-size: 31px; letter-spacing: .02em; }
+.pause-card p { margin: 0 auto 20px; color: #a8bbb2; font-size: 11px; line-height: 1.55; }
+.pause-card button { width: 100%; padding: 12px 15px; color: #26372f; border: 0; border-radius: 10px; background: var(--sun); box-shadow: 0 5px 0 #956827; font-size: 11px; font-weight: 950; cursor: pointer; }
+.pause-card button:hover { background: #f7c759; transform: translateY(-1px); }
+.pause-card button:focus-visible { outline: 3px solid #fff0b2; outline-offset: 4px; }
+.pause-card kbd { float: right; color: #26372f; }
+.game-paused .world-canvas { cursor: default; }
+.game-paused .low-health-vignette,
+.game-paused .hunger-warning { animation-play-state: paused; }
 
 .game-toast {
   position: absolute;
@@ -1399,7 +1474,7 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   .top-hud { inset: 9px 9px auto; }
   .cycle-panel { transform: scale(.82); transform-origin: top left; }
   .resource-strip { transform: scale(.82); transform-origin: top right; }
-  .zoom-panel { right: 9px; top: 66px; transform: scale(.86); transform-origin: top right; }
+  .game-controls { right: 9px; top: 66px; transform: scale(.86); transform-origin: top right; }
   .vitals { left: 9px; bottom: 88px; width: 153px; transform: scale(.86); transform-origin: bottom left; }
   .hotbar { bottom: 8px; max-width: calc(100vw - 14px); gap: 3px; padding: 5px; }
   .hotbar > button { width: min(54px, 15vw); height: 53px; grid-template-rows: 33px 10px; }
@@ -1430,6 +1505,7 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   .free-inventory { gap: 3px; }
   .inventory-slot { height: 46px; grid-template-rows: 28px 10px; }
   .start-card { padding-inline: 23px; }
+  .pause-card { padding: 25px 22px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
