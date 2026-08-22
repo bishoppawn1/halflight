@@ -185,13 +185,11 @@ At the start of each run, one random main chamber contains a one-use treasure
 cache. Opening it with `E` awards 4 stone, 5 iron, 4 copper, 3 coal, 3 sulfur,
 and 2 Aetherium. Its opened chest remains visible.
 
-The Brood Mother never appears in an ordinary resource chamber. A narrow,
-unmarked passage leaves the eastern secondary cavern, bends through two dark
-pockets, and opens into her dedicated 650-unit-radius webbed arena. Eight fixed
-wraiths and maws occupy the secret route, while twelve sentries and four
-long-legged crawler brood surround the Brood Mother inside the arena. The route
-and arena stay part of the connected cave realm but have no cave entrance, exit,
-treasure cache, or ordinary resource clutter.
+At the start of each run, the central cavern or one of the four ordinary
+secondary caverns is selected at random for the Brood Mother. Her nine-pool web
+nest appears around the center of that room. She has no dedicated arena, secret
+route, fixed escort, or sentry gauntlet; ordinary cave monsters can still roam
+through the selected room as part of the shared cave population.
 
 The three tree species and every rock are drawn from directly overhead. Pines
 use overlapping jagged needle whorls at different angles, giving the full crown
@@ -644,9 +642,8 @@ omits that material; hide and listed minerals are guaranteed.
 
 The **Brood Mother** is a giant spider-like cave boss with twelve long jointed
 legs, five separate mouths, many visible teeth, 320 health, 118 speed, 22 melee
-damage, a 114-unit melee reach, and a 620-unit sense radius. Four long-legged
-crawler brood begin clustered around her nest. The permanent nest contains nine
-visible web pools.
+damage, a 114-unit melee reach, and a 620-unit sense radius. The permanent nest
+contains nine visible web pools.
 
 From 170 to 600 units away with a clear line to the player, the Brood Mother
 locks her aim and visibly gathers webbing for 600 ms before spitting a
@@ -740,10 +737,9 @@ feeding progress, and no remembered wariness.
 
 ## 12. Endless night progression
 
-The cave system begins with 27 non-boss encounter monsters in addition to the
-Brood Mother: three Aether Wardens, eight secret-route guards, twelve arena
-sentries, and four long-legged crawler brood around her nest. These fixed
-encounter monsters do not respawn individually.
+The cave system begins with three fixed Aether Wardens and three ordinary
+wraiths in addition to the Brood Mother. The Wardens do not respawn
+individually, and the Brood Mother has no fixed guards.
 Once the surviving non-boss cave population falls below six, ordinary wraith or
 maw replacements restore that population floor. If none remain, one replacement
 appears immediately at a valid distant point; otherwise at most one appears
@@ -756,10 +752,9 @@ reinforcements to the persistent cave population, with no wave-size cap. Night
 and adds 24 respectively. Monsters in the inactive realm remain there while the
 player travels, so leaving a cave never makes the outside night empty. Meadow
 waves use shades, crawlers, brutes, and night-4 stalkers. Cave-system
-reinforcements and replacement spawns use only wraiths and maws; the four fixed
-crawler brood are the exception and remain underground. Other surface horrors
-never spawn underground, and cave horrors never spawn outside. The game checks
-throughout the night whether the current
+reinforcements and replacement spawns use only wraiths and maws. Other surface
+horrors never spawn underground, and cave horrors never spawn outside. The game
+checks throughout the night whether the current
 day's reinforcements have spawned, so a missed transition frame cannot suppress
 them. Each day advances after dawn. Enemy health, speed, contact damage, attack
 reach, and sense radius never scale with the day. Progression comes only from

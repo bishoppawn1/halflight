@@ -501,18 +501,12 @@ const CAVES: CaveDefinition[] = [
 ];
 
 const CAVE_HUB: CaveRoom = { x: 3500, y: 2600, radius: 620, ground: "#414a46" };
-const GUARDIAN_PATH_ENTRY: CaveRoom = { x: 5910, y: 3210, radius: 180, ground: "#343d42" };
-const GUARDIAN_PATH_BEND: CaveRoom = { x: 5800, y: 3740, radius: 170, ground: "#303a40" };
-const GUARDIAN_ARENA: CaveRoom = { x: 6350, y: 4350, radius: 650, ground: "#363b43" };
 const CAVE_ROOMS: CaveRoom[] = [
   CAVE_HUB,
   { x: 2050, y: 2280, radius: 430, ground: "#3e4944" },
   { x: 3450, y: 820, radius: 420, ground: "#444b49" },
   { x: 5250, y: 2460, radius: 460, ground: "#454945" },
   { x: 2700, y: 4150, radius: 470, ground: "#42473d" },
-  GUARDIAN_PATH_ENTRY,
-  GUARDIAN_PATH_BEND,
-  GUARDIAN_ARENA,
 ];
 const CAVE_CONNECTIONS: CaveConnection[] = [
   { start: { x: CAVES[0].undergroundX, y: CAVES[0].undergroundY }, end: CAVE_ROOMS[1], halfWidth: 195 },
@@ -527,9 +521,6 @@ const CAVE_CONNECTIONS: CaveConnection[] = [
   { start: CAVE_ROOMS[4], end: CAVE_HUB, halfWidth: 185 },
   { start: { x: CAVES[2].undergroundX, y: CAVES[2].undergroundY }, end: CAVE_ROOMS[3], halfWidth: 170 },
   { start: CAVE_ROOMS[1], end: CAVE_ROOMS[4], halfWidth: 155 },
-  { start: CAVE_ROOMS[3], end: GUARDIAN_PATH_ENTRY, halfWidth: 68 },
-  { start: GUARDIAN_PATH_ENTRY, end: GUARDIAN_PATH_BEND, halfWidth: 74 },
-  { start: GUARDIAN_PATH_BEND, end: GUARDIAN_ARENA, halfWidth: 105 },
 ];
 
 function caveEncounterPoint(cave: CaveDefinition, distance: number, lateral = 0) {
@@ -554,17 +545,6 @@ const AETHER_SITES = CAVES.map((cave, index) => {
     size: index === 1 ? "huge" as const : "medium" as const,
   };
 });
-
-const GUARDIAN_PATH_GUARDS: { kind: "wraith" | "maw"; x: number; y: number }[] = [
-  { kind: "wraith", x: 5480, y: 2735 },
-  { kind: "maw", x: 5635, y: 2895 },
-  { kind: "wraith", x: 5790, y: 3060 },
-  { kind: "maw", x: 5880, y: 3310 },
-  { kind: "wraith", x: 5840, y: 3520 },
-  { kind: "wraith", x: 5800, y: 3730 },
-  { kind: "maw", x: 5940, y: 3900 },
-  { kind: "wraith", x: 6110, y: 4080 },
-];
 
 const MATERIALS: { id: Material; name: string }[] = [
   { id: "wood", name: "Wood" },
@@ -717,7 +697,6 @@ const BROOD_WEB_DURATION_MS = 14000;
 const BROOD_WEB_SPEED_FACTOR = 0.42;
 const BROOD_WEB_TICK_DAMAGE = 2;
 const BROOD_WEB_DAMAGE_INTERVAL_MS = 1600;
-const BROOD_GUARD_COUNT = 4;
 const ANIMAL_LURE_DISTANCE = 360;
 const ANIMAL_LURE_STANDOFF_DISTANCE = 135;
 const ANIMAL_FEED_DISTANCE = 162;
@@ -1257,7 +1236,8 @@ function makeGame(): GameState {
   let id = 1;
   const treasureCave = CAVES[Math.floor(Math.random() * CAVES.length)];
   const treasurePoint = caveEncounterPoint(treasureCave, treasureCave.chamberRadius * 0.48, -95);
-  const guardianPoint = { x: GUARDIAN_ARENA.x, y: GUARDIAN_ARENA.y };
+  const broodMotherRoom = CAVE_ROOMS[Math.floor(Math.random() * CAVE_ROOMS.length)];
+  const broodMotherPoint = { x: broodMotherRoom.x, y: broodMotherRoom.y };
   const addNode = (
     kind: ResourceKind,
     realm: Realm,
@@ -1288,7 +1268,7 @@ function makeGame(): GameState {
     const clearEncounter =
       realm !== "caveSystem" ||
       (Math.hypot(x - treasurePoint.x, y - treasurePoint.y) > radius + 75 &&
-        Math.hypot(x - guardianPoint.x, y - guardianPoint.y) > radius + 95 &&
+        Math.hypot(x - broodMotherPoint.x, y - broodMotherPoint.y) > radius + 95 &&
         AETHER_SITES.every((site) => Math.hypot(x - site.guard.x, y - site.guard.y) > radius + 70));
     if (!clearSpawn || !clearExit || !clearCave || !clearWater || !insideCave || !clearCaveNode || !clearEncounter) return;
     const hp = nodeHp(kind, size);
@@ -1410,8 +1390,8 @@ function makeGame(): GameState {
     return {
       id: id++,
       realm: "caveSystem",
-      x: guardianPoint.x + Math.cos(angle) * distance,
-      y: guardianPoint.y + Math.sin(angle) * distance,
+      x: broodMotherPoint.x + Math.cos(angle) * distance,
+      y: broodMotherPoint.y + Math.sin(angle) * distance,
       radius: centered ? 76 : 50 + (index % 3) * 7,
       expiresAt: 0,
     };
@@ -1517,29 +1497,7 @@ function makeGame(): GameState {
   AETHER_SITES.forEach((site, index) => {
     addMonster("aetherWarden", site.guard.x, site.guard.y, 31 + index * 1.7);
   });
-  for (let broodIndex = 0; broodIndex < BROOD_GUARD_COUNT; broodIndex++) {
-    const angle = (broodIndex / BROOD_GUARD_COUNT) * Math.PI * 2 + 0.35;
-    addMonster(
-      "crawler",
-      guardianPoint.x + Math.cos(angle) * 150,
-      guardianPoint.y + Math.sin(angle) * 150,
-      24 + broodIndex * 1.7,
-    );
-  }
-  GUARDIAN_PATH_GUARDS.forEach((guard, index) => {
-    addMonster(guard.kind, guard.x, guard.y, 41 + index * 0.83);
-  });
-  for (let index = 0; index < 12; index++) {
-    const angle = (index / 12) * Math.PI * 2 + 0.16;
-    const distance = index % 2 === 0 ? 315 : 405;
-    addMonster(
-      index % 3 === 0 ? "maw" : "wraith",
-      GUARDIAN_ARENA.x + Math.cos(angle) * distance,
-      GUARDIAN_ARENA.y + Math.sin(angle) * distance,
-      53 + index * 0.71,
-    );
-  }
-  addMonster("maw", guardianPoint.x, guardianPoint.y, 19.7, true);
+  addMonster("maw", broodMotherPoint.x, broodMotherPoint.y, 19.7, true);
   const startingCampfire: Building = {
     id: id++,
     kind: "campfire",
