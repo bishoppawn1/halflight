@@ -101,7 +101,7 @@ to 48%. Flying crows and owls ignore resource, structure, and water collision.
 | Left click in build mode | Place one ready building piece |
 | Hold `Shift` and left-drag | Place ready pieces across each valid grid cell crossed |
 | Right click in build mode | Cancel placement without using a ready piece |
-| `E` | Context action: eat, harvest, open treasure, operate, enter/exit, or place once |
+| `E` | Context action: cook selected raw food at a nearby Campfire, eat, harvest, open treasure, operate, enter/exit, or place once |
 | `F` or the **Feed animal** button | Feed the nearest reachable adult its preferred selected food |
 | `Space` | Attack once |
 | `1`–`9`, `0` | Select hotbar slots 1 through 10 |
@@ -228,14 +228,34 @@ Hunger falls by 0.5 per second. At zero hunger, health falls by 2 per second.
 At 25 hunger or below, a large persistent warning tells the player to select and
 eat food; the warning becomes critical at 10 hunger. At 30 health or below, a
 pulsing red vignette closes around the edges of the play area.
-Berries, mushrooms, and meat are separate inventory stacks. Move the desired
-food to the hotbar, select it, and press `E` to eat that exact type:
+Berries, raw mushrooms, raw meat, cooked mushrooms, and cooked meat are
+separate inventory stacks. Move the desired food to the hotbar, select it, and
+press `E` to eat that exact type:
 
-| Food | Hunger restored | Health restored | Main source |
+| Food | Hunger restored | Health restored | Main source or preparation |
 | --- | ---: | ---: | --- |
-| Berries | 18 | 2 | Bushes and crop plots |
-| Mushrooms | 26 | 8 | Cave and forest mushroom patches |
-| Meat | 38 | 10 | Hunted wildlife |
+| Berries | 8 | 0 | Bushes and crop plots |
+| Raw mushrooms | 12 | 1 | Cave and forest mushroom patches |
+| Raw meat | 16 | 2 | Hunted wildlife |
+| Cooked mushrooms | 24 | 5 | Cook raw mushrooms at a Campfire |
+| Cooked meat | 32 | 8 | Cook raw meat at a Campfire |
+
+Selecting raw meat or raw mushrooms while within 92 units of a completed,
+living Campfire changes the `E` action from eating to cooking one unit. Cooking
+takes priority over other food and animal prompts in range. Standing Torches
+and other fire-producing structures cannot cook food. The resulting cooked
+unit goes into the first available inventory location. When the last selected
+raw unit is cooked and the cooked stack is in the hotbar, that cooked stack is
+selected automatically.
+
+Raw meat has a 20% chance to cause sickness after eating, removing 28 hunger
+after its ordinary restoration. Raw mushrooms have a 14% sickness chance that
+removes 20 hunger and, independently, a 12% chance to cause 15 seconds of
+hallucinations. Hallucinations add shifting color, warped movement, and an
+on-screen status warning; their duration freezes while the game is paused.
+Because sickness is applied after the food benefit, either sick raw meal causes
+a net hunger loss unless hunger was already close to zero. Berries and cooked
+foods are safe.
 
 Health reaching zero ends the run. The death screen reports the current night
 and total defeated threats. Nothing persists into a restarted run.
@@ -415,7 +435,7 @@ their respawn until that footprint is clear.
 | Storage Chest | 5 wood, 2 fiber | 1 | 110 | Opens with `E` and stores resource stacks separately |
 | Bedroll | 2 wood, 4 fiber | 1 | 50 | Rest once per day for up to 25 health at a cost of 8 hunger |
 | Standing Torch | 2 wood, 1 fiber, 1 coal | 2 | 35 | Placed fully built; permanent 225-unit light radius |
-| Campfire | 8 wood | 1 | 80 | Permanent 410-unit light radius |
+| Campfire | 8 wood | 1 | 80 | Cooks raw meat and mushrooms; permanent 410-unit light radius |
 | Wood Fence | 3 wood | 2 | 55 | Light barrier |
 | Stone Fence | 4 stone | 2 | 105 | Durable barrier |
 | Wood Gate | 5 wood | 1 | 70 | Opens and closes with `E` |

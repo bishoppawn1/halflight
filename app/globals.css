@@ -36,6 +36,76 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   cursor: crosshair;
 }
 
+.hallucinating .world-canvas {
+  transform-origin: center;
+  animation: hallucination-world 1.8s ease-in-out infinite alternate;
+}
+
+.hallucination-overlay {
+  position: absolute;
+  z-index: 3;
+  inset: -12%;
+  pointer-events: none;
+  opacity: .42;
+  mix-blend-mode: screen;
+  background:
+    repeating-radial-gradient(circle at 38% 43%, transparent 0 36px, rgba(103,243,201,.26) 41px 46px, transparent 51px 76px),
+    conic-gradient(from 45deg at 62% 58%, rgba(245,91,176,.23), transparent 18%, rgba(78,216,240,.2) 36%, transparent 57%, rgba(238,214,76,.19) 74%, transparent);
+  animation: hallucination-drift 3.2s linear infinite;
+}
+
+.hallucination-overlay::before,
+.hallucination-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 5%;
+  border: 8px solid rgba(255,122,209,.16);
+  border-radius: 42% 58% 51% 49%;
+  filter: blur(3px);
+  animation: hallucination-ring 2.1s ease-in-out infinite alternate;
+}
+
+.hallucination-overlay::after {
+  inset: 20%;
+  border-color: rgba(94,247,209,.2);
+  border-radius: 57% 43% 38% 62%;
+  animation-delay: -.8s;
+}
+
+.hallucination-status {
+  position: absolute;
+  z-index: 7;
+  top: 250px;
+  right: 20px;
+  display: grid;
+  gap: 2px;
+  max-width: 225px;
+  padding: 10px 13px;
+  pointer-events: none;
+  color: #fcf0ff;
+  border: 2px solid rgba(247,180,255,.78);
+  border-radius: 11px;
+  background: rgba(87,35,99,.9);
+  box-shadow: 0 5px 0 rgba(42,18,55,.65), 0 0 26px rgba(105,229,211,.3);
+}
+
+.hallucination-status strong { font-size: 11px; font-weight: 950; letter-spacing: .13em; }
+.hallucination-status span { color: #d8f8e7; font-size: 8px; font-weight: 800; line-height: 1.35; }
+
+@keyframes hallucination-world {
+  from { filter: hue-rotate(-18deg) saturate(1.12); transform: scale(1.006) translate(-2px, 1px); }
+  to { filter: hue-rotate(24deg) saturate(1.5) contrast(1.06); transform: scale(1.016) translate(3px, -2px); }
+}
+
+@keyframes hallucination-drift {
+  to { transform: rotate(360deg) scale(1.08); }
+}
+
+@keyframes hallucination-ring {
+  from { transform: rotate(-8deg) scale(.93); opacity: .45; }
+  to { transform: rotate(12deg) scale(1.08); opacity: .95; }
+}
+
 .low-health-vignette {
   position: absolute;
   z-index: 3;
@@ -280,6 +350,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .mark-berries { background: #c94f58; }
 .mark-meat { background: #a8554d; }
 .mark-mushrooms { color: #3e4139; background: #d3c7a8; }
+.mark-cookedMeat { background: #8f5034; }
+.mark-cookedMushrooms { color: #fff0cf; background: #9b643c; }
 .mark-seeds { background: #bd9344; }
 .mark-hide { background: #9b6949; }
 .mark-arrows { background: #7e8f88; }
@@ -422,6 +494,10 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-meat b { left: 8px; top: 8px; width: 6px; height: 4px; border-radius: 50%; background: #f4c1a0; transform: rotate(-18deg); }
 .material-mushrooms i { left: 8px; top: 8px; width: 4px; height: 9px; border-radius: 2px; background: #eee3c7; }
 .material-mushrooms b { left: 3px; top: 3px; width: 14px; height: 9px; border: 2px solid #604b3d; border-radius: 9px 9px 3px 3px; background: #b96d54; }
+.material-cookedMeat i { left: 3px; top: 5px; width: 14px; height: 11px; border: 2px solid #4e3029; border-radius: 60% 42% 58% 45%; background: #985737; transform: rotate(-18deg); }
+.material-cookedMeat b { left: 6px; top: 7px; width: 10px; height: 2px; background: #e2a05d; box-shadow: 0 4px 0 #e2a05d; transform: rotate(-18deg); }
+.material-cookedMushrooms i { left: 8px; top: 8px; width: 4px; height: 9px; border-radius: 2px; background: #d9b77a; }
+.material-cookedMushrooms b { left: 3px; top: 3px; width: 14px; height: 9px; border: 2px solid #4e3428; border-radius: 9px 9px 3px 3px; background: #8b5132; }
 .material-seeds i { left: 4px; top: 5px; width: 5px; height: 8px; border-radius: 80% 20% 70% 30%; background: #e4bf63; box-shadow: 7px 3px 0 #a87830; transform: rotate(32deg); }
 .material-hide i { left: 3px; top: 3px; width: 14px; height: 14px; border: 2px solid #563728; background: #c1895d; clip-path: polygon(20% 0, 45% 18%, 75% 0, 100% 25%, 82% 55%, 100% 85%, 68% 100%, 43% 81%, 10% 100%, 18% 59%, 0 28%); }
 .material-arrows i { left: 8px; top: 1px; width: 3px; height: 18px; border-radius: 2px; background: #e6d1a4; transform: rotate(38deg); }
@@ -581,7 +657,11 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .pause-card kbd { float: right; color: #26372f; }
 .game-paused .world-canvas { cursor: default; }
 .game-paused .low-health-vignette,
-.game-paused .hunger-warning { animation-play-state: paused; }
+.game-paused .hunger-warning,
+.game-paused .hallucination-overlay,
+.game-paused .hallucination-overlay::before,
+.game-paused .hallucination-overlay::after,
+.game-paused.hallucinating .world-canvas { animation-play-state: paused; }
 
 .game-toast {
   position: absolute;

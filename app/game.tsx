@@ -19,7 +19,8 @@ type ResourceKind =
   | "berryBush"
   | "grass"
   | "mushroom";
-type FoodMaterial = "berries" | "mushrooms" | "meat";
+type FoodMaterial = "berries" | "mushrooms" | "meat" | "cookedMushrooms" | "cookedMeat";
+type RawCookableFood = "mushrooms" | "meat";
 type ToolTier = "none" | "wood" | "stone" | "iron" | "aetherium";
 type DurableTool =
   | "woodAxe"
@@ -67,6 +68,8 @@ type Material =
   | "berries"
   | "meat"
   | "mushrooms"
+  | "cookedMeat"
+  | "cookedMushrooms"
   | "seeds"
   | "hide"
   | "arrows"
@@ -268,6 +271,7 @@ interface GameState {
   camera: { x: number; y: number };
   message: string;
   messageUntil: number;
+  hallucinatingUntil: number;
   wave: number;
   cavePopulationInitialized: boolean;
   nextCaveSpawnAt: number;
@@ -311,6 +315,11 @@ const RESOURCE_RESPAWN_DAYS: Record<ResourceKind, readonly [number, number]> = {
 const ANIMAL_RESPAWN_DAYS = [2, 4] as const;
 const LOW_HEALTH_THRESHOLD = 30;
 const LOW_HUNGER_THRESHOLD = 25;
+const CAMPFIRE_COOK_DISTANCE = 92;
+const RAW_MUSHROOM_SICKNESS_CHANCE = 0.14;
+const RAW_MEAT_SICKNESS_CHANCE = 0.2;
+const RAW_MUSHROOM_HALLUCINATION_CHANCE = 0.12;
+const HALLUCINATION_DURATION_MS = 15_000;
 const CREATURE_ATTACK_COOLDOWN_MS = 1250;
 const CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS = 1200;
 const BRUTE_LEAP_COOLDOWN_MS = 4200;
@@ -527,8 +536,10 @@ const MATERIALS: { id: Material; name: string }[] = [
   { id: "guardianCore", name: "Guardian Core" },
   { id: "fiber", name: "Fiber" },
   { id: "berries", name: "Berries" },
-  { id: "meat", name: "Meat" },
-  { id: "mushrooms", name: "Mushrooms" },
+  { id: "meat", name: "Raw Meat" },
+  { id: "mushrooms", name: "Raw Mushrooms" },
+  { id: "cookedMeat", name: "Cooked Meat" },
+  { id: "cookedMushrooms", name: "Cooked Mushrooms" },
   { id: "seeds", name: "Seeds" },
   { id: "hide", name: "Hide" },
   { id: "arrows", name: "Arrows" },
@@ -543,7 +554,7 @@ const BUILD_DATA: Record<
   storageChest: { name: "Storage Chest", detail: "Holds separate resource stacks", icon: "CH", cost: { wood: 5, fiber: 2 }, makes: 1, hp: 110 },
   bedroll: { name: "Bedroll", detail: "Rest once each day to recover health", icon: "BR", cost: { wood: 2, fiber: 4 }, makes: 1, hp: 50 },
   torch: { name: "Standing Torch", detail: "Places instantly as a permanent light", icon: "TO", cost: { wood: 2, fiber: 1, coal: 1 }, makes: 2, hp: 35 },
-  campfire: { name: "Campfire", detail: "A broad pool of warmth and light", icon: "CF", cost: { wood: 8 }, makes: 1, hp: 80 },
+  campfire: { name: "Campfire", detail: "Cooks raw food and creates a broad pool of light", icon: "CF", cost: { wood: 8 }, makes: 1, hp: 80 },
   woodFence: { name: "Wood Fence", detail: "A quick timber barrier", icon: "WF", cost: { wood: 3 }, makes: 2, hp: 55 },
   stoneFence: { name: "Stone Fence", detail: "Slow, sturdy protection", icon: "SF", cost: { stone: 4 }, makes: 2, hp: 105 },
   woodGate: { name: "Wood Gate", detail: "Opens with E", icon: "WG", cost: { wood: 5 }, makes: 1, hp: 70 },
@@ -687,8 +698,10 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   guardianCore: "Guardian Core",
   fiber: "Fiber",
   berries: "Berries",
-  meat: "Meat",
-  mushrooms: "Mushrooms",
+  meat: "Raw Meat",
+  mushrooms: "Raw Mushrooms",
+  cookedMeat: "Cooked Meat",
+  cookedMushrooms: "Cooked Mushrooms",
   seeds: "Seeds",
   hide: "Hide",
   arrows: "Arrows",
@@ -807,7 +820,17 @@ function addDurableTool(game: GameState, tool: DurableTool) {
 }
 
 function isFoodItem(item: InventoryItem | null): item is FoodMaterial {
-  return item === "berries" || item === "mushrooms" || item === "meat";
+  return item === "berries" ||
+    item === "mushrooms" ||
+    item === "meat" ||
+    item === "cookedMushrooms" ||
+    item === "cookedMeat";
+}
+
+function cookedFoodFor(item: InventoryItem | null): FoodMaterial | null {
+  if (item === "mushrooms") return "cookedMushrooms";
+  if (item === "meat") return "cookedMeat";
+  return null;
 }
 
 function itemLabel(item: InventoryItem | null, game?: GameState) {
@@ -864,6 +887,76 @@ function consumeSelectedFood(game: GameState) {
   game.resources[food] -= 1;
   removeDepletedMaterialStacks(game);
   return food;
+}
+
+const FOOD_EFFECTS: Record<FoodMaterial, { hunger: number; health: number }> = {
+  berries: { hunger: 8, health: 0 },
+  mushrooms: { hunger: 12, health: 1 },
+  meat: { hunger: 16, health: 2 },
+  cookedMushrooms: { hunger: 24, health: 5 },
+  cookedMeat: { hunger: 32, health: 8 },
+};
+
+function nearbyCompletedCampfire(game: GameState) {
+  return game.buildings
+    .filter(
+      (building) =>
+        building.kind === "campfire" &&
+        building.realm === game.realm &&
+        building.hp > 0 &&
+        building.construction >= 1 &&
+        distanceToBuilding(building, game.player.x, game.player.y) <= CAMPFIRE_COOK_DISTANCE,
+    )
+    .sort(
+      (a, b) =>
+        distanceToBuilding(a, game.player.x, game.player.y) -
+        distanceToBuilding(b, game.player.x, game.player.y),
+    )[0] ?? null;
+}
+
+function cookSelectedFood(game: GameState) {
+  const rawFood = game.selected;
+  const cookedFood = cookedFoodFor(rawFood);
+  if (!cookedFood || game.resources[rawFood as RawCookableFood] <= 0 || !nearbyCompletedCampfire(game)) return false;
+
+  const selectedStackWillEmpty = game.resources[rawFood as RawCookableFood] === 1;
+  game.resources[rawFood as RawCookableFood] -= 1;
+  removeDepletedMaterialStacks(game);
+  addMaterial(game, cookedFood, 1);
+  if (selectedStackWillEmpty) {
+    const cookedSlot = game.hotbar.indexOf(cookedFood);
+    if (cookedSlot >= 0) selectSlot(game, cookedSlot);
+  }
+  notify(game, "Cooked 1 " + itemLabel(rawFood) + " at the Campfire · " + itemLabel(cookedFood) + " ready.");
+  return true;
+}
+
+function eatSelectedFood(game: GameState) {
+  const food = consumeSelectedFood(game);
+  if (!food) return false;
+
+  const now = performance.now();
+  const effect = FOOD_EFFECTS[food];
+  game.player.hunger = Math.min(100, game.player.hunger + effect.hunger);
+  game.player.hp = Math.min(game.player.maxHp, game.player.hp + effect.health);
+
+  let sicknessPenalty = 0;
+  if (food === "mushrooms" && Math.random() < RAW_MUSHROOM_SICKNESS_CHANCE) sicknessPenalty = 20;
+  if (food === "meat" && Math.random() < RAW_MEAT_SICKNESS_CHANCE) sicknessPenalty = 28;
+  if (sicknessPenalty > 0) game.player.hunger = Math.max(0, game.player.hunger - sicknessPenalty);
+
+  const hallucinating = food === "mushrooms" && Math.random() < RAW_MUSHROOM_HALLUCINATION_CHANCE;
+  if (hallucinating) game.hallucinatingUntil = now + HALLUCINATION_DURATION_MS;
+
+  const healthMessage = effect.health > 0 ? " · +" + effect.health + " health" : "";
+  const sicknessMessage = sicknessPenalty > 0 ? " · SICK! −" + sicknessPenalty + " hunger" : "";
+  const hallucinationMessage = hallucinating ? " · HALLUCINATING" : "";
+  notify(
+    game,
+    "Ate " + itemLabel(food) + " · +" + effect.hunger + " hunger" + healthMessage + sicknessMessage + hallucinationMessage,
+    sicknessPenalty > 0 || hallucinating ? 4200 : 2300,
+  );
+  return true;
 }
 
 function isTree(kind: ResourceKind) {
@@ -1345,7 +1438,7 @@ function makeGame(): GameState {
     realm: "meadow",
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
-    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, seeds: 0, hide: 0, arrows: 0, bullets: 0 },
+    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, cookedMeat: 0, cookedMushrooms: 0, seeds: 0, hide: 0, arrows: 0, bullets: 0 },
     gear: {
       spear: false,
       sword: false,
@@ -1414,6 +1507,7 @@ function makeGame(): GameState {
     camera: { x: SPAWN_X, y: SPAWN_Y },
     message: "Your Wood Axe is in slot 2 and a campfire is already lit. Gather before nightfall.",
     messageUntil: performance.now() + 6000,
+    hallucinatingUntil: 0,
     wave: 0,
     cavePopulationInitialized: false,
     nextCaveSpawnAt: 0,
@@ -2270,6 +2364,7 @@ function setGamePaused(game: GameState, paused: boolean, now = performance.now()
   game.player.attackReady = shiftDeadline(game.player.attackReady);
   game.player.useReady = shiftDeadline(game.player.useReady);
   game.messageUntil = shiftDeadline(game.messageUntil);
+  game.hallucinatingUntil = shiftDeadline(game.hallucinatingUntil);
   game.nextCaveSpawnAt = shiftDeadline(game.nextCaveSpawnAt);
   game.nodes.forEach((node) => {
     node.respawnAt = shiftDeadline(node.respawnAt);
@@ -2627,6 +2722,7 @@ function interact(game: GameState) {
     placeBuild(game, false, game.keys.has("shift"));
     return;
   }
+  if (cookSelectedFood(game)) return;
   const entrance = nearbyCaveEntrance(game);
   const caveExit = nearbyCaveExit(game);
   if (entrance || caveExit) {
@@ -2696,13 +2792,7 @@ function interact(game: GameState) {
     return;
   }
   if (isFoodItem(game.selected) && game.resources[game.selected] > 0) {
-    const food = consumeSelectedFood(game);
-    if (!food) return;
-    const hunger = food === "meat" ? 38 : food === "mushrooms" ? 26 : 18;
-    const health = food === "meat" ? 10 : food === "mushrooms" ? 8 : 2;
-    game.player.hunger = Math.min(100, game.player.hunger + hunger);
-    game.player.hp = Math.min(game.player.maxHp, game.player.hp + health);
-    notify(game, "Ate " + food + " · +" + hunger + " hunger · +" + health + " health");
+    eatSelectedFood(game);
     return;
   }
   notify(game, "Nothing close enough to interact with.");
@@ -3649,6 +3739,8 @@ function syncPointerWorld(game: GameState, viewportWidth: number, viewportHeight
 }
 
 function updateGame(game: GameState, dt: number, viewportWidth: number, viewportHeight: number) {
+  const now = performance.now();
+  if (game.hallucinatingUntil > 0 && now >= game.hallucinatingUntil) game.hallucinatingUntil = 0;
   game.clock += dt / DAY_SECONDS;
   while (game.clock >= 1) {
     game.clock -= 1;
@@ -3659,7 +3751,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
     game.player.hp = Math.min(game.player.maxHp, game.player.hp + 12);
     notify(game, "DAWN — Day " + game.day + ". Meadow horrors fade; the caves stay hostile.", 4000);
   }
-  maintainCavePopulation(game, performance.now());
+  maintainCavePopulation(game, now);
   const afterNight = isNight(game);
   if (afterNight && game.wave < game.day) spawnNightWave(game);
   game.wasNight = afterNight;
@@ -3806,26 +3898,49 @@ function drawGroundDrop(ctx: CanvasRenderingContext2D, drop: GroundDrop, now: nu
       ctx.fill();
       ctx.stroke();
     }
-  } else if (drop.material === "mushrooms") {
-    ctx.fillStyle = "#d8c9a5";
+  } else if (drop.material === "mushrooms" || drop.material === "cookedMushrooms") {
+    const cooked = drop.material === "cookedMushrooms";
+    ctx.fillStyle = cooked ? "#d9b77a" : "#d8c9a5";
     roundedRect(ctx, -3, -1, 6, 14, 3);
     ctx.fill();
-    ctx.fillStyle = "#b96b51";
+    ctx.fillStyle = cooked ? "#8b5132" : "#b96b51";
     ctx.beginPath();
     ctx.arc(0, -2, 11, Math.PI, 0);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-  } else if (drop.material === "meat") {
-    ctx.fillStyle = "#b85d50";
+    if (cooked) {
+      ctx.strokeStyle = "rgba(245,232,195,.9)";
+      ctx.lineWidth = 2;
+      for (const x of [-4, 4]) {
+        ctx.beginPath();
+        ctx.moveTo(x, -14);
+        ctx.quadraticCurveTo(x - 4, -20, x + 1, -25);
+        ctx.stroke();
+      }
+    }
+  } else if (drop.material === "meat" || drop.material === "cookedMeat") {
+    const cooked = drop.material === "cookedMeat";
+    ctx.fillStyle = cooked ? "#8f5034" : "#b85d50";
     ctx.beginPath();
     ctx.ellipse(0, 0, 15, 10, -0.25, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#efd3b5";
-    ctx.beginPath();
-    ctx.arc(4, -1, 4, 0, Math.PI * 2);
-    ctx.fill();
+    if (cooked) {
+      ctx.strokeStyle = "#d79a57";
+      ctx.lineWidth = 2;
+      for (const offset of [-5, 1, 7]) {
+        ctx.beginPath();
+        ctx.moveTo(offset - 4, -7);
+        ctx.lineTo(offset, 7);
+        ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle = "#efd3b5";
+      ctx.beginPath();
+      ctx.arc(4, -1, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else if (drop.material === "arrows") {
     ctx.strokeStyle = "#684631";
     ctx.lineWidth = 3;
@@ -4260,10 +4375,16 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
   ctx.translate(19 + forwardMotion, 6);
   ctx.rotate(angle);
   if (isFoodItem(tool)) {
-    ctx.fillStyle = tool === "berries" ? "#d95762" : tool === "mushrooms" ? "#d9cba8" : "#b95c4d";
+    const mushroom = tool === "mushrooms" || tool === "cookedMushrooms";
+    const cooked = tool === "cookedMushrooms" || tool === "cookedMeat";
+    ctx.fillStyle = tool === "berries"
+      ? "#d95762"
+      : mushroom
+        ? cooked ? "#9b643c" : "#d9cba8"
+        : cooked ? "#8f5034" : "#b95c4d";
     ctx.strokeStyle = "#432f2b";
     ctx.lineWidth = 3;
-    if (tool === "mushrooms") {
+    if (mushroom) {
       for (const [x, y] of [[8, -3], [17, 4]] as const) {
         roundedRect(ctx, x, y, 4, 10, 2);
         ctx.fill();
@@ -4272,6 +4393,21 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
+      }
+    } else if (tool === "meat" || tool === "cookedMeat") {
+      ctx.beginPath();
+      ctx.ellipse(12, 0, 13, 9, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      if (cooked) {
+        ctx.strokeStyle = "#d99a57";
+        ctx.lineWidth = 2;
+        for (const offset of [-2, 5, 12]) {
+          ctx.beginPath();
+          ctx.moveTo(offset, -6);
+          ctx.lineTo(offset + 4, 6);
+          ctx.stroke();
+        }
       }
     } else {
       for (const [x, y] of [[8, -4], [15, 1], [7, 5]] as const) {
@@ -7154,6 +7290,9 @@ function nearbyPrompt(game: GameState) {
     const target = targetBuilding(game, 118);
     if (target) return "TOOL · Deconstruct " + BUILD_DATA[target.kind].name + " · " + Math.ceil(target.hp) + "/" + target.maxHp + " health";
   }
+  if (cookedFoodFor(game.selected) && game.resources[game.selected as RawCookableFood] > 0 && nearbyCompletedCampfire(game)) {
+    return "E · Cook " + itemLabel(game.selected) + " at Campfire";
+  }
   const entrance = nearbyCaveEntrance(game);
   const currentCave = nearbyCaveExit(game);
   if (entrance) return "E · Enter cave";
@@ -7190,7 +7329,7 @@ function nearbyPrompt(game: GameState) {
     }
     return "F · Feed " + food + " to " + animalName(creature.kind) + " · " + creature.fed + "/" + ANIMAL_FEEDS_TO_BREED;
   }
-  if (isFoodItem(game.selected) && game.resources[game.selected] > 0) return "E · Eat " + game.selected;
+  if (isFoodItem(game.selected) && game.resources[game.selected] > 0) return "E · Eat " + itemLabel(game.selected);
   const node = nearestNode(game, 92);
   if (node) {
     if (isTree(node.kind)) return "TOOL · " + (game.selected === "hands" ? "Punch " : "Chop ") + node.kind + (game.selected === "hands" ? "" : " with Axe");
@@ -7935,9 +8074,10 @@ export default function Game() {
   const phase = isNight(game) ? "NIGHT" : "DAY";
   const lowHealth = game.started && !game.dead && game.player.hp <= LOW_HEALTH_THRESHOLD;
   const lowHunger = game.started && !game.dead && game.player.hunger <= LOW_HUNGER_THRESHOLD;
+  const hallucinating = game.started && !game.dead && game.hallucinatingUntil > 0;
 
   return (
-    <main className={"survival-game" + (game.paused ? " game-paused" : "")} data-revision={revision}>
+    <main className={"survival-game" + (game.paused ? " game-paused" : "") + (hallucinating ? " hallucinating" : "")} data-revision={revision}>
       <canvas
         ref={canvasRef}
         className="world-canvas"
@@ -7981,6 +8121,16 @@ export default function Game() {
         }}
       />
 
+      {hallucinating && (
+        <>
+          <div className="hallucination-overlay" aria-hidden="true" />
+          <div className="hallucination-status" role="status">
+            <strong>HALLUCINATING</strong>
+            <span>The raw mushrooms warped your senses. This will pass.</span>
+          </div>
+        </>
+      )}
+
       {lowHealth && (
         <div
           className="low-health-vignette"
@@ -7992,7 +8142,7 @@ export default function Game() {
       {lowHunger && (
         <div className={"hunger-warning" + (game.player.hunger <= 10 ? " critical" : "")} role="alert">
           <strong>LOW HUNGER</strong>
-          <span>Eat food now — select berries, mushrooms, or meat and press <kbd>E</kbd>.</span>
+          <span>Select food and press <kbd>E</kbd>. Cook raw meat or mushrooms at a Campfire first for a safer, stronger meal.</span>
         </div>
       )}
 
