@@ -5,7 +5,7 @@
 **Halflight** is an endless, single-player, real-time browser survival game.
 The player gathers by day, explores a large meadow, forest, and several caves, crafts
 equipment and firearms, builds defenses, feeds and breeds wildlife, and survives night
-waves that become larger and stronger forever.
+waves that grow larger and unlock new fixed-stat horror species forever.
 
 There is no third- or fourth-night ending, day cap, or final victory state.
 Days continue until the player's health reaches zero. **Try again** resets the
@@ -197,16 +197,24 @@ visibly different at a glance and remain individually scattered; world
 generation never chains separate deposits into a line.
 
 At night, the Meadow is almost completely opaque beyond light. The player has
-only 96 units of close night vision; Standing Torches, Campfires, and Fire Traps
+96 units of close night vision plus a 51-degree forward cone that reaches 215
+units in the current aim direction; Standing Torches, Campfires, and Fire Traps
 reveal 225, 410, and 115 units respectively. Caves remain dark at every time of
-day, give the player 112 units of close vision before placed lights extend it,
-and remain hostile during both halves of the day/night cycle. Every light
-follows line of sight. Living tree crowns, completed wood,
+day, give the player 112 units of close vision plus a 230-unit forward cone
+before placed lights extend visibility, and remain hostile during both halves
+of the day/night cycle. The cone fades toward its sides and far edge. Every
+light follows line of sight. Living tree crowns, completed wood,
 stone, and metal walls, closed gates and doors, and cave-rock boundaries stop
 light and leave darkness behind them. The first tree or completed structure hit
 by a light remains visibly illuminated so the source of each cast shadow is
 clear. Open gates and doors pass light, and overlapping sources can illuminate
 one another's shadows.
+
+In darkness, touching any monster with close vision, the forward cone, or a
+placed light immediately provokes it into chasing the player. It remains
+light-provoked for 12 seconds after leaving illumination. Monster eyes glow;
+their faint red glints remain visible from up to 340 units away when there is a
+clear line of sight, even when the rest of the creature is still hidden.
 
 A full cycle lasts 480 seconds: 240 seconds of day and 240 seconds of night. The
 first run begins partway through daylight, leaving about 163 seconds before
@@ -484,13 +492,19 @@ swipe across its actual melee reach when the hit lands; the guardian's separate
 orb volley retains its charge warning and visible projectiles. Monsters can
 damage a blocking structure at most once every 1.2 seconds.
 
-The fast Meadow crawler fights with two exceptionally long forward arms. Its
-142-unit lash is a true ranged melee attack, and the arms visibly extend when it
-strikes. A Meadow brute can begin a leap while it is 120–320 units from the
-player and has a clear path. A 420 ms wind-up and marked 78-unit landing circle
+The fast Meadow crawler rests its two exceptionally long striking arms folded
+along its sides. Its 142-unit lash is a true ranged melee attack: one arm at a
+time keeps its segment lengths and visibly flings in a curved side-to-front
+sweep instead of telescoping straight outward. A Meadow brute can begin a leap
+while it is 120–320 units from the player and has a clear path. A 420 ms wind-up and marked 78-unit landing circle
 telegraph the attack before the brute spends 560 ms airborne. Landing in the
 circle deals 150% of its normal damage. A brute waits 4.2 seconds before it can
 leap again, and a solid structure stops the leap and takes the impact instead.
+
+The evolved Meadow stalker begins appearing on night 4. It is a compact,
+low-bodied horror with six needle-like legs, only 18 health, and a fixed speed
+of 206. Its small silhouette, 470-unit sense radius, and sudden close pursuit
+make it the fastest ordinary enemy, but it never gains further stat bonuses.
 
 Both firearms use bullets and always fire as attacks instead of being captured
 by nearby resource targeting. Holding the primary input repeats pistol or
@@ -611,13 +625,13 @@ reinforcements to the persistent cave population, with no wave-size cap. Night
 1 therefore spawns 9 in the Meadow and adds 6 underground; night 10 spawns 36
 and adds 24 respectively. Monsters in the inactive realm remain there while the
 player travels, so leaving a cave never makes the outside night empty. Meadow
-waves use only shades, crawlers, and brutes. Cave-system populations use only
-wraiths and maws; surface horrors never spawn underground and cave horrors
-never spawn outside. The game checks throughout the night whether the current
+waves use shades, crawlers, brutes, and night-4 stalkers. Cave-system
+populations use only wraiths and maws; surface horrors never spawn underground,
+and cave horrors never spawn outside. The game checks throughout the night whether the current
 day's reinforcements have spawned, so a missed transition frame cannot suppress
-them. Each day advances after dawn. Newly spawned monsters gain the listed
-health increase and 2 speed per day, but their ordinary contact damage never
-scales and remains fixed at the table value on every day.
+them. Each day advances after dawn. Enemy health, speed, contact damage, attack
+reach, and sense radius never scale with the day. Progression comes only from
+larger populations and fixed-stat species unlocking on later nights.
 
 Each monster's position is sampled independently from valid points across its
 realm, at least 360 units from the player's corresponding world coordinates.
@@ -625,30 +639,35 @@ Waves do not form a ring or otherwise distribute themselves evenly around the
 player.
 
 Night-wave spawn candidates inside the visible, line-of-sight portion of the
-player's close vision or a completed Standing Torch, Campfire, or Fire Trap are
-rejected. A 30-unit safety margin keeps the monster's body fully outside the
-visible light pool. Darkness behind a light blocker is not protected. Destroyed
-lights and unfinished blueprints provide no spawn protection.
+player's close vision, forward cone, or a completed Standing Torch, Campfire,
+or Fire Trap are rejected. A 30-unit safety margin keeps the monster's body
+fully outside the visible light pool. Darkness behind a light blocker is not
+protected. Destroyed lights and unfinished blueprints provide no spawn
+protection.
 
-| Monster | Realm | Earliest night | Base health | Health per day | Base speed | Fixed contact damage | Attack reach | Sense radius |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Shade | Meadow | 1 | 28 | 8 | 84 | 7 | 76 | 320 |
-| Crawler | Meadow | 2 | 23 | 6 | 116 | 6 | 142 | 390 |
-| Brute | Meadow | 3 | 54 | 13 | 60 | 12 | 88 | 300 |
-| Wraith | Cave system | 1 | 42 | 10 | 96 | 10 | 108 | 440 |
-| Maw | Cave system | 3 | 92 | 17 | 56 | 17 | 96 | 260 |
-| Aether Warden | Guarded cave ore only | — | 118 | 0 | 72 | 14 | 104 | 380 |
+| Monster | Realm | Earliest night | Fixed health | Fixed speed | Fixed contact damage | Attack reach | Sense radius |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Shade | Meadow | 1 | 28 | 84 | 7 | 76 | 320 |
+| Crawler | Meadow | 2 | 23 | 116 | 6 | 142 | 390 |
+| Brute | Meadow | 3 | 54 | 60 | 12 | 88 | 300 |
+| Stalker | Meadow | 4 | 18 | 206 | 7 | 62 | 470 |
+| Wraith | Cave system | 1 | 42 | 96 | 10 | 108 | 440 |
+| Maw | Cave system | 3 | 92 | 56 | 17 | 96 | 260 |
+| Aether Warden | Guarded cave ore only | — | 118 | 70 | 14 | 104 | 380 |
 
 Each monster family has a separate overhead silhouette instead of sharing one
 round tentacled base. Shades are compact pulsing cores with five short wisps.
 Crawlers have narrow carapaces, six jointed limbs, and two much longer striking
 arms. Brutes have broad plated bodies, massive forelimbs, and claws that flare
-during their leap wind-up. Wraiths are tapered spectral bodies trailing six
-flowing ribbons. Maws have a circular toothed mouth and eight short, heavy
-limbs; the cave guardian is an oversized maw. Aether Wardens are faceted teal
-constructs ringed with seven luminous crystal spikes, carry a visible label,
-and cast a small cyan warning glow. They never join random night waves and drop
-no bonus material; the Aetherium patch they defend is the reward.
+during their leap wind-up. Stalkers are much smaller, with narrow torsos and six
+needle-like legs. Wraiths are tapered spectral bodies trailing six flowing
+ribbons. Maws have a circular toothed mouth and eight short, heavy limbs; the
+cave guardian is an oversized maw. Every organic family has pulsing red eye
+glints that remain aligned with its own overhead face and movement direction.
+Aether Wardens are faceted teal constructs ringed with seven luminous crystal
+spikes, carry a visible label, and cast a small cyan warning glow; their central
+eye glows cyan. They never join random night waves and drop no bonus material;
+the Aetherium patch they defend is the reward.
 
 Monsters initially prowl instead of knowing the player's location. They chase
 after sensing the player or being attacked, stop at their attack reach when the

@@ -74,7 +74,7 @@ type Material =
 type GroundAnimalKind = "bear" | "boar" | "deer" | "rabbit" | "fox" | "wolf" | "raccoon";
 type BirdKind = "crow" | "owl" | "turkey";
 type AnimalKind = GroundAnimalKind | BirdKind;
-type MonsterKind = "shade" | "crawler" | "brute" | "wraith" | "maw" | "aetherWarden";
+type MonsterKind = "shade" | "crawler" | "brute" | "stalker" | "wraith" | "maw" | "aetherWarden";
 type CreatureKind = MonsterKind | AnimalKind;
 type ArmorKind = "none" | "copper" | "iron" | "blacksteel";
 type InventoryItem = Tool | BuildKind | Material;
@@ -321,6 +321,10 @@ const BRUTE_LEAP_MIN_DISTANCE = 120;
 const BRUTE_LEAP_MAX_DISTANCE = 320;
 const BRUTE_LEAP_IMPACT_RADIUS = 78;
 const PLAYER_LIGHT_RADIUS: Record<Realm, number> = { meadow: 96, caveSystem: 112 };
+const PLAYER_VISION_CONE_RANGE: Record<Realm, number> = { meadow: 215, caveSystem: 230 };
+const PLAYER_VISION_CONE_HALF_ANGLE = Math.PI / 7;
+const LIGHT_PROVOKE_DURATION_MS = 12000;
+const MONSTER_EYE_GLINT_RANGE = 340;
 const BUILDING_LIGHT_RADIUS: Partial<Record<BuildKind, number>> = {
   torch: 225,
   campfire: 410,
@@ -582,29 +586,29 @@ const BUILD_ORDER: BuildKind[] = [
 
 const ANIMAL_KINDS: AnimalKind[] = ["bear", "boar", "deer", "rabbit", "fox", "wolf", "raccoon", "crow", "owl", "turkey"];
 const BIRD_KINDS: BirdKind[] = ["crow", "owl", "turkey"];
-const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "wraith", "maw", "aetherWarden"];
+const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "stalker", "wraith", "maw", "aetherWarden"];
 const MONSTER_DATA: Record<
   MonsterKind,
   {
     realm: Realm;
     earliestNight: number;
     hp: number;
-    hpScale: number;
     speed: number;
     damage: number;
     attackReach: number;
     senseRadius: number;
   }
 > = {
-  shade: { realm: "meadow", earliestNight: 1, hp: 28, hpScale: 8, speed: 84, damage: 7, attackReach: 76, senseRadius: 320 },
-  crawler: { realm: "meadow", earliestNight: 2, hp: 23, hpScale: 6, speed: 116, damage: 6, attackReach: 142, senseRadius: 390 },
-  brute: { realm: "meadow", earliestNight: 3, hp: 54, hpScale: 13, speed: 60, damage: 12, attackReach: 88, senseRadius: 300 },
-  wraith: { realm: "caveSystem", earliestNight: 1, hp: 42, hpScale: 10, speed: 96, damage: 10, attackReach: 108, senseRadius: 440 },
-  maw: { realm: "caveSystem", earliestNight: 3, hp: 92, hpScale: 17, speed: 56, damage: 17, attackReach: 96, senseRadius: 260 },
-  aetherWarden: { realm: "caveSystem", earliestNight: 1, hp: 118, hpScale: 0, speed: 70, damage: 14, attackReach: 104, senseRadius: 380 },
+  shade: { realm: "meadow", earliestNight: 1, hp: 28, speed: 84, damage: 7, attackReach: 76, senseRadius: 320 },
+  crawler: { realm: "meadow", earliestNight: 2, hp: 23, speed: 116, damage: 6, attackReach: 142, senseRadius: 390 },
+  brute: { realm: "meadow", earliestNight: 3, hp: 54, speed: 60, damage: 12, attackReach: 88, senseRadius: 300 },
+  stalker: { realm: "meadow", earliestNight: 4, hp: 18, speed: 206, damage: 7, attackReach: 62, senseRadius: 470 },
+  wraith: { realm: "caveSystem", earliestNight: 1, hp: 42, speed: 96, damage: 10, attackReach: 108, senseRadius: 440 },
+  maw: { realm: "caveSystem", earliestNight: 3, hp: 92, speed: 56, damage: 17, attackReach: 96, senseRadius: 260 },
+  aetherWarden: { realm: "caveSystem", earliestNight: 1, hp: 118, speed: 70, damage: 14, attackReach: 104, senseRadius: 380 },
 };
 const MONSTER_WAVE_ROSTERS: Record<Realm, MonsterKind[]> = {
-  meadow: ["shade", "shade", "crawler", "shade", "brute"],
+  meadow: ["shade", "shade", "crawler", "shade", "brute", "crawler", "shade", "stalker"],
   caveSystem: ["wraith", "wraith", "maw"],
 };
 const BOSS_ATTACK_REACH_BONUS = 18;
@@ -1203,7 +1207,7 @@ function makeGame(): GameState {
   const creatures: Creature[] = [];
   const addMonster = (kind: MonsterKind, x: number, y: number, phase: number, boss = false) => {
     const stats = MONSTER_DATA[kind];
-    const hp = boss ? 240 : stats.hp + stats.hpScale;
+    const hp = boss ? 240 : stats.hp;
     const direction = Math.atan2(CAVE_HUB.y - y, CAVE_HUB.x - x);
     creatures.push({
       id: id++,
@@ -1213,7 +1217,7 @@ function makeGame(): GameState {
       y,
       hp,
       maxHp: hp,
-      speed: boss ? BOSS_SPEED : stats.speed + 2,
+      speed: boss ? BOSS_SPEED : stats.speed,
       damage: boss ? 22 : stats.damage,
       fed: 0,
       maturesAt: 0,
@@ -1427,12 +1431,34 @@ function buildingLightRadius(building: Building) {
   return BUILDING_LIGHT_RADIUS[building.kind] ?? 0;
 }
 
+function realmIsDark(game: GameState, realm: Realm) {
+  return realm === "caveSystem" || (realm === "meadow" && isNight(game));
+}
+
+function playerVisionConeContains(game: GameState, realm: Realm, x: number, y: number, padding = 0) {
+  if (realm !== game.realm) return false;
+  const dx = x - game.player.x;
+  const dy = y - game.player.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance > PLAYER_VISION_CONE_RANGE[realm] + padding) return false;
+  const angularPadding = padding > 0 && distance > padding
+    ? Math.asin(Math.min(0.999, padding / distance))
+    : distance <= padding
+      ? Math.PI
+      : 0;
+  if (Math.abs(angleDifference(Math.atan2(dy, dx), game.player.dir)) > PLAYER_VISION_CONE_HALF_ANGLE + angularPadding) {
+    return false;
+  }
+  return lightLineIsClear(game, realm, game.player.x, game.player.y, x, y);
+}
+
 function pointIsLit(game: GameState, realm: Realm, x: number, y: number, padding = 0) {
   if (
     realm === game.realm &&
     Math.hypot(x - game.player.x, y - game.player.y) <= PLAYER_LIGHT_RADIUS[realm] + padding &&
     lightLineIsClear(game, realm, game.player.x, game.player.y, x, y)
   ) return true;
+  if (playerVisionConeContains(game, realm, x, y, padding)) return true;
   return game.buildings.some((building) => {
     if (building.realm !== realm) return false;
     const radius = buildingLightRadius(building);
@@ -1441,6 +1467,12 @@ function pointIsLit(game: GameState, realm: Realm, x: number, y: number, padding
     return Math.hypot(x - center.x, y - center.y) <= radius + padding &&
       lightLineIsClear(game, realm, center.x, center.y, x, y);
   });
+}
+
+function monsterIsIlluminated(game: GameState, creature: Creature) {
+  return creature.realm === game.realm &&
+    realmIsDark(game, creature.realm) &&
+    pointIsLit(game, creature.realm, creature.x, creature.y, Math.min(12, creatureRadius(creature) * 0.5));
 }
 
 function notify(game: GameState, message: string, duration = 2300) {
@@ -1506,16 +1538,15 @@ function spawnMonstersInRealm(game: GameState, realm: Realm, count: number) {
     }
     if (!spawnPoint) continue;
     const stats = MONSTER_DATA[kind];
-    const hp = stats.hp + game.day * stats.hpScale;
     game.creatures.push({
       id: game.lastId++,
       kind,
       realm,
       x: spawnPoint.x,
       y: spawnPoint.y,
-      hp,
-      maxHp: hp,
-      speed: stats.speed + game.day * 2,
+      hp: stats.hp,
+      maxHp: stats.hp,
+      speed: stats.speed,
       damage: stats.damage,
       fed: 0,
       maturesAt: 0,
@@ -2164,17 +2195,19 @@ function reservedBuildingAt(game: GameState, realm: Realm, x: number, y: number,
 
 function creatureRadius(creature: Creature) {
   if (creature.boss) return 49;
-  const radius = creature.kind === "maw" || creature.kind === "bear" || creature.kind === "brute" || creature.kind === "aetherWarden"
-    ? 27
-    : creature.kind === "rabbit"
-      ? 14
-      : creature.kind === "crow"
-        ? 13
-        : creature.kind === "owl"
-          ? 17
-          : creature.kind === "turkey"
-            ? 22
-            : 20;
+  const radius = creature.kind === "stalker"
+    ? 13
+    : creature.kind === "maw" || creature.kind === "bear" || creature.kind === "brute" || creature.kind === "aetherWarden"
+      ? 27
+      : creature.kind === "rabbit"
+        ? 14
+        : creature.kind === "crow"
+          ? 13
+          : creature.kind === "owl"
+            ? 17
+            : creature.kind === "turkey"
+              ? 22
+              : 20;
   return isBabyAnimal(creature) ? radius * 0.58 : radius;
 }
 
@@ -3233,8 +3266,11 @@ function updateCreatures(game: GameState, dt: number) {
     const permanentlyWary = cautiousPrey && creature.waryOfPlayer;
     if (isMonster(creature.kind)) {
       const sense = creature.boss ? BOSS_SENSE_DISTANCE : MONSTER_DATA[creature.kind].senseRadius;
-      if (playerDistance < sense) creature.angry = true;
-      if (playerDistance > sense * 1.8) creature.angry = false;
+      const illuminated = monsterIsIlluminated(game, creature);
+      if (illuminated) creature.provokedUntil = now + LIGHT_PROVOKE_DURATION_MS;
+      const lightProvoked = illuminated || now < creature.provokedUntil;
+      if (playerDistance < sense || lightProvoked) creature.angry = true;
+      if (!lightProvoked && playerDistance > sense * 1.8) creature.angry = false;
       if (creature.angry) {
         targetX = game.player.x;
         targetY = game.player.y;
@@ -5427,13 +5463,23 @@ function drawMonsterCreature(ctx: CanvasRenderingContext2D, creature: Creature, 
 
   if (creature.kind === "crawler") {
     const attackAge = now - creature.attackAt;
-    const lash = attackAge >= 0 && attackAge < 260
-      ? Math.sin((attackAge / 260) * Math.PI) * 24
-      : 0;
+    const attackProgress = attackAge >= 0 && attackAge < 300 ? attackAge / 300 : -1;
+    const strikingSide = Math.floor(creature.attackAt / CREATURE_ATTACK_COOLDOWN_MS) % 2 === 0 ? -1 : 1;
     for (const side of [-1, 1] as const) {
+      const fling = side === strikingSide && attackProgress >= 0
+        ? Math.sin(attackProgress * Math.PI)
+        : 0;
+      const upperAngle = side * (1.5 - fling * 1.12);
+      const foreAngle = -side * (0.15 + fling * 0.33);
+      const baseX = 8;
+      const baseY = side * 9;
+      const elbowX = baseX + Math.cos(upperAngle) * 43;
+      const elbowY = baseY + Math.sin(upperAngle) * 43;
+      const tipX = elbowX + Math.cos(foreAngle) * 67;
+      const tipY = elbowY + Math.sin(foreAngle) * 67;
       drawMonsterLimb(
         ctx,
-        [[8, side * 9], [38, side * 29], [76, side * 20], [104 + lash, side * 7]],
+        [[baseX, baseY], [elbowX, elbowY], [tipX, tipY]],
         6,
         "#465773",
       );
@@ -5469,6 +5515,47 @@ function drawMonsterCreature(ctx: CanvasRenderingContext2D, creature: Creature, 
       ctx.arc(x, y, 3, 0, Math.PI * 2);
       ctx.fill();
     }
+    return;
+  }
+
+  if (creature.kind === "stalker") {
+    for (const side of [-1, 1] as const) {
+      for (let leg = 0; leg < 3; leg++) {
+        const rootX = -13 + leg * 13;
+        const stride = Math.sin(now / 88 + creature.phase * 2 + leg * 1.7 + side) * 4;
+        drawMonsterLimb(
+          ctx,
+          [[rootX, side * 7], [rootX - 8 + stride, side * (19 + leg * 2)], [rootX + 9 - stride, side * 31]],
+          3.5,
+          leg === 1 ? "#43445d" : "#35364e",
+        );
+      }
+    }
+    ctx.fillStyle = "#191a29";
+    ctx.strokeStyle = "#080a11";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(-3, 0, 25 + pulse, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#292b43";
+    ctx.beginPath();
+    ctx.ellipse(15, 0, 11, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#06070c";
+    ctx.beginPath();
+    ctx.moveTo(24, 0);
+    ctx.lineTo(32, -5);
+    ctx.lineTo(30, 0);
+    ctx.lineTo(32, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#ff4e60";
+    ctx.beginPath();
+    ctx.arc(18, -4, 2.7, 0, Math.PI * 2);
+    ctx.arc(18, 4, 2.7, 0, Math.PI * 2);
+    ctx.fill();
     return;
   }
 
@@ -5715,26 +5802,91 @@ function drawCaveMonsterAttack(ctx: CanvasRenderingContext2D, creature: Creature
   ctx.restore();
 }
 
+function creatureVisualScale(creature: Creature) {
+  if (creature.boss) return 1.82;
+  if (creature.kind === "brute") return 1.28;
+  if (creature.kind === "stalker") return 0.72;
+  if (creature.kind === "aetherWarden") return 1.15;
+  if (creature.kind === "bear") return 1.2;
+  if (creature.kind === "rabbit") return 0.78;
+  if (creature.kind === "crow") return 0.52;
+  if (creature.kind === "owl") return 0.54;
+  if (creature.kind === "turkey") return 0.58;
+  if (creature.kind === "raccoon" || creature.kind === "boar") return 0.92;
+  return 1;
+}
+
+function monsterEyePositions(creature: Creature): readonly (readonly [number, number, number])[] {
+  if (creature.kind === "shade") return [[13, -8, 3], [13, 0, 3], [13, 8, 3]];
+  if (creature.kind === "crawler") return [[-9, -8, 2.6], [-2, -11, 2.6], [-9, 8, 2.6], [-2, 11, 2.6]];
+  if (creature.kind === "brute") return [[25, -7, 3.2], [25, 7, 3.2]];
+  if (creature.kind === "stalker") return [[18, -4, 2.8], [18, 4, 2.8]];
+  if (creature.kind === "wraith") return [[15, -6, 3], [15, 7, 3]];
+  if (creature.kind === "aetherWarden") return [[13, 0, 4.2]];
+  return [[-18, -19, 4], [-22, 14, 4], [4, -29, 4]];
+}
+
+function drawMonsterEyeGlints(
+  ctx: CanvasRenderingContext2D,
+  game: GameState,
+  now: number,
+  onScreen: (x: number, y: number) => boolean,
+) {
+  for (const creature of game.creatures) {
+    if (
+      creature.realm !== game.realm ||
+      creature.hp <= 0 ||
+      !isMonster(creature.kind) ||
+      !onScreen(creature.x, creature.y)
+    ) continue;
+    const distance = Math.hypot(creature.x - game.player.x, creature.y - game.player.y);
+    const illuminated = monsterIsIlluminated(game, creature);
+    if (
+      !illuminated &&
+      (distance > MONSTER_EYE_GLINT_RANGE ||
+        !lightLineIsClear(game, creature.realm, game.player.x, game.player.y, creature.x, creature.y))
+    ) continue;
+
+    const pulse = 0.82 + Math.sin(now / 95 + creature.id) * 0.18;
+    const alpha = illuminated ? 0.95 : 0.42;
+    let leapHeight = 0;
+    if (creature.kind === "brute" && creature.abilityStartedAt > 0) {
+      const leapElapsed = now - creature.abilityStartedAt;
+      if (leapElapsed >= BRUTE_LEAP_WINDUP_MS) {
+        const leapProgress = Math.max(0, Math.min(1, (leapElapsed - BRUTE_LEAP_WINDUP_MS) / BRUTE_LEAP_TRAVEL_MS));
+        leapHeight = Math.sin(leapProgress * Math.PI) * 34;
+      }
+    }
+
+    ctx.save();
+    ctx.translate(creature.x, creature.y + Math.sin(now / 230 + creature.phase) * 2 - leapHeight);
+    const visualScale = creatureVisualScale(creature);
+    ctx.scale(visualScale, visualScale);
+    ctx.rotate(creature.dir);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = alpha * pulse;
+    const warden = creature.kind === "aetherWarden";
+    for (const [x, y, radius] of monsterEyePositions(creature)) {
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, radius * 4.5);
+      glow.addColorStop(0, "rgba(255,241,190,1)");
+      glow.addColorStop(0.18, warden ? "rgba(97,232,241,.98)" : "rgba(255,74,88,.98)");
+      glow.addColorStop(0.55, warden ? "rgba(35,175,190,.48)" : "rgba(194,18,55,.48)");
+      glow.addColorStop(1, warden ? "rgba(20,112,125,0)" : "rgba(120,0,32,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, radius * 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = warden ? "#e8ffff" : "#ffd8ae";
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(1.1, radius * 0.42), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
-  const speciesScale = creature.boss
-    ? 1.82
-    : creature.kind === "brute"
-      ? 1.28
-      : creature.kind === "aetherWarden"
-        ? 1.15
-      : creature.kind === "bear"
-        ? 1.2
-        : creature.kind === "rabbit"
-          ? 0.78
-          : creature.kind === "crow"
-            ? 0.52
-            : creature.kind === "owl"
-              ? 0.54
-              : creature.kind === "turkey"
-                ? 0.58
-                : creature.kind === "raccoon" || creature.kind === "boar"
-                  ? 0.92
-                  : 1;
+  const speciesScale = creatureVisualScale(creature);
   const baby = isBabyAnimal(creature, now);
   const scale = speciesScale * (baby ? 0.58 : 1);
   const flying = isAnimal(creature.kind) && ANIMAL_DATA[creature.kind].flying;
@@ -6743,7 +6895,66 @@ function drawDarkness(
     }
   };
 
+  const revealConeLayer = (
+    worldX: number,
+    worldY: number,
+    direction: number,
+    radius: number,
+    halfAngle: number,
+    opacity: number,
+  ) => {
+    const x = offsetX + worldX * scale;
+    const y = offsetY + worldY * scale;
+    const screenRadius = radius * scale;
+    if (x + screenRadius < 0 || y + screenRadius < 0 || x - screenRadius > width || y - screenRadius > height) return;
+    const occluders = collectLightOccluders(game, game.realm, worldX, worldY, radius);
+    const angleOffsets = lightVisibilityAngles(worldX, worldY, occluders)
+      .map((angle) => angleDifference(angle, direction))
+      .filter((offset) => Math.abs(offset) < halfAngle);
+    angleOffsets.push(-halfAngle, halfAngle);
+    angleOffsets.sort((a, b) => a - b);
+
+    light.save();
+    light.beginPath();
+    light.moveTo(x, y);
+    for (const offset of angleOffsets) {
+      const angle = direction + offset;
+      const distance = lightRayDistance(game.realm, worldX, worldY, angle, radius, occluders);
+      light.lineTo(
+        offsetX + (worldX + Math.cos(angle) * distance) * scale,
+        offsetY + (worldY + Math.sin(angle) * distance) * scale,
+      );
+    }
+    light.closePath();
+    light.clip();
+    light.globalAlpha = opacity;
+    const gradient = light.createRadialGradient(x, y, 24 * scale, x, y, screenRadius);
+    gradient.addColorStop(0, "rgba(0,0,0,1)");
+    gradient.addColorStop(0.58, "rgba(0,0,0,.82)");
+    gradient.addColorStop(0.84, "rgba(0,0,0,.36)");
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    light.fillStyle = gradient;
+    light.fillRect(x - screenRadius, y - screenRadius, screenRadius * 2, screenRadius * 2);
+    light.restore();
+  };
+
   reveal(game.player.x, game.player.y, PLAYER_LIGHT_RADIUS[game.realm], 25);
+  revealConeLayer(
+    game.player.x,
+    game.player.y,
+    game.player.dir,
+    PLAYER_VISION_CONE_RANGE[game.realm],
+    PLAYER_VISION_CONE_HALF_ANGLE,
+    0.58,
+  );
+  revealConeLayer(
+    game.player.x,
+    game.player.y,
+    game.player.dir,
+    PLAYER_VISION_CONE_RANGE[game.realm],
+    PLAYER_VISION_CONE_HALF_ANGLE * 0.76,
+    0.78,
+  );
   game.buildings.forEach((building) => {
     if (building.realm !== game.realm) return;
     const radius = buildingLightRadius(building);
@@ -6921,6 +7132,11 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
 
   if (isNight(game) || inCave) {
     drawDarkness(ctx, width, height, dpr, game, scale, offsetX, offsetY, inCave, now);
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    drawMonsterEyeGlints(ctx, game, now, onScreen);
+    ctx.restore();
   } else if (game.clock > 0.4) {
     ctx.fillStyle = "rgba(210,126,68," + ((game.clock - 0.4) * 0.9) + ")";
     ctx.fillRect(0, 0, width, height);
@@ -8077,7 +8293,7 @@ export default function Game() {
           <div className="start-mark"><span>H</span></div>
           <small>DAYLIGHT IS BORROWED</small>
           <h1>HALFLIGHT</h1>
-          <p>Gather by day. Build on the grid. Survive creatures that grow stronger every night.</p>
+          <p>Gather by day. Build on the grid. Survive larger waves and whatever the dark evolves next.</p>
           <button onClick={start}>Begin survival <span>→</span></button>
           <div><span><kbd>WASD</kbd> Move</span><span><kbd>F</kbd> Feed</span><span><kbd>HOLD LMB</kbd> Use tool</span></div>
         </section>
