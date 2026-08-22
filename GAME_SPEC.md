@@ -89,6 +89,11 @@ distinct at gameplay scale.
 The Stone Spear has a long wooden shaft and small triangular stone point. The
 Iron Sword instead has a short wrapped grip, pommel, crossguard, and broad
 double-edged iron blade in both its held and inventory illustrations.
+The Tendril Blade is a continuous living greatblade rather than a spear or a
+metal sword with an organic point attached. Its long, hooked purple body grows
+directly from a ribbed symbiote grip, with visible luminous veins, backward
+barbs, and two curling guard tendrils. Its held silhouette reaches nearly twice
+as far as the Iron Sword and visibly flexes outward during its wide swing.
 
 Every world object and creature is presented from directly overhead. Wildlife
 uses a clean silhouette made from a torso and head. Airborne crows and owls have
@@ -470,7 +475,7 @@ can be stored in chests and are consumed by the organic equipment recipes.
 | Aetherium Axe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 22 combat damage, and 180 durability |
 | Aetherium Pickaxe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 18 combat damage, and 180 durability |
 | Carapace Axe | 4 wood, 2 iron, 3 Carapace Plate | 6 node damage per swing, 30 combat damage, and 240 durability; requires Carapace Tooling |
-| Tendril Blade | 4 iron, 3 Neural Gel, 2 Living Weave | 36 damage, 112 reach, and 240 durability; requires Tendril Weaponry |
+| Tendril Blade | 4 iron, 3 Neural Gel, 2 Living Weave | 92 damage, 188 reach, and 240 durability; requires Tendril Weaponry |
 | Symbiote Armor | 4 iron, 4 hide, 2 Carapace Plate, 4 Living Weave | Living helmet; 68% damage reduction; requires Symbiote Weave |
 | Field Bandage | 5 fiber, 1 berry | Immediately restores up to 35 health |
 
@@ -614,7 +619,7 @@ and the player switches away from it.
 | Aetherium pickaxe | 18 | 78 | 700 ms | 180 |
 | Stone spear | 17 | 102 | 620 ms | 72 |
 | Iron sword | 25 | 102 | 480 ms | 120 |
-| Tendril Blade | 36 | 112 | 520 ms | 240 |
+| Tendril Blade | 92 | 188 | 560 ms | 240 |
 | Hunting bow | 18 | 520 | 780 ms | 360 |
 | Iron bow | 28 | 600 | 780 ms | 540 |
 | Scrap pistol | 54 | 660 | 520 ms | 720 |

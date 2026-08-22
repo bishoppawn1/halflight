@@ -879,7 +879,7 @@ const DURABLE_TOOL_DATA: Record<
   aetheriumPickaxe: { family: "pickaxe", tier: "aetherium", maxDurability: 180, damage: 18 },
   spear: { family: "spear", tier: "stone", maxDurability: 72, damage: 17 },
   sword: { family: "sword", tier: "iron", maxDurability: 120, damage: 25 },
-  tendrilBlade: { family: "sword", tier: "biomass", maxDurability: 240, damage: 36 },
+  tendrilBlade: { family: "sword", tier: "biomass", maxDurability: 240, damage: 92 },
   bow: { family: "bow", tier: "wood", maxDurability: 360, damage: 18 },
   ironBow: { family: "bow", tier: "iron", maxDurability: 540, damage: 28 },
   pistol: { family: "pistol", tier: "iron", maxDurability: 720, damage: 54 },
@@ -921,7 +921,7 @@ const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
   hammer: { damage: 3, range: 78, cooldown: 750, animationSeconds: 0.4, arc: 0.9, style: "slash" },
   spear: { damage: 17, range: 102, cooldown: 620, animationSeconds: 0.34, arc: 0.38, style: "thrust" },
   sword: { damage: 25, range: 102, cooldown: 480, animationSeconds: 0.3, arc: 1.15, style: "slash" },
-  tendrilBlade: { damage: 36, range: 112, cooldown: 520, animationSeconds: 0.32, arc: 1.18, style: "slash" },
+  tendrilBlade: { damage: 92, range: 188, cooldown: 560, animationSeconds: 0.4, arc: 1.5, style: "slash" },
   bow: { damage: 18, range: 520, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
   ironBow: { damage: 28, range: 600, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
   pistol: { damage: 54, range: 660, cooldown: 520, animationSeconds: 0.24, arc: 0, style: "shot" },
@@ -4794,7 +4794,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ? Math.max(0, Math.min(1, 1 - swing / profile.animationSeconds))
     : 0;
   const motion = swing > 0 ? Math.sin(progress * Math.PI) : 0;
-  const angle = profile.style === "slash" ? -motion * 0.68 : 0;
+  const angle = profile.style === "slash" ? -motion * (tool === "tendrilBlade" ? 0.92 : 0.68) : 0;
   const firearmRecoil = tool === "chimera" ? 16 : tool === "shotgun" ? 14 : tool === "sniper" ? 12 : tool === "rifle" ? 10 : tool === "smg" ? 6 : 7;
   const forwardMotion = tool === "spear" ? motion * 30 : isFirearm(tool) ? -motion * firearmRecoil : 0;
   ctx.save();
@@ -5190,12 +5190,121 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.restore();
     return;
   }
+  if (tool === "tendrilBlade") {
+    const extension = 1 + motion * 0.12;
+    ctx.scale(extension, 1 + motion * 0.06);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    ctx.shadowColor = "rgba(208,91,239,.72)";
+    ctx.shadowBlur = 16;
+    const bladeGradient = ctx.createLinearGradient(18, -18, 145, 18);
+    bladeGradient.addColorStop(0, "#3b2148");
+    bladeGradient.addColorStop(0.32, "#7a3396");
+    bladeGradient.addColorStop(0.68, "#a94bc5");
+    bladeGradient.addColorStop(1, "#d77beb");
+    ctx.fillStyle = bladeGradient;
+    ctx.strokeStyle = "#27172f";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(20, -8);
+    ctx.bezierCurveTo(44, -22, 78, -21, 108, -8);
+    ctx.bezierCurveTo(123, -2, 134, -7, 143, -17);
+    ctx.bezierCurveTo(148, -7, 148, 4, 136, 15);
+    ctx.bezierCurveTo(115, 34, 79, 23, 50, 14);
+    ctx.bezierCurveTo(35, 10, 26, 10, 20, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#c76ddd";
+    ctx.strokeStyle = "#321b3b";
+    ctx.lineWidth = 3;
+    for (const [x, y, tipX, tipY] of [
+      [52, -16, 45, -29],
+      [76, -17, 72, -32],
+      [101, -10, 102, -25],
+    ] as const) {
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y + 4);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(x + 6, y + 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    ctx.shadowColor = "#f1a7fa";
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = "#f2b0fa";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(27, 0);
+    ctx.bezierCurveTo(57, -6, 82, 7, 111, 2);
+    ctx.bezierCurveTo(124, 0, 135, -7, 141, -13);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,221,255,.84)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(31, -4);
+    ctx.bezierCurveTo(60, -13, 85, -8, 112, 0);
+    ctx.stroke();
+
+    ctx.fillStyle = "#e89af4";
+    for (const [x, y, radius] of [[52, 1, 3], [81, 4, 3.5], [109, 1, 3]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = "#301a39";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(23, -5);
+    ctx.bezierCurveTo(16, -21, 7, -23, 4, -14);
+    ctx.moveTo(23, 5);
+    ctx.bezierCurveTo(16, 21, 7, 23, 4, 14);
+    ctx.stroke();
+    ctx.strokeStyle = "#bb5ed0";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(21, -5);
+    ctx.bezierCurveTo(15, -17, 9, -19, 6, -13);
+    ctx.moveTo(21, 5);
+    ctx.bezierCurveTo(15, 17, 9, 19, 6, 13);
+    ctx.stroke();
+
+    ctx.fillStyle = "#2b1b32";
+    ctx.strokeStyle = "#160f1a";
+    ctx.lineWidth = 3;
+    roundedRect(ctx, -2, -7, 27, 14, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#9e4cb6";
+    ctx.lineWidth = 2;
+    for (const gripX of [4, 10, 16]) {
+      ctx.beginPath();
+      ctx.moveTo(gripX, -6);
+      ctx.lineTo(gripX + 4, 6);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#d780e7";
+    ctx.beginPath();
+    ctx.ellipse(23, 0, 5, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#321b3b";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
   ctx.strokeStyle = "#432f2b";
-  ctx.lineWidth = tool === "spear" || tool === "tendrilBlade" ? 5 : 7;
+  ctx.lineWidth = tool === "spear" ? 5 : 7;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(4, 0);
-  ctx.lineTo(tool === "spear" || tool === "tendrilBlade" ? 49 : 39, 0);
+  ctx.lineTo(tool === "spear" ? 49 : 39, 0);
   ctx.stroke();
   if (durableTool?.family === "axe") {
     const tier = durableTool.tier;
@@ -5411,31 +5520,6 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.lineTo(44, 8);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
-  } else if (tool === "tendrilBlade") {
-    ctx.fillStyle = "#9f52bd";
-    ctx.strokeStyle = "#3e2549";
-    ctx.lineWidth = 3;
-    ctx.shadowColor = "#d57de9";
-    ctx.shadowBlur = 9;
-    ctx.beginPath();
-    ctx.moveTo(60, 0);
-    ctx.quadraticCurveTo(48, -12, 37, -5);
-    ctx.quadraticCurveTo(47, 1, 37, 8);
-    ctx.quadraticCurveTo(50, 11, 60, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#e7b0f2";
-    ctx.beginPath();
-    ctx.arc(48, -1, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#705032";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(9, -9);
-    ctx.lineTo(9, 9);
     ctx.stroke();
   } else {
     ctx.fillStyle = "#d89b47";
@@ -8930,7 +9014,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "tendrilBlade",
     name: "Tendril Blade",
-    detail: "Living weapon · 36 damage · 112 reach · 240 durability",
+    detail: "Living greatblade · 92 damage · 188 reach · 240 durability",
     cost: { iron: 4, neuralGel: 3, livingWeave: 2 },
     requiresBench: true,
     requiresResearch: "tendrilBlade",
@@ -9037,12 +9121,14 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
         <svg className="tool-svg" viewBox="0 0 52 52" focusable="false">
           {tier === "biomass" ? (
             <g transform="rotate(40 26 26)">
-              <path d="M26 1 Q38 9 31 31 L21 31 Q14 10 26 1 Z" fill="#9f52bd" stroke="#3e2549" strokeWidth="2.5" strokeLinejoin="round" />
-              <path d="M26 5 Q30 17 25 28" fill="none" stroke="#efb9f8" strokeWidth="1.8" strokeLinecap="round" />
-              <circle cx="29" cy="13" r="2.2" fill="#edb5fa" />
-              <rect x="13" y="29" width="26" height="6" rx="3" fill="#795338" stroke="#412f25" strokeWidth="2" />
-              <rect x="22" y="34" width="8" height="13" rx="3" fill="#583929" stroke="#35261f" strokeWidth="2" />
-              <circle cx="26" cy="48" r="4" fill="#9850b7" stroke="#43264d" strokeWidth="2" />
+              <path d="M24 3 C32 4 42 8 47 14 C42 13 39 17 35 22 C31 28 26 33 21 34 C17 28 17 19 20 11 C21 8 22 5 24 3 Z" fill="#8f3eaa" stroke="#2d1736" strokeWidth="2.5" strokeLinejoin="round" />
+              <path d="M24 5 C31 10 34 16 34 23 C37 17 41 14 46 14" fill="none" stroke="#f0a3f4" strokeWidth="2" strokeLinecap="round" />
+              <path d="M27 7 L31 1 L33 10 M36 12 L42 7 L40 16" fill="#b95ece" stroke="#32193b" strokeWidth="2" strokeLinejoin="round" />
+              <circle cx="28" cy="15" r="2.2" fill="#f0a3f4" />
+              <path d="M16 31 C12 24 8 26 8 31 M32 31 C36 24 41 25 41 30" fill="none" stroke="#7f3796" strokeWidth="3" strokeLinecap="round" />
+              <rect x="18" y="29" width="12" height="19" rx="5" fill="#2b1a31" stroke="#160e19" strokeWidth="2" />
+              <path d="M19 34 L29 38 M19 40 L29 44" stroke="#a94dbe" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="24" cy="49" r="3.5" fill="#c86fda" stroke="#382040" strokeWidth="2" />
             </g>
           ) : (
             <g transform="rotate(40 26 26)">
