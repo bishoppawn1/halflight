@@ -23,7 +23,7 @@ type ResourceKind =
 type FoodMaterial = "berries" | "mushrooms" | "meat" | "cookedMushrooms" | "cookedMeat";
 type RawCookableFood = "mushrooms" | "meat";
 type ToolTier = "none" | "wood" | "stone" | "iron" | "aetherium" | "biomass";
-type Firearm = "pistol" | "smg" | "shotgun" | "rifle" | "sniper" | "chimera";
+type Firearm = "pistol" | "smg" | "shotgun" | "rifle" | "sniper" | "webLauncher" | "chimera";
 type DurableTool =
   | "woodAxe"
   | "stoneAxe"
@@ -75,7 +75,7 @@ type Material =
   | "coal"
   | "sulfur"
   | "aetherium"
-  | "guardianCore"
+  | "broodmotherCore"
   | "mineralRock"
   | "carapacePlate"
   | "neuralGel"
@@ -153,6 +153,8 @@ interface Creature {
   attackAt: number;
   phase: number;
   slowUntil: number;
+  webbedUntil: number;
+  webDamageAt: number;
   rewarded: boolean;
   dir: number;
   structureHitAt: number;
@@ -207,7 +209,7 @@ interface Projectile {
   vy: number;
   life: number;
   damage: number;
-  bulletStyle?: "standard" | "pellet" | "sniper" | "chimera";
+  bulletStyle?: "standard" | "pellet" | "sniper" | "web" | "chimera";
 }
 
 interface WeaponEffect {
@@ -288,6 +290,7 @@ interface GameState {
     shotgun: boolean;
     rifle: boolean;
     sniper: boolean;
+    webLauncher: boolean;
     chimera: boolean;
     hammer: boolean;
     toolDurability: Record<DurableTool, number[]>;
@@ -582,7 +585,7 @@ const MATERIALS: { id: Material; name: string }[] = [
   { id: "coal", name: "Coal" },
   { id: "sulfur", name: "Sulfur" },
   { id: "aetherium", name: "Aetherium" },
-  { id: "guardianCore", name: "Guardian Core" },
+  { id: "broodmotherCore", name: "Broodmother Core" },
   { id: "mineralRock", name: "Mineral-Rich Rock" },
   { id: "carapacePlate", name: "Carapace Plate" },
   { id: "neuralGel", name: "Neural Gel" },
@@ -769,6 +772,10 @@ const BROOD_WEB_DURATION_MS = 14000;
 const BROOD_WEB_SPEED_FACTOR = 0.42;
 const BROOD_WEB_TICK_DAMAGE = 2;
 const BROOD_WEB_DAMAGE_INTERVAL_MS = 1600;
+const WEB_LAUNCHER_BIND_DURATION_MS = 6000;
+const WEB_LAUNCHER_SPEED_FACTOR = 0.45;
+const WEB_LAUNCHER_TICK_DAMAGE = 8;
+const WEB_LAUNCHER_DAMAGE_INTERVAL_MS = 1000;
 const ANIMAL_LURE_DISTANCE = 360;
 const ANIMAL_LURE_STANDOFF_DISTANCE = 135;
 const ANIMAL_FEED_DISTANCE = 162;
@@ -837,6 +844,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   shotgun: "Scattergun",
   rifle: "Assault Rifle",
   sniper: "Sniper Rifle",
+  webLauncher: "Web Launcher",
   chimera: "Chimera Cannon",
   wood: "Wood",
   stone: "Stone",
@@ -845,7 +853,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   coal: "Coal",
   sulfur: "Sulfur",
   aetherium: "Aetherium",
-  guardianCore: "Guardian Core",
+  broodmotherCore: "Broodmother Core",
   mineralRock: "Mineral-Rich Rock",
   carapacePlate: "Carapace Plate",
   neuralGel: "Neural Gel",
@@ -923,6 +931,7 @@ const DURABLE_TOOL_DATA: Record<
   shotgun: { family: "shotgun", tier: "iron", maxDurability: 900, damage: 24 },
   rifle: { family: "rifle", tier: "aetherium", maxDurability: 1200, damage: 62 },
   sniper: { family: "sniper", tier: "aetherium", maxDurability: 900, damage: 145 },
+  webLauncher: { family: "webLauncher", tier: "biomass", maxDurability: 900, damage: 12 },
   chimera: { family: "chimera", tier: "biomass", maxDurability: 1200, damage: 120 },
 };
 
@@ -965,6 +974,7 @@ const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
   shotgun: { damage: 24, range: 430, cooldown: 900, animationSeconds: 0.3, arc: 0, style: "shot" },
   rifle: { damage: 62, range: 760, cooldown: 230, animationSeconds: 0.16, arc: 0, style: "shot" },
   sniper: { damage: 145, range: 1250, cooldown: 1550, animationSeconds: 0.34, arc: 0, style: "shot" },
+  webLauncher: { damage: 12, range: 620, cooldown: 850, animationSeconds: 0.3, arc: 0, style: "shot" },
   chimera: { damage: 120, range: 900, cooldown: 700, animationSeconds: 0.3, arc: 0, style: "shot" },
 };
 
@@ -977,7 +987,7 @@ function isBowTool(tool: Tool): tool is "bow" | "ironBow" {
 }
 
 function isFirearm(tool: Tool): tool is Firearm {
-  return tool === "pistol" || tool === "smg" || tool === "shotgun" || tool === "rifle" || tool === "sniper" || tool === "chimera";
+  return tool === "pistol" || tool === "smg" || tool === "shotgun" || tool === "rifle" || tool === "sniper" || tool === "webLauncher" || tool === "chimera";
 }
 
 function isDurableTool(item: InventoryItem | null): item is DurableTool {
@@ -1524,6 +1534,8 @@ function makeGame(): GameState {
       attackAt: 0,
       phase,
       slowUntil: 0,
+      webbedUntil: 0,
+      webDamageAt: 0,
       rewarded: false,
       dir: direction,
       structureHitAt: 0,
@@ -1546,7 +1558,7 @@ function makeGame(): GameState {
   };
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = ANIMAL_DATA[kind];
-    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, maturesAt: 0, breedReadyAt: 0, angry: false, hitAt: 0, attackAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false, abilityReadyAt: 0, abilityStartedAt: 0, abilityTargetX: x, abilityTargetY: y });
+    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, maturesAt: 0, breedReadyAt: 0, angry: false, hitAt: 0, attackAt: 0, phase, slowUntil: 0, webbedUntil: 0, webDamageAt: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false, abilityReadyAt: 0, abilityStartedAt: 0, abilityTargetX: x, abilityTargetY: y });
   };
   const wildlifeRoster = ANIMAL_KINDS.flatMap((kind) =>
     Array.from({ length: ANIMAL_DATA[kind].startingCount }, () => kind),
@@ -1633,7 +1645,7 @@ function makeGame(): GameState {
     realm: "meadow",
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
-    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, mineralRock: 0, carapacePlate: 0, neuralGel: 0, livingWeave: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, cookedMeat: 0, cookedMushrooms: 0, seeds: 0, hide: 0, biomass: 0, arrows: 0, bullets: 0 },
+    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, broodmotherCore: 0, mineralRock: 0, carapacePlate: 0, neuralGel: 0, livingWeave: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, cookedMeat: 0, cookedMushrooms: 0, seeds: 0, hide: 0, biomass: 0, arrows: 0, bullets: 0 },
     gear: {
       spear: false,
       sword: false,
@@ -1645,6 +1657,7 @@ function makeGame(): GameState {
       shotgun: false,
       rifle: false,
       sniper: false,
+      webLauncher: false,
       chimera: false,
       hammer: false,
       toolDurability: {
@@ -1667,6 +1680,7 @@ function makeGame(): GameState {
         shotgun: [],
         rifle: [],
         sniper: [],
+        webLauncher: [],
         chimera: [],
       },
       armor: "none",
@@ -1907,6 +1921,8 @@ function spawnMonstersInRealm(game: GameState, realm: Realm, count: number) {
       attackAt: 0,
       phase: i,
       slowUntil: 0,
+      webbedUntil: 0,
+      webDamageAt: 0,
       rewarded: false,
       dir: Math.atan2(game.player.y - spawnPoint.y, game.player.x - spawnPoint.x),
       structureHitAt: 0,
@@ -1960,6 +1976,8 @@ function makeMonsterAt(
     attackAt: 0,
     phase: game.lastId * 0.73,
     slowUntil: 0,
+    webbedUntil: 0,
+    webDamageAt: 0,
     rewarded: false,
     dir: direction,
     structureHitAt: 0,
@@ -2735,6 +2753,8 @@ function setGamePaused(game: GameState, paused: boolean, now = performance.now()
     creature.rangedAt = shiftTimestamp(creature.rangedAt);
     creature.rangedChargeUntil = shiftDeadline(creature.rangedChargeUntil);
     creature.slowUntil = shiftDeadline(creature.slowUntil);
+    creature.webbedUntil = shiftDeadline(creature.webbedUntil);
+    creature.webDamageAt = shiftDeadline(creature.webDamageAt);
     creature.provokedUntil = shiftDeadline(creature.provokedUntil);
     creature.respawnAt = shiftDeadline(creature.respawnAt);
     creature.maturesAt = shiftDeadline(creature.maturesAt);
@@ -2978,6 +2998,8 @@ function spawnBabyAnimal(game: GameState, parent: Creature, mate: Creature, now:
     attackAt: 0,
     phase: babyId * 0.73,
     slowUntil: 0,
+    webbedUntil: 0,
+    webDamageAt: 0,
     rewarded: false,
     dir: parent.dir,
     structureHitAt: 0,
@@ -3382,6 +3404,8 @@ function attack(game: GameState, bowCharge = 0) {
       ? 720
       : tool === "bow"
         ? 620
+        : tool === "webLauncher"
+          ? 820
         : tool === "chimera"
           ? 980
         : tool === "sniper"
@@ -3397,7 +3421,7 @@ function attack(game: GameState, bowCharge = 0) {
     const damage = isBow
       ? Math.round(profile.damage * (1 + charge * BOW_MAX_DAMAGE_BONUS))
       : profile.damage;
-    const muzzleDistance = tool === "sniper" ? 79 : tool === "chimera" ? 74 : tool === "rifle" ? 68 : tool === "smg" || tool === "shotgun" ? 55 : 34;
+    const muzzleDistance = tool === "sniper" ? 79 : tool === "chimera" ? 74 : tool === "webLauncher" || tool === "rifle" ? 68 : tool === "smg" || tool === "shotgun" ? 55 : 34;
     const shotAngles = tool === "shotgun" ? [-0.18, -0.09, 0, 0.09, 0.18] : [0];
     shotAngles.forEach((spread) => {
       const direction = game.player.dir + spread;
@@ -3411,7 +3435,7 @@ function attack(game: GameState, bowCharge = 0) {
         vy: Math.sin(direction) * speed,
         life: isBow ? (tool === "ironBow" ? 0.84 : 0.9) : profile.range / speed,
         damage,
-        bulletStyle: tool === "shotgun" ? "pellet" : tool === "sniper" ? "sniper" : tool === "chimera" ? "chimera" : "standard",
+        bulletStyle: tool === "shotgun" ? "pellet" : tool === "sniper" ? "sniper" : tool === "webLauncher" ? "web" : tool === "chimera" ? "chimera" : "standard",
       });
     });
     if (isDurableTool(tool)) {
@@ -3509,7 +3533,7 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
   if (Math.random() < dropData.biomassChance) loot.push(["biomass", dropData.biomass]);
   if (dropData.minerals && !isBroodMother(creature)) loot.push(...dropData.minerals);
   if (isBroodMother(creature)) {
-    addMaterial(game, "guardianCore", 1);
+    addMaterial(game, "broodmotherCore", 1);
     game.projectiles = game.projectiles.filter((projectile) => projectile.kind !== "broodWeb");
   } else if (isDreadTitan(creature)) {
     game.projectiles = game.projectiles.filter((projectile) => projectile.kind !== "titanShard");
@@ -3526,7 +3550,7 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
   notify(
     game,
     (isBroodMother(creature)
-      ? "Brood Mother defeated · Guardian Core recovered · Assault Rifle recipe unlocked · dropped "
+      ? "Brood Mother defeated · Broodmother Core recovered · Web Launcher available · dropped "
       : isDreadTitan(creature)
         ? "Dread Titan defeated · the endless nights continue · dropped "
       : creature.kind[0].toUpperCase() + creature.kind.slice(1) + " dropped ") +
@@ -3663,14 +3687,26 @@ function updateProjectiles(game: GameState, dt: number) {
     if (target) {
       target.hp -= projectile.damage;
       target.angry = true;
-      target.provokedUntil = performance.now() + 5000;
+      const now = performance.now();
+      target.provokedUntil = now + 5000;
       makePreyPermanentlyWary(target);
       const killedByImpact = target.hp <= 0;
+      if (projectile.bulletStyle === "web" && !killedByImpact) {
+        const alreadyWebbed = target.webbedUntil > now;
+        target.webbedUntil = now + WEB_LAUNCHER_BIND_DURATION_MS;
+        if (!alreadyWebbed || target.webDamageAt <= 0) {
+          target.webDamageAt = now + WEB_LAUNCHER_DAMAGE_INTERVAL_MS;
+        }
+      }
       if (projectile.bulletStyle === "chimera") detonateChimeraShot(game, projectile);
       projectile.life = 0;
-      const hitLabel = projectile.kind === "arrow" ? "Arrow" : projectile.bulletStyle === "chimera" ? "Chimera pulse" : "Bullet";
+      const hitLabel = projectile.kind === "arrow" ? "Arrow" : projectile.bulletStyle === "web" ? "Web Launcher" : projectile.bulletStyle === "chimera" ? "Chimera pulse" : "Bullet";
       const shownDamage = projectile.damage + (projectile.bulletStyle === "chimera" && !killedByImpact ? CHIMERA_BURST_DAMAGE : 0);
-      notify(game, hitLabel + " hit · " + shownDamage + " damage", 650);
+      notify(
+        game,
+        hitLabel + " hit · " + shownDamage + (projectile.bulletStyle === "web" && !killedByImpact ? " impact damage · target webbed" : " damage"),
+        projectile.bulletStyle === "web" ? 1100 : 650,
+      );
       if (killedByImpact) awardCreatureDrop(game, target);
     }
     if (projectile.x < 0 || projectile.y < 0 || projectile.x > WORLD_W || projectile.y > WORLD_H) projectile.life = 0;
@@ -3957,6 +3993,19 @@ function updateCreatures(game: GameState, dt: number) {
       creature.rangedAt = 0;
       creature.rangedChargeUntil = 0;
       creature.rangedAim = creature.phase;
+      creature.slowUntil = 0;
+      creature.webbedUntil = 0;
+      creature.webDamageAt = 0;
+    }
+    if (creature.webbedUntil > now && creature.webDamageAt > 0 && now >= creature.webDamageAt) {
+      creature.hp -= WEB_LAUNCHER_TICK_DAMAGE;
+      creature.webDamageAt += WEB_LAUNCHER_DAMAGE_INTERVAL_MS;
+      if (creature.hp <= 0) {
+        awardCreatureDrop(game, creature);
+        continue;
+      }
+    } else if (creature.webbedUntil <= now) {
+      creature.webDamageAt = 0;
     }
     if (isAnimal(creature.kind) && creature.maturesAt > 0 && now >= creature.maturesAt) {
       const animal = ANIMAL_DATA[creature.kind];
@@ -4140,7 +4189,9 @@ function updateCreatures(game: GameState, dt: number) {
     const stopDistance = movement === "lure" ? 5 : movement === "chase" ? chaseStopDistance : 2;
     const shouldMove = distance > stopDistance && (!chargingRangedAttack || isBroodMother(creature));
     if (shouldMove) {
-      const slowFactor = now < creature.slowUntil ? 0.42 : 1;
+      const trapSlowFactor = now < creature.slowUntil ? 0.42 : 1;
+      const webSlowFactor = now < creature.webbedUntil ? WEB_LAUNCHER_SPEED_FACTOR : 1;
+      const slowFactor = Math.min(trapSlowFactor, webSlowFactor);
       const paceMultiplier =
         movement === "flee"
           ? permanentlyWary
@@ -5059,7 +5110,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     : 0;
   const motion = swing > 0 ? Math.sin(progress * Math.PI) : 0;
   const angle = profile.style === "slash" ? -motion * (tool === "tendrilBlade" ? 0.92 : 0.68) : 0;
-  const firearmRecoil = tool === "chimera" ? 16 : tool === "shotgun" ? 14 : tool === "sniper" ? 12 : tool === "rifle" ? 10 : tool === "smg" ? 6 : 7;
+  const firearmRecoil = tool === "chimera" ? 16 : tool === "shotgun" ? 14 : tool === "sniper" ? 12 : tool === "webLauncher" ? 11 : tool === "rifle" ? 10 : tool === "smg" ? 6 : 7;
   const forwardMotion = tool === "spear" ? motion * 30 : isFirearm(tool) ? -motion * firearmRecoil : 0;
   ctx.save();
   ctx.translate(19 + forwardMotion, 6);
@@ -5399,6 +5450,89 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.restore();
     return;
   }
+  if (tool === "webLauncher") {
+    ctx.shadowColor = "rgba(201,101,223,.7)";
+    ctx.shadowBlur = 12;
+    const bodyGradient = ctx.createLinearGradient(-10, -14, 70, 13);
+    bodyGradient.addColorStop(0, "#3a2444");
+    bodyGradient.addColorStop(0.55, "#82429a");
+    bodyGradient.addColorStop(1, "#b765ca");
+    ctx.fillStyle = bodyGradient;
+    ctx.strokeStyle = "#281631";
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(-10, -7);
+    ctx.quadraticCurveTo(4, -18, 34, -14);
+    ctx.quadraticCurveTo(54, -12, 68, -5);
+    ctx.lineTo(76, 0);
+    ctx.lineTo(68, 6);
+    ctx.quadraticCurveTo(47, 15, 19, 12);
+    ctx.lineTo(-8, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "#e7e3d7";
+    ctx.strokeStyle = "#fffdf1";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(22, -1, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#734080";
+    ctx.lineWidth = 1.5;
+    for (let strand = 0; strand < 6; strand++) {
+      const strandAngle = (strand / 6) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(22, -1);
+      ctx.lineTo(22 + Math.cos(strandAngle) * 11, -1 + Math.sin(strandAngle) * 11);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(22, -1, 6, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#2f2037";
+    ctx.strokeStyle = "#1a111e";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(7, 8);
+    ctx.lineTo(24, 10);
+    ctx.lineTo(19, 29);
+    ctx.lineTo(5, 25);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#a653ba";
+    ctx.lineWidth = 2;
+    for (const gripY of [13, 19, 25]) {
+      ctx.beginPath();
+      ctx.moveTo(7, gripY);
+      ctx.lineTo(20, gripY + 2);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "#eeeade";
+    ctx.strokeStyle = "#4a2b53";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(59, -7);
+    ctx.lineTo(82, -5);
+    ctx.lineTo(89, 0);
+    ctx.lineTo(82, 5);
+    ctx.lineTo(59, 7);
+    ctx.quadraticCurveTo(66, 0, 59, -7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#fffdf3";
+    ctx.beginPath();
+    ctx.arc(86, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
   if (tool === "chimera") {
     ctx.strokeStyle = "#321d3c";
     ctx.lineWidth = 4;
@@ -5455,88 +5589,52 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     return;
   }
   if (tool === "tendrilBlade") {
-    const extension = 1 + motion * 0.12;
-    ctx.scale(extension, 1 + motion * 0.06);
+    const extension = 1 + motion * 0.08;
+    ctx.scale(extension, 1 + motion * 0.03);
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
 
     ctx.shadowColor = "rgba(208,91,239,.72)";
     ctx.shadowBlur = 16;
-    const bladeGradient = ctx.createLinearGradient(18, -18, 145, 18);
-    bladeGradient.addColorStop(0, "#3b2148");
-    bladeGradient.addColorStop(0.32, "#7a3396");
-    bladeGradient.addColorStop(0.68, "#a94bc5");
-    bladeGradient.addColorStop(1, "#d77beb");
+    const bladeGradient = ctx.createLinearGradient(22, -10, 147, 10);
+    bladeGradient.addColorStop(0, "#542566");
+    bladeGradient.addColorStop(0.5, "#9545ad");
+    bladeGradient.addColorStop(1, "#d981e8");
     ctx.fillStyle = bladeGradient;
     ctx.strokeStyle = "#27172f";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(20, -8);
-    ctx.bezierCurveTo(44, -22, 78, -21, 108, -8);
-    ctx.bezierCurveTo(123, -2, 134, -7, 143, -17);
-    ctx.bezierCurveTo(148, -7, 148, 4, 136, 15);
-    ctx.bezierCurveTo(115, 34, 79, 23, 50, 14);
-    ctx.bezierCurveTo(35, 10, 26, 10, 20, 8);
+    ctx.moveTo(22, -10);
+    ctx.lineTo(119, -9);
+    ctx.quadraticCurveTo(134, -8, 148, 0);
+    ctx.quadraticCurveTo(134, 8, 119, 9);
+    ctx.lineTo(22, 10);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = "#c76ddd";
-    ctx.strokeStyle = "#321b3b";
-    ctx.lineWidth = 3;
-    for (const [x, y, tipX, tipY] of [
-      [52, -16, 45, -29],
-      [76, -17, 72, -32],
-      [101, -10, 102, -25],
-    ] as const) {
-      ctx.beginPath();
-      ctx.moveTo(x - 7, y + 4);
-      ctx.lineTo(tipX, tipY);
-      ctx.lineTo(x + 6, y + 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
-
     ctx.shadowColor = "#f1a7fa";
     ctx.shadowBlur = 10;
     ctx.strokeStyle = "#f2b0fa";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.6;
     ctx.beginPath();
-    ctx.moveTo(27, 0);
-    ctx.bezierCurveTo(57, -6, 82, 7, 111, 2);
-    ctx.bezierCurveTo(124, 0, 135, -7, 141, -13);
+    ctx.moveTo(29, 0);
+    ctx.lineTo(137, 0);
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = "rgba(255,221,255,.84)";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(31, -4);
-    ctx.bezierCurveTo(60, -13, 85, -8, 112, 0);
+    ctx.moveTo(30, -5);
+    ctx.lineTo(119, -4.5);
+    ctx.quadraticCurveTo(132, -4, 141, 0);
     ctx.stroke();
 
-    ctx.fillStyle = "#e89af4";
-    for (const [x, y, radius] of [[52, 1, 3], [81, 4, 3.5], [109, 1, 3]] as const) {
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.strokeStyle = "#301a39";
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(23, -5);
-    ctx.bezierCurveTo(16, -21, 7, -23, 4, -14);
-    ctx.moveTo(23, 5);
-    ctx.bezierCurveTo(16, 21, 7, 23, 4, 14);
-    ctx.stroke();
-    ctx.strokeStyle = "#bb5ed0";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(21, -5);
-    ctx.bezierCurveTo(15, -17, 9, -19, 6, -13);
-    ctx.moveTo(21, 5);
-    ctx.bezierCurveTo(15, 17, 9, 19, 6, 13);
+    ctx.fillStyle = "#a94fc0";
+    ctx.strokeStyle = "#321b3b";
+    ctx.lineWidth = 3;
+    roundedRect(ctx, 17, -19, 8, 38, 4);
+    ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = "#2b1b32";
@@ -5553,9 +5651,9 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
       ctx.lineTo(gripX + 4, 6);
       ctx.stroke();
     }
-    ctx.fillStyle = "#d780e7";
+    ctx.fillStyle = "#b85bcc";
     ctx.beginPath();
-    ctx.ellipse(23, 0, 5, 8, 0, 0, Math.PI * 2);
+    ctx.arc(-4, 0, 5, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "#321b3b";
     ctx.lineWidth = 2.5;
@@ -7417,6 +7515,35 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     }
   }
   ctx.rotate(-creature.dir);
+  if (creature.webbedUntil > now) {
+    const webPulse = 0.82 + Math.sin(now / 95 + creature.id) * 0.12;
+    ctx.save();
+    ctx.globalAlpha = webPulse;
+    ctx.strokeStyle = "#f0eee5";
+    ctx.lineWidth = 2.2;
+    for (const offset of [-16, -8, 0, 8, 16]) {
+      ctx.beginPath();
+      ctx.moveTo(-27, offset * 0.68);
+      ctx.quadraticCurveTo(0, offset * 1.25 + Math.sin(now / 130 + offset) * 3, 27, -offset * 0.68);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(202,195,184,.9)";
+    ctx.lineWidth = 1.5;
+    for (let strand = 0; strand < 6; strand++) {
+      const angle = (strand / 6) * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * 29, Math.sin(angle) * 22);
+      ctx.lineTo(-Math.cos(angle) * 29, -Math.sin(angle) * 22);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#fffdf4";
+    for (const [x, y] of [[-23, -8], [20, 11], [4, -19], [-7, 18]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
   if (isDreadTitan(creature)) {
     ctx.fillStyle = "#d8f9f3";
     ctx.font = "900 13px Arial";
@@ -8550,6 +8677,7 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, n
     const chimera = projectile.bulletStyle === "chimera";
     const sniper = projectile.bulletStyle === "sniper";
     const pellet = projectile.bulletStyle === "pellet";
+    const webShot = projectile.bulletStyle === "web";
     if (chimera) {
       const pulse = 0.88 + Math.sin(now / 55 + projectile.id) * 0.12;
       const trail = ctx.createLinearGradient(-54, 0, 8, 0);
@@ -8581,6 +8709,43 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, n
         ctx.quadraticCurveTo(-13, tendril * 9, -24, tendril * 5);
         ctx.stroke();
       }
+    } else if (webShot) {
+      const pulse = 0.86 + Math.sin(now / 52 + projectile.id) * 0.14;
+      const trail = ctx.createLinearGradient(-52, 0, 8, 0);
+      trail.addColorStop(0, "rgba(226,220,207,0)");
+      trail.addColorStop(0.55, "rgba(226,220,207,.52)");
+      trail.addColorStop(1, "rgba(255,252,235,.96)");
+      ctx.strokeStyle = trail;
+      ctx.lineWidth = 2.4;
+      for (const offset of [-5, 0, 5]) {
+        ctx.beginPath();
+        ctx.moveTo(-52, offset * 0.25);
+        ctx.quadraticCurveTo(-23, offset * 1.35, 5, offset * 0.38);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(248,244,229,.32)";
+      ctx.beginPath();
+      ctx.arc(8, 0, 16 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#eee9da";
+      ctx.strokeStyle = "#fffdf3";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(8, 0, 9 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "#7f438f";
+      ctx.lineWidth = 1.5;
+      for (let strand = 0; strand < 6; strand++) {
+        const strandAngle = (strand / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(8, 0);
+        ctx.lineTo(8 + Math.cos(strandAngle) * 9, Math.sin(strandAngle) * 9);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(8, 0, 5, 0, Math.PI * 2);
+      ctx.stroke();
     } else {
       const trailLength = sniper ? 190 : pellet ? 18 : 28;
       const trail = ctx.createLinearGradient(-trailLength, 0, 10, 0);
@@ -9035,6 +9200,8 @@ function hallucinationPhantoms(game: GameState, now: number) {
         attackAt: 0,
         phase: seeded(seed, 828) * Math.PI * 2,
         slowUntil: 0,
+        webbedUntil: 0,
+        webDamageAt: 0,
         rewarded: true,
         dir: Math.atan2(game.player.y - y, game.player.x - x),
         structureHitAt: 0,
@@ -9499,8 +9666,8 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "rifle",
     name: "Assault Rifle",
-    detail: "Guardian tier · 760 range · 62 damage · 1200 durability · rapid automatic fire",
-    cost: { guardianCore: 1, aetherium: 6, iron: 12, copper: 8 },
+    detail: "Aetherium automatic · 760 range · 62 damage · 1200 durability · rapid fire",
+    cost: { aetherium: 6, iron: 12, copper: 8 },
     requiresBench: true,
     prerequisite: (game) => game.gear.pistol,
     prerequisiteLabel: "Need pistol",
@@ -9522,6 +9689,18 @@ const CRAFT_RECIPES: Recipe[] = [
       game.gear.sniper = true;
       game.weapon = "sniper";
       addDurableTool(game, "sniper");
+    },
+  },
+  {
+    id: "webLauncher",
+    name: "Web Launcher",
+    detail: "Broodmother weapon · 12 impact damage · five 8-damage ticks · 55% slow for 6 seconds · 900 durability",
+    cost: { broodmotherCore: 1, iron: 6, neuralGel: 4, livingWeave: 3 },
+    requiresBench: true,
+    action: (game) => {
+      game.gear.webLauncher = true;
+      game.weapon = "webLauncher";
+      addDurableTool(game, "webLauncher");
     },
   },
   {
@@ -9742,14 +9921,12 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
         <svg className="tool-svg" viewBox="0 0 52 52" focusable="false">
           {tier === "biomass" ? (
             <g transform="rotate(40 26 26)">
-              <path d="M24 3 C32 4 42 8 47 14 C42 13 39 17 35 22 C31 28 26 33 21 34 C17 28 17 19 20 11 C21 8 22 5 24 3 Z" fill="#8f3eaa" stroke="#2d1736" strokeWidth="2.5" strokeLinejoin="round" />
-              <path d="M24 5 C31 10 34 16 34 23 C37 17 41 14 46 14" fill="none" stroke="#f0a3f4" strokeWidth="2" strokeLinecap="round" />
-              <path d="M27 7 L31 1 L33 10 M36 12 L42 7 L40 16" fill="#b95ece" stroke="#32193b" strokeWidth="2" strokeLinejoin="round" />
-              <circle cx="28" cy="15" r="2.2" fill="#f0a3f4" />
-              <path d="M16 31 C12 24 8 26 8 31 M32 31 C36 24 41 25 41 30" fill="none" stroke="#7f3796" strokeWidth="3" strokeLinecap="round" />
-              <rect x="18" y="29" width="12" height="19" rx="5" fill="#2b1a31" stroke="#160e19" strokeWidth="2" />
-              <path d="M19 34 L29 38 M19 40 L29 44" stroke="#a94dbe" strokeWidth="2" strokeLinecap="round" />
-              <circle cx="24" cy="49" r="3.5" fill="#c86fda" stroke="#382040" strokeWidth="2" />
+              <path d="M21 1 L31 1 L31 28 L26 35 L21 28 Z" fill="#9847ae" stroke="#2d1736" strokeWidth="2.5" strokeLinejoin="round" />
+              <path d="M26 4 L26 30" fill="none" stroke="#f0a3f4" strokeWidth="2" strokeLinecap="round" />
+              <path d="M17 28 L35 28 L35 34 L17 34 Z" fill="#ae55c1" stroke="#32193b" strokeWidth="2" strokeLinejoin="round" />
+              <rect x="21" y="34" width="10" height="14" rx="4" fill="#2b1a31" stroke="#160e19" strokeWidth="2" />
+              <path d="M22 38 L30 41 M22 43 L30 46" stroke="#a94dbe" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="26" cy="49" r="3.5" fill="#b85bcc" stroke="#382040" strokeWidth="2" />
             </g>
           ) : (
             <g transform="rotate(40 26 26)">
@@ -9761,6 +9938,22 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
               <circle cx="26" cy="48" r="4" fill="#d6a94b" stroke="#5b4525" strokeWidth="2" />
             </g>
           )}
+        </svg>
+      </span>
+    );
+  }
+  if (type === "webLauncher") {
+    return (
+      <span className="tool-glyph tool-webLauncher tier-biomass" aria-hidden="true">
+        <svg className="tool-svg" viewBox="0 0 52 52" focusable="false">
+          <g transform="rotate(-36 26 26)">
+            <path d="M4 18 Q12 10 35 13 L47 19 L39 27 Q20 30 5 25 Z" fill="#87449c" stroke="#281631" strokeWidth="2.5" strokeLinejoin="round" />
+            <circle cx="23" cy="20" r="8" fill="#ebe6d8" stroke="#fffdf1" strokeWidth="2" />
+            <path d="M15 20 H31 M23 12 V28 M17 15 L29 25 M29 15 L17 25" stroke="#784086" strokeWidth="1.2" />
+            <path d="M36 16 L49 18 L52 21 L48 24 L35 25 Z" fill="#eeeadd" stroke="#4a2b53" strokeWidth="2" />
+            <path d="M12 25 L25 26 L22 42 L12 39 Z" fill="#2f2037" stroke="#1a111e" strokeWidth="2.5" />
+            <path d="M13 30 L23 32 M12 35 L22 37" stroke="#a653ba" strokeWidth="2" />
+          </g>
         </svg>
       </span>
     );
@@ -9811,7 +10004,7 @@ function RecipeVisual({ recipe }: { recipe: Recipe }) {
   if (recipe.id === "spear") return <ToolGlyph type="spear" />;
   if (recipe.id === "sword" || recipe.id === "tendrilBlade") return <ToolGlyph type="sword" tier={tier} />;
   if (recipe.id === "bow" || recipe.id === "ironBow") return <ToolGlyph type="bow" tier={tier} />;
-  if (["pistol", "smg", "shotgun", "rifle", "sniper", "chimera"].includes(recipe.id)) return <ToolGlyph type={recipe.id as Firearm} />;
+  if (["pistol", "smg", "shotgun", "rifle", "sniper", "webLauncher", "chimera"].includes(recipe.id)) return <ToolGlyph type={recipe.id as Firearm} />;
   if (recipe.id === "arrows") return <MaterialIcon material="arrows" />;
   if (recipe.id === "bullets") return <MaterialIcon material="bullets" />;
   if (recipe.id.endsWith("Armor")) return <span className={"recipe-special recipe-armor armor-" + recipe.id.replace("Armor", "")} aria-hidden="true"><i /><b /></span>;
@@ -9829,7 +10022,7 @@ function ItemVisual({ item }: { item: InventoryItem; game: GameState }) {
   if (item === "tendrilBlade") {
     return <ToolGlyph type="sword" tier="biomass" />;
   }
-  if (["hammer", "spear", "sword", "bow", "pistol", "smg", "shotgun", "rifle", "sniper", "chimera"].includes(item)) {
+  if (["hammer", "spear", "sword", "bow", "pistol", "smg", "shotgun", "rifle", "sniper", "webLauncher", "chimera"].includes(item)) {
     return <ToolGlyph type={item as ToolGlyphKind} />;
   }
   if (isBuildKind(item)) {

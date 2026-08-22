@@ -89,11 +89,11 @@ distinct at gameplay scale.
 The Stone Spear has a long wooden shaft and small triangular stone point. The
 Iron Sword instead has a short wrapped grip, pommel, crossguard, and broad
 double-edged iron blade in both its held and inventory illustrations.
-The Tendril Blade is a continuous living greatblade rather than a spear or a
-metal sword with an organic point attached. Its long, hooked purple body grows
-directly from a ribbed symbiote grip, with visible luminous veins, backward
-barbs, and two curling guard tendrils. Its held silhouette reaches nearly twice
-as far as the Iron Sword and visibly flexes outward during its wide swing.
+The Tendril Blade is a long, straight purple sword rather than a spear or a
+metal sword with an organic point attached. Its broad, double-edged living blade
+has a clean outline without side spikes, a bright central vein, a simple purple
+crossguard, and a ribbed symbiote grip. Its held silhouette reaches nearly twice
+as far as the Iron Sword and extends slightly during its wide swing.
 
 Every world object and creature is presented from directly overhead. Wildlife
 uses a clean silhouette made from a torso and head. Airborne crows and owls have
@@ -489,8 +489,9 @@ can be stored in chests and are consumed by the organic equipment recipes.
 | Scrap Pistol | 8 iron, 6 copper, 3 coal, 2 sulfur | 54-damage firearm; stronger per shot than a fully drawn Iron Bow; 720 durability |
 | Compact SMG | 10 iron, 9 copper, 2 sulfur | Requires the Scrap Pistol; 30-damage automatic firearm with a 120 ms cooldown; 2,400 durability |
 | Scattergun | 6 wood, 12 iron, 4 copper, 4 sulfur | Requires the Scrap Pistol; fires five 24-damage pellets in a spread; 900 durability |
-| Assault Rifle | 1 Guardian Core, 6 Aetherium, 12 iron, 8 copper | Requires the Scrap Pistol; 62-damage rapid-fire guardian-tier weapon; 1,200 durability |
+| Assault Rifle | 6 Aetherium, 12 iron, 8 copper | Requires the Scrap Pistol; 62-damage rapid-fire weapon; 1,200 durability |
 | Sniper Rifle | 18 iron, 10 copper, 4 Aetherium | Requires the Assault Rifle; 145-damage precision firearm; 900 durability |
+| Web Launcher | 1 Broodmother Core, 6 iron, 4 Neural Gel, 3 Living Weave | 12 impact damage, five 8-damage ticks, and a 55% slow for 6 seconds; 900 durability |
 | Chimera Cannon | 6 Aetherium, 4 Carapace Plate, 4 Neural Gel, 2 Living Weave | Alien super weapon; 120 impact damage plus a 52-damage pulse in a 90-unit radius; 1,200 durability; requires Xenotech Ballistics |
 | Bullet Bundle | 2 iron, 1 coal, 2 sulfur | Chemical Lab only; 12 shared firearm bullets |
 | Copper Armor | 12 copper, 5 hide | Copper helmet; 18% damage reduction |
@@ -653,6 +654,7 @@ and the player switches away from it.
 | Scattergun pellet ×5 | 24 each | 430 | 900 ms | 900 |
 | Assault rifle | 62 | 760 | 230 ms | 1,200 |
 | Sniper rifle | 145 | 1,250 | 1,550 ms | 900 |
+| Web Launcher | 12 impact + 8 per second ×5 | 620 | 850 ms | 900 |
 | Chimera Cannon | 120 impact + 52 pulse | 900 | 700 ms | 1,200 |
 | Deconstruction hammer | 3 | 78 | 750 ms | — |
 | Hands, food, or build tool | 3 | 78 | 600 ms | — |
@@ -685,14 +687,20 @@ shots at the equipped weapon's cooldown. The Scrap Pistol's 54 damage exceeds
 the fully drawn Iron Bow's 49 damage. The Compact SMG trades per-shot damage and
 range for the fastest fire rate. The Scattergun spends one bullet to launch five
 separately visible pellets across a short spread, so its full damage requires a
-close target. The guardian-tier Assault Rifle combines strong damage with fast
+close target. The Aetherium Assault Rifle combines strong damage with fast
 automatic fire. The Sniper Rifle is its precision successor, using the greatest
 range and 145 damage in exchange for the slowest firearm cooldown. While it is
 equipped, a bright blue-cyan laser runs from its muzzle through the complete
 1,250-unit aim line. The beam ends on the first creature in its path and
 surrounds that target with a blue reticle; firing also leaves a long, luminous
 cyan tracer behind the bullet. Both the laser and tracer remain readable over
-cave and night darkness. The laboratory-built Chimera Cannon fires a large
+cave and night darkness. The Web Launcher consumes one shared bullet to fire a
+bright, separately visible web clot. A hit deals 12 impact damage, visibly wraps
+the creature in web strands for six seconds, reduces its movement speed to 45%,
+and deals 8 damage once per second for five ticks. A second hit refreshes the
+six-second bind but does not create a second overlapping damage timer. Player
+Web Launcher shots never create floor webs and cannot slow or damage the player.
+The laboratory-built Chimera Cannon fires a large
 cyan-and-purple alien pulse. Its impact deals 120 damage and then deals 52 more
 damage to every living creature within 90 units, including the impact target if
 it survives the initial hit; a missed shot still detonates at maximum range.
@@ -739,10 +747,10 @@ Fired pools last 14 seconds. Standing on any nest or fired web reduces movement
 to 42% and deals 2 damage before armor once every 1.6 seconds. A new volley can
 begin at most once every 3.2 seconds. Defeating the Brood Mother rolls the maw's
 normal hide, meat, and Alien Biomass drops, but awards no ordinary iron, sulfur,
-or Aetherium bundle. It instead gives exactly one Guardian Core directly to the
-inventory, removes any web projectiles still in flight, and unlocks the Assault
-Rifle recipe. Crafting that rifle at a bench consumes the core and requires an
-already-crafted Scrap Pistol.
+or Aetherium bundle. It instead gives exactly one Broodmother Core directly to
+the inventory and removes any hostile web projectiles still in flight. The core
+is not used by the Assault Rifle. It is consumed by the Crafting Bench recipe
+for the biomass Web Launcher.
 
 The **Dread Titan** is a massive, uniquely drawn top-down cave boss that is
 always present at the center of its dedicated southwestern side cavern from the

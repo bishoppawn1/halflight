@@ -324,7 +324,7 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .mark-coal { background: #313b3b; }
 .mark-sulfur { color: #303225; background: #dccd49; }
 .mark-aetherium { color: #16333b; background: #69dbe7; box-shadow: 0 0 8px rgba(105,219,231,.55); }
-.mark-guardianCore { color: #dffeff; background: #265d68; box-shadow: 0 0 9px rgba(105,230,239,.62); }
+.mark-broodmotherCore { color: #f1e9df; background: #6a386f; box-shadow: 0 0 9px rgba(208,108,221,.62); }
 .mark-mineralRock { color: #fff1c7; background: #625b4d; box-shadow: 0 0 7px rgba(224,183,83,.32); }
 .mark-carapacePlate { color: #f8dcff; background: #704183; box-shadow: 0 0 8px rgba(202,100,223,.5); }
 .mark-neuralGel { color: #dcffff; background: #3c898b; box-shadow: 0 0 8px rgba(102,231,222,.52); }
@@ -387,7 +387,7 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-coal i,
 .material-sulfur i,
 .material-aetherium i,
-.material-guardianCore i,
+.material-broodmotherCore i,
 .material-mineralRock i {
   inset: 3px 2px 2px 3px;
   border: 2px solid rgba(34,48,43,.7);
@@ -401,7 +401,7 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-coal b,
 .material-sulfur b,
 .material-aetherium b,
-.material-guardianCore b,
+.material-broodmotherCore b,
 .material-mineralRock b {
   left: 6px;
   top: 7px;
@@ -422,8 +422,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-sulfur b { background: #fff8b0; box-shadow: 6px 5px 0 #8e8329; }
 .material-aetherium i { border-color: #276b73; background: #9df5fa; filter: drop-shadow(0 0 3px #bffcff); }
 .material-aetherium b { background: #fff; box-shadow: 6px 5px 0 #3fbac7; }
-.material-guardianCore i { inset: 1px; border-color: #173f48; background: linear-gradient(135deg, #dffeff, #4fd2df 48%, #225965); filter: drop-shadow(0 0 4px #83edf2); clip-path: polygon(50% 0, 88% 23%, 100% 67%, 63% 100%, 20% 88%, 0 43%); }
-.material-guardianCore b { left: 7px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 7px #dffeff; }
+.material-broodmotherCore i { inset: 1px; border-color: #3a1d3e; background: radial-gradient(circle at 50% 45%, #f3eee3 0 18%, #bf68ca 22% 48%, #5c2c65 52% 100%); filter: drop-shadow(0 0 4px #d778e1); clip-path: polygon(50% 0, 88% 23%, 100% 67%, 63% 100%, 20% 88%, 0 43%); }
+.material-broodmotherCore b { left: 7px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: #fffaf0; box-shadow: 0 0 7px #f0b5f4; }
 .material-mineralRock i { border-color: #3d392f; background: #766b58; }
 .material-mineralRock b { width: 5px; height: 5px; background: #e5c35a; box-shadow: 7px 4px 0 #67d5d6, 2px 9px 0 #c78358; }
 .material-carapacePlate i { left: 3px; top: 2px; width: 17px; height: 18px; border: 2px solid #3e2449; background: linear-gradient(135deg, #df8ded, #704183); clip-path: polygon(50% 0, 95% 22%, 84% 82%, 50% 100%, 16% 82%, 5% 22%); }
