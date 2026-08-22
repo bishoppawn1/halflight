@@ -317,9 +317,11 @@ automatically; the slot disappears only when no copies remain.
 
 Hits only reduce node durability. When a node is fully depleted, all of its
 materials appear as illustrated ground drops near the node. Moving within 36
-units automatically collects every nearby stack. Each depleted node rolls an
-independent respawn delay measured in complete day/night cycles. Its previous
-ground drops remain until collected.
+units immediately collects every nearby stack, including a new stack created
+while the player is already standing inside that collection radius. Resource
+drops have no collection delay. Each depleted node rolls an independent respawn
+delay measured in complete day/night cycles. Its previous ground drops remain
+until collected.
 
 | Node group | Respawn delay |
 | --- | ---: |

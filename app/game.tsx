@@ -331,6 +331,7 @@ const RAW_MUSHROOM_SICKNESS_CHANCE = 0.14;
 const RAW_MEAT_SICKNESS_CHANCE = 0.2;
 const RAW_MUSHROOM_HALLUCINATION_CHANCE = 0.12;
 const HALLUCINATION_DURATION_MS = 15_000;
+const CREATURE_DROP_COLLECTION_DELAY_MS = 650;
 const CREATURE_ATTACK_COOLDOWN_MS = 1250;
 const CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS = 1200;
 const BRUTE_LEAP_COOLDOWN_MS = 4200;
@@ -2918,6 +2919,7 @@ function scatterGroundDrops(
   y: number,
   loot: [Material, number][],
   seed: number,
+  collectionDelayMs: number,
 ) {
   loot.forEach(([material, amount], index) => {
     if (amount <= 0) return;
@@ -2930,14 +2932,14 @@ function scatterGroundDrops(
       realm,
       x: Math.max(24, Math.min(WORLD_W - 24, x + Math.cos(angle) * distance)),
       y: Math.max(24, Math.min(WORLD_H - 24, y + Math.sin(angle) * distance)),
-      collectibleAt: performance.now() + 650,
+      collectibleAt: performance.now() + collectionDelayMs,
     });
   });
 }
 
 function dropNodeLoot(game: GameState, node: ResourceNode) {
   const loot = resourceNodeLoot(node).filter(([, amount]) => amount > 0);
-  scatterGroundDrops(game, node.realm, node.x, node.y, loot, node.id);
+  scatterGroundDrops(game, node.realm, node.x, node.y, loot, node.id, 0);
   return loot.reduce((total, [, amount]) => total + amount, 0);
 }
 
@@ -3106,7 +3108,15 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
     creature.respawnAt = performance.now() + respawnDelayMs(ANIMAL_RESPAWN_DAYS);
     const loot: [Material, number][] = [["meat", animal.meatDrop]];
     if (animal.hideDrop > 0) loot.push(["hide", animal.hideDrop]);
-    scatterGroundDrops(game, creature.realm, creature.x, creature.y, loot, creature.id * 17);
+    scatterGroundDrops(
+      game,
+      creature.realm,
+      creature.x,
+      creature.y,
+      loot,
+      creature.id * 17,
+      CREATURE_DROP_COLLECTION_DELAY_MS,
+    );
     notify(
       game,
       animalName(creature.kind) + " dropped " +
