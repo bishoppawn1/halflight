@@ -355,6 +355,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .mark-sulfur { color: #303225; background: #dccd49; }
 .mark-aetherium { color: #16333b; background: #69dbe7; box-shadow: 0 0 8px rgba(105,219,231,.55); }
 .mark-guardianCore { color: #dffeff; background: #265d68; box-shadow: 0 0 9px rgba(105,230,239,.62); }
+.mark-mineralRock { color: #fff1c7; background: #625b4d; box-shadow: 0 0 7px rgba(224,183,83,.32); }
+.mark-catalyst { color: #e9ffff; background: #3d8185; box-shadow: 0 0 8px rgba(93,225,226,.45); }
 .mark-fiber { background: #69a754; }
 .mark-food { background: #d85d53; }
 .mark-berries { background: #c94f58; }
@@ -413,7 +415,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-coal i,
 .material-sulfur i,
 .material-aetherium i,
-.material-guardianCore i {
+.material-guardianCore i,
+.material-mineralRock i {
   inset: 3px 2px 2px 3px;
   border: 2px solid rgba(34,48,43,.7);
   background: rgba(255,255,255,.26);
@@ -426,7 +429,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-coal b,
 .material-sulfur b,
 .material-aetherium b,
-.material-guardianCore b {
+.material-guardianCore b,
+.material-mineralRock b {
   left: 6px;
   top: 7px;
   width: 4px;
@@ -448,6 +452,10 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-aetherium b { background: #fff; box-shadow: 6px 5px 0 #3fbac7; }
 .material-guardianCore i { inset: 1px; border-color: #173f48; background: linear-gradient(135deg, #dffeff, #4fd2df 48%, #225965); filter: drop-shadow(0 0 4px #83edf2); clip-path: polygon(50% 0, 88% 23%, 100% 67%, 63% 100%, 20% 88%, 0 43%); }
 .material-guardianCore b { left: 7px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 7px #dffeff; }
+.material-mineralRock i { border-color: #3d392f; background: #766b58; }
+.material-mineralRock b { width: 5px; height: 5px; background: #e5c35a; box-shadow: 7px 4px 0 #67d5d6, 2px 9px 0 #c78358; }
+.material-catalyst i { left: 6px; top: 4px; width: 9px; height: 15px; border: 2px solid #24585b; border-radius: 3px 3px 6px 6px; background: linear-gradient(transparent 0 35%, #72e4e2 36% 100%); box-shadow: inset 2px 0 rgba(255,255,255,.45); }
+.material-catalyst b { left: 8px; top: 1px; width: 5px; height: 5px; border: 2px solid #24585b; border-bottom: 0; border-radius: 2px 2px 0 0; background: #b8dbd7; }
 
 .material-fiber i {
   left: 8px;
@@ -993,6 +1001,14 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .tool-rifle i:before { content: ""; position: absolute; left: -9px; top: 2px; width: 12px; height: 10px; border: 2px solid #3f322a; border-radius: 4px 1px 1px 4px; background: #76543c; transform: skew(-13deg); }
 .tool-rifle i:after { content: ""; position: absolute; right: -9px; top: 3px; width: 12px; height: 4px; border-radius: 0 3px 3px 0; background: #273334; }
 .tool-rifle b { left: 20px; top: 18px; width: 11px; height: 16px; border: 2px solid #1f292a; border-radius: 2px 2px 5px 4px; background: #364344; clip-path: polygon(0 0, 100% 0, 82% 100%, 16% 88%); transform: rotate(4deg); }
+.tool-smg i { left: 1px; top: 8px; width: 33px; height: 14px; border: 3px solid #172326; border-radius: 5px; background: linear-gradient(#7f9092 0 35%, #344345 36% 100%); transform: none; }
+.tool-smg i:after { content: ""; position: absolute; right: -9px; top: 4px; width: 11px; height: 4px; border-radius: 2px; background: #202c2f; }
+.tool-smg b { left: 14px; top: 20px; width: 11px; height: 15px; border: 2px solid #172326; border-radius: 2px 2px 5px 4px; background: #283638; transform: rotate(4deg); }
+.tool-shotgun i { left: 2px; top: 8px; width: 38px; height: 9px; border: 3px solid #253033; border-radius: 2px; background: linear-gradient(#77888a 0 43%, #354346 44% 100%); box-shadow: 0 6px 0 -1px #354346; transform: none; }
+.tool-shotgun b { left: 0; top: 18px; width: 24px; height: 12px; border: 3px solid #3a2b22; border-radius: 7px 2px 7px 4px; background: #8d603e; transform: skew(-17deg); }
+.tool-sniper i { left: 0; top: 10px; width: 40px; height: 8px; border: 3px solid #17272a; border-radius: 2px; background: linear-gradient(#a7b8b9, #56686a); transform: none; }
+.tool-sniper i:after { content: ""; position: absolute; left: 12px; top: -9px; width: 20px; height: 6px; border: 2px solid #18515a; border-radius: 4px; background: #62dbe3; box-shadow: inset 7px 0 rgba(224,255,255,.65); }
+.tool-sniper b { left: 0; top: 17px; width: 24px; height: 13px; border: 3px solid #3b3027; border-radius: 7px 2px 7px 4px; background: #684c38; transform: skew(-16deg); }
 .tool-build i { left: 16px; top: 8px; height: 28px; transform: rotate(40deg); }
 .tool-build b { left: 7px; top: 3px; width: 26px; height: 13px; border: 2px solid #3b413f; border-radius: 4px; background: #d1a04d; transform: rotate(10deg); }
 .tool-pack i { left: 5px; top: 10px; width: 28px; height: 23px; border: 3px solid #3c302b; border-radius: 8px; background: #a66b42; transform: none; }
@@ -1357,6 +1373,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .build-metalWall { color: #eef8f5; border-color: #344348; background: #68777b; }
 .build-craftingBench { color: #fff4db; border-color: #503226; background: #b77a45; }
 .build-laboratory { color: #f5d9fb; border-color: #4b3153; background: #72517c; }
+.build-chemicalLab { color: #eaffff; border-color: #29484b; background: #628184; }
+.build-mineralGrower { color: #dffeff; border-color: #24545a; background: #4a777b; box-shadow: 0 0 8px rgba(91,223,226,.32); }
 .build-storageChest { color: #fff2c8; border-color: #543427; background: #a8663a; }
 .build-bedroll { color: #f3e7bd; border-color: #49362d; background: #58766a; }
 .build-torch { color: #fff1bd; border-color: #654128; background: #d8893f; }
@@ -1390,6 +1408,14 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .build-laboratory i { left: 4px; top: 5px; width: 28px; height: 26px; border: 2px solid #263b37; border-radius: 6px; background: #536963; }
 .build-laboratory b { left: 11px; top: 7px; width: 14px; height: 14px; border: 2px solid #43264d; border-radius: 50%; background: #a857c5; box-shadow: 0 0 5px #d87ae9; }
 .build-laboratory em { left: 8px; top: 24px; width: 4px; height: 3px; border-radius: 50%; background: #e9c059; box-shadow: 8px 0 0 #e9c059, 16px 0 0 #e9c059; }
+
+.build-chemicalLab i { left: 3px; top: 17px; width: 29px; height: 14px; border: 2px solid #263b3e; border-radius: 4px; background: #819596; }
+.build-chemicalLab b { left: 7px; top: 5px; width: 8px; height: 19px; border: 2px solid #d8eeeb; border-radius: 2px 2px 6px 6px; background: linear-gradient(transparent 0 40%, #ebc755 41%); box-shadow: 12px 2px 0 -1px #61dce1; }
+.build-chemicalLab em { left: 10px; top: 3px; width: 15px; height: 8px; border-top: 2px solid #6bd8da; border-radius: 50%; }
+
+.build-mineralGrower i { inset: 4px; border: 3px solid #263c40; background: #5e7477; clip-path: polygon(29% 0, 71% 0, 100% 29%, 100% 71%, 71% 100%, 29% 100%, 0 71%, 0 29%); }
+.build-mineralGrower b { left: 10px; top: 10px; width: 16px; height: 16px; border: 3px solid #86edf1; border-radius: 50%; background: #173236; box-shadow: 0 0 6px #6de3e8; }
+.build-mineralGrower em { left: 15px; top: 13px; width: 7px; height: 10px; background: #dffeff; clip-path: polygon(50% 0, 100% 38%, 79% 100%, 21% 100%, 0 38%); }
 
 .build-storageChest i { left: 3px; top: 9px; width: 28px; height: 21px; border: 2px solid #543326; border-radius: 8px 8px 4px 4px; background: #c08045; }
 .build-storageChest b { left: 2px; top: 16px; width: 30px; height: 4px; border-radius: 2px; background: #e1bb5b; }
@@ -1566,6 +1592,46 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .research-specimen b { position: absolute; left: 20px; top: 19px; width: 6px; height: 6px; border-radius: 50%; background: #f0bff8; box-shadow: 12px 7px 0 #75328e; }
 .research-list article.researched .research-specimen { border-color: #5f9168; box-shadow: inset 0 0 14px rgba(103,190,111,.2), 0 0 12px rgba(103,190,111,.16); }
 
+.station-scrim { z-index: 25; background: rgba(6,17,15,.62); }
+.mineral-grower-panel {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  bottom: auto;
+  width: min(590px, calc(100vw - 32px));
+  max-height: min(690px, calc(100vh - 32px));
+  transform: translate(-50%, -50%);
+  animation: chest-in .18s ease-out;
+}
+.grower-menu { min-height: 0; padding: 18px; overflow-y: auto; }
+.grower-menu > p { margin: 0 0 14px; color: #9eb3aa; font-size: 10px; line-height: 1.5; }
+.grower-grid { display: grid; gap: 8px; }
+.grower-grid article {
+  display: grid;
+  grid-template-columns: 39px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: #213a31;
+}
+.grower-grid .material-icon { width: 32px; height: 32px; transform: scale(1.25); }
+.grower-grid h3 { margin: 0; color: #f1e6cf; font-size: 12px; }
+.grower-grid p { margin: 3px 0; color: #9eb3aa; font-size: 8px; }
+.grower-grid small { color: #dfb85f; font-size: 8px; font-weight: 800; text-transform: capitalize; }
+.grower-grid button,
+.grower-process button { padding: 9px 13px; border: 0; border-radius: 8px; color: #24362e; background: var(--sun); font-size: 9px; font-weight: 950; cursor: pointer; }
+.grower-grid button:disabled,
+.grower-process button:disabled { color: #72867d; background: #30483e; cursor: not-allowed; }
+.grower-process { display: grid; place-items: center; padding: 36px 24px 32px; text-align: center; }
+.grower-process .material-icon { width: 52px; height: 52px; margin-bottom: 16px; transform: scale(2.1); }
+.grower-process > small { color: #74e0e3; font-size: 8px; font-weight: 950; letter-spacing: .16em; }
+.grower-process h3 { margin: 7px 0 0; color: #f2eadb; font-size: 25px; }
+.grower-process p { max-width: 380px; margin: 8px 0 14px; color: #9fb4aa; font-size: 10px; line-height: 1.5; }
+.grower-process strong { margin-bottom: 16px; color: #efffd5; font-size: 14px; }
+.grower-process button { min-width: 210px; }
+
 .start-card {
   position: absolute;
   z-index: 30;
@@ -1634,6 +1700,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   .game-panel { inset: 6px; width: auto; }
   .game-panel.crafting-menu { inset: 6px; width: auto; }
   .chest-panel { left: 6px; right: 6px; top: 6px; bottom: 6px; width: auto; max-height: none; transform: none; }
+  .laboratory-panel { left: 6px; right: 6px; top: 6px; bottom: 6px; width: auto; max-height: none; transform: none; }
+  .mineral-grower-panel { left: 6px; right: 6px; top: 6px; bottom: 6px; width: auto; max-height: none; transform: none; }
   .chest-content { grid-template-columns: 1fr; }
   .chest-content > section + section { border-top: 1px solid rgba(255,255,255,.09); border-left: 0; }
   .build-grid { grid-template-columns: 1fr; }

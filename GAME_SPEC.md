@@ -18,8 +18,8 @@ complete run.
 3. Explore three distinct caves for stone, iron, copper, coal, sulfur,
    mushrooms, and rare Aetherium.
 4. Build a Laboratory and spend Alien Biomass to research advanced organic equipment.
-5. Craft tools, armor, melee weapons, bows, a pistol, an assault rifle,
-   ammunition, and healing.
+5. Craft tools, armor, melee weapons, bows, several firearm classes,
+   ammunition, chemical feedstock, and healing.
 6. Build a shelter, crops, barriers, automated defenses, and multiple traps.
 7. Lure and feed adult wildlife, then breed two well-fed animals of the same species.
 8. Survive an increasingly large night wave, recover at dawn, and continue.
@@ -351,7 +351,7 @@ no numeric durability text until it is depleted or fully respawned.
 | Oak | 8 | 16 wood |
 | Pine | 6 | 6 wood |
 | Birch | 5 | 5 wood |
-| Stone | 6 | 6 stone |
+| Stone | 6 | 6 stone, with a chance for separate Mineral-Rich Rock |
 | Iron ore | 8 | 8 iron |
 | Copper ore | 7 | 7 copper |
 | Coal | 6 | 6 coal |
@@ -374,13 +374,21 @@ New maps contain all three sizes. Patch size changes collision, pointer
 targeting, build clearance, and total material dropped; mineable nodes drop one
 material for each point of their size-adjusted maximum durability.
 
+Destroying an ordinary rock also makes one independent Mineral-Rich Rock roll.
+There is a 27% chance to drop one and an 8% chance to drop two, for a 35% total
+chance of finding this distinct growth medium. It is a separate illustrated
+inventory material, never a renamed stone stack.
+
 ## 8. Crafting and equipment
 
 Wood and stone tools, the spear, arrows, bandages, and basic building pieces
 can be made anywhere. Place a Crafting Bench and stand within 150 units to make
-advanced weapons, armor, metal tools, ammunition, and defenses. Durable axes and
-pickaxes can always be crafted again when the material and bench requirements
-are met; their recipes never change to **Owned**. Crafting a higher tool tier
+advanced weapons, armor, metal tools, the Chemical Lab, and defenses. Bullets
+and Catalyst can only be made while the player is within 150 units of a
+completed Chemical Lab. The Mineral Grower ready piece is also fabricated near
+that lab. Durable axes and pickaxes can always be crafted again when the
+material and station requirements are met; their recipes never change to
+**Owned**. Crafting a higher tool tier
 adds a new tool stack instead of replacing a lower-tier tool. Permanent weapons
 and armor cannot be crafted twice or downgraded; ammunition, bandages, and
 building pieces are repeatable. Opening crafting enters a large
@@ -414,8 +422,12 @@ its full recipe cost. Locked organic recipes remain visible in Crafting with a
 | Iron Bow | 6 wood, 4 fiber, 5 iron | Tier-two 28-damage bow; up to 49 damage at full draw |
 | Arrow Bundle | 2 wood, 1 stone | 12 arrows |
 | Scrap Pistol | 8 iron, 6 copper, 3 coal, 2 sulfur | 54-damage firearm; stronger per shot than a fully drawn Iron Bow |
+| Compact SMG | 10 iron, 9 copper, 2 sulfur | Requires the Scrap Pistol; 30-damage automatic firearm with a 120 ms cooldown |
+| Scattergun | 6 wood, 12 iron, 4 copper, 4 sulfur | Requires the Scrap Pistol; fires five 24-damage pellets in a spread |
 | Assault Rifle | 1 Guardian Core, 6 Aetherium, 12 iron, 8 copper | Requires the Scrap Pistol; 62-damage rapid-fire guardian-tier weapon |
-| Bullet Bundle | 2 iron, 1 coal, 2 sulfur | 12 bullets |
+| Sniper Rifle | 18 iron, 10 copper, 4 Aetherium | Requires the Assault Rifle; 145-damage precision firearm |
+| Bullet Bundle | 2 iron, 1 coal, 2 sulfur | Chemical Lab only; 12 shared firearm bullets |
+| Catalyst Batch | 2 coal, 2 sulfur, 1 Aetherium | Chemical Lab only; 2 Catalyst for Mineral Grower batches |
 | Copper Armor | 12 copper, 5 hide | Copper helmet; 18% damage reduction |
 | Iron Armor | 14 iron, 6 hide | Iron helmet; 35% damage reduction |
 | Blacksteel Armor | 18 iron, 10 coal, 4 sulfur, 8 hide | Blacksteel helmet; 55% damage reduction |
@@ -469,6 +481,8 @@ their respawn until that footprint is clear.
 | --- | --- | ---: | ---: | --- |
 | Crafting Bench | 4 wood, 2 stone | 1 | 85 | Enables advanced recipes within 150 units |
 | Laboratory | 10 wood, 8 iron, 6 copper | 1 | 145 | Opens with `E` and spends Alien Biomass to unlock organic equipment recipes |
+| Chemical Lab | 8 iron, 6 copper, 4 stone | 1 | 135 | Enables bullets, Catalyst, and Mineral Grower fabrication within 150 units |
+| Mineral Grower | 10 iron, 7 copper, 3 Aetherium | 1 | 155 | Opens a compact mineral-growth menu with `E`; its ready piece requires a nearby Chemical Lab |
 | Storage Chest | 5 wood, 2 fiber | 1 | 110 | Opens with `E` and stores resource stacks separately |
 | Bedroll | 2 wood, 4 fiber | 1 | 50 | Rest once per day for up to 25 health at a cost of 8 hunger |
 | Standing Torch | 2 wood, 1 fiber, 1 coal | 2 | 35 | Placed fully built; permanent 225-unit light radius |
@@ -502,6 +516,25 @@ two-sided container view. Selecting a stack moves its complete quantity between
 the backpack and that specific chest. Stored materials cannot be crafted,
 consumed, or fired until retrieved. Deliberate hammer deconstruction returns
 the stored contents; if monsters destroy the chest, those contents are lost.
+
+The Chemical Lab is a solid, grid-built workstation with visible flasks and
+tubing. Its ammunition and Catalyst recipes remain disabled unless the player
+is within 150 units of a completed lab in the current realm. Bullets remain one
+shared ammunition stack for every firearm.
+
+Pressing `E` near a completed Mineral Grower opens a compact station menu. It
+runs one batch at a time. Starting a batch immediately consumes its listed seed
+mineral, Mineral-Rich Rock, and Catalyst. The finished output must be collected
+from the same menu before another batch can begin. Pausing freezes its timer;
+destroying or deconstructing a running Grower loses the loaded inputs.
+
+| Grown mineral | Input | Output | Time |
+| --- | --- | ---: | ---: |
+| Iron | 1 iron, 4 Mineral-Rich Rock, 1 Catalyst | 5 iron | 45 seconds |
+| Copper | 1 copper, 4 Mineral-Rich Rock, 1 Catalyst | 5 copper | 45 seconds |
+| Coal | 1 coal, 3 Mineral-Rich Rock, 1 Catalyst | 6 coal | 40 seconds |
+| Sulfur | 1 sulfur, 4 Mineral-Rich Rock, 1 Catalyst | 5 sulfur | 45 seconds |
+| Aetherium | 1 Aetherium, 6 Mineral-Rich Rock, 2 Catalyst | 3 Aetherium | 90 seconds |
 
 ## 10. Combat
 
@@ -539,7 +572,10 @@ alternate attack remains an immediate base-damage shot.
 | Hunting bow | 18 | 520 | 780 ms |
 | Iron bow | 28 | 600 | 780 ms |
 | Scrap pistol | 54 | 660 | 520 ms |
+| Compact SMG | 30 | 540 | 120 ms |
+| Scattergun pellet ×5 | 24 each | 430 | 900 ms |
 | Assault rifle | 62 | 760 | 230 ms |
+| Sniper rifle | 145 | 1,250 | 1,550 ms |
 | Deconstruction hammer | 3 | 78 | 750 ms |
 | Hands, food, or build tool | 3 | 78 | 600 ms |
 
@@ -565,11 +601,16 @@ low-bodied horror with six needle-like legs, only 18 health, and a fixed speed
 of 206. Its small silhouette, 470-unit sense radius, and sudden close pursuit
 make it the fastest ordinary enemy, but it never gains further stat bonuses.
 
-Both firearms use bullets and always fire as attacks instead of being captured
-by nearby resource targeting. Holding the primary input repeats pistol or
-assault-rifle shots at the equipped weapon's cooldown. The Scrap Pistol's 54
-damage exceeds the fully drawn Iron Bow's 49 damage. The Assault Rifle is the
-next firearm tier: it deals 62 damage per bullet and fires much faster.
+All firearms use the shared bullet stack and always fire as attacks instead of
+being captured by nearby resource targeting. Holding the primary input repeats
+shots at the equipped weapon's cooldown. The Scrap Pistol's 54 damage exceeds
+the fully drawn Iron Bow's 49 damage. The Compact SMG trades per-shot damage and
+range for the fastest fire rate. The Scattergun spends one bullet to launch five
+separately visible pellets across a short spread, so its full damage requires a
+close target. The guardian-tier Assault Rifle combines strong damage with fast
+automatic fire. The Sniper Rifle is its precision successor, using a long cyan
+tracer, the greatest range, and 145 damage in exchange for the slowest firearm
+cooldown. Each class has a distinct held silhouette and inventory illustration.
 
 Wildlife leaves visible, illustrated piles of its species-specific meat and hide
 at the death position; birds provide meat but no hide. Monsters always leave
@@ -764,5 +805,5 @@ before the next day begins. Cave monsters remain underground through daylight.
 
 The game is local to one browser run. It has no multiplayer, accounts, save
 files, tool repair, building repair, trading, quests, or finite ending. Opening
-an inventory, crafting, building, or storage panel does not pause the
-simulation; the dedicated Pause control does.
+an inventory, crafting, building, storage, or Mineral Grower panel does not
+pause the simulation; the dedicated Pause control does.
