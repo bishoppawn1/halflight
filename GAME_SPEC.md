@@ -655,13 +655,21 @@ the fully drawn Iron Bow's 49 damage. The Compact SMG trades per-shot damage and
 range for the fastest fire rate. The Scattergun spends one bullet to launch five
 separately visible pellets across a short spread, so its full damage requires a
 close target. The guardian-tier Assault Rifle combines strong damage with fast
-automatic fire. The Sniper Rifle is its precision successor, using a long cyan
-tracer, the greatest range, and 145 damage in exchange for the slowest firearm
-cooldown. The laboratory-built Chimera Cannon fires a large cyan-and-purple
-alien pulse. Its impact deals 120 damage and then deals 52 more damage to every
-living creature within 90 units, including the impact target if it survives the
-initial hit; a missed shot still detonates at maximum range. Each class has a
-distinct held silhouette and inventory illustration.
+automatic fire. The Sniper Rifle is its precision successor, using the greatest
+range and 145 damage in exchange for the slowest firearm cooldown. While it is
+equipped, a bright blue-cyan laser runs from its muzzle through the complete
+1,250-unit aim line. The beam ends on the first creature in its path and
+surrounds that target with a blue reticle; firing also leaves a long, luminous
+cyan tracer behind the bullet. Both the laser and tracer remain readable over
+cave and night darkness. The laboratory-built Chimera Cannon fires a large
+cyan-and-purple alien pulse. Its impact deals 120 damage and then deals 52 more
+damage to every living creature within 90 units, including the impact target if
+it survives the initial hit; a missed shot still detonates at maximum range.
+Every detonation produces a bright 1.2-second layered explosion with a white-hot
+core, expanding cyan and purple energy, two shock rings, and outward sparks
+reaching roughly 160 visible units. The larger visual blast does not increase
+the 90-unit damage radius. Each class has a distinct held silhouette and
+inventory illustration.
 
 Wildlife leaves visible, illustrated piles of its species-specific meat and hide
 at the death position; birds provide meat but no hide. Monsters always leave

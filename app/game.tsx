@@ -209,6 +209,16 @@ interface Projectile {
   bulletStyle?: "standard" | "pellet" | "sniper" | "chimera";
 }
 
+interface WeaponEffect {
+  id: number;
+  kind: "chimeraExplosion";
+  realm: Realm;
+  x: number;
+  y: number;
+  startedAt: number;
+  duration: number;
+}
+
 interface BroodWeb {
   id: number;
   realm: CaveRealm;
@@ -300,6 +310,7 @@ interface GameState {
   creatures: Creature[];
   buildings: Building[];
   projectiles: Projectile[];
+  weaponEffects: WeaponEffect[];
   broodWebs: BroodWeb[];
   broodWebDamageAt: number;
   attackFlash: AttackFlash | null;
@@ -743,6 +754,8 @@ const BOW_MAX_CHARGE_MS = 1200;
 const BOW_MAX_DAMAGE_BONUS = 0.75;
 const CHIMERA_BURST_RADIUS = 90;
 const CHIMERA_BURST_DAMAGE = 52;
+const CHIMERA_EXPLOSION_DURATION_MS = 1200;
+const CHIMERA_EXPLOSION_VISUAL_RADIUS = 160;
 const WARY_ESCAPE_DISTANCE = 520;
 const WARY_NOTICE_BONUS = 120;
 const MEAT_EATING_ANIMALS: AnimalKind[] = ["bear", "fox", "wolf"];
@@ -1657,6 +1670,7 @@ function makeGame(): GameState {
     creatures,
     buildings: [startingCampfire],
     projectiles: [],
+    weaponEffects: [],
     broodWebs,
     broodWebDamageAt: 0,
     attackFlash: null,
@@ -2611,6 +2625,9 @@ function setGamePaused(game: GameState, paused: boolean, now = performance.now()
   game.broodWebs.forEach((web) => {
     web.expiresAt = shiftDeadline(web.expiresAt);
   });
+  game.weaponEffects.forEach((effect) => {
+    effect.startedAt = shiftTimestamp(effect.startedAt);
+  });
   if (game.attackFlash) game.attackFlash.startedAt = shiftTimestamp(game.attackFlash.startedAt);
   game.paused = false;
   game.pausedAt = 0;
@@ -3395,6 +3412,15 @@ function createBroodWeb(game: GameState, x: number, y: number) {
 }
 
 function detonateChimeraShot(game: GameState, projectile: Projectile) {
+  game.weaponEffects.push({
+    id: game.lastId++,
+    kind: "chimeraExplosion",
+    realm: projectile.realm,
+    x: projectile.x,
+    y: projectile.y,
+    startedAt: performance.now(),
+    duration: CHIMERA_EXPLOSION_DURATION_MS,
+  });
   for (const creature of game.creatures) {
     if (
       creature.realm !== projectile.realm ||
@@ -3481,6 +3507,12 @@ function updateProjectiles(game: GameState, dt: number) {
     if (projectile.x < 0 || projectile.y < 0 || projectile.x > WORLD_W || projectile.y > WORLD_H) projectile.life = 0;
   }
   game.projectiles = game.projectiles.filter((projectile) => projectile.life > 0);
+}
+
+function updateWeaponEffects(game: GameState, now: number) {
+  game.weaponEffects = game.weaponEffects.filter(
+    (effect) => now - effect.startedAt < effect.duration,
+  );
 }
 
 function updateBroodWebs(game: GameState) {
@@ -4167,6 +4199,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
     if (building.kind === "crop" && building.construction >= 1) building.growth = Math.min(1, building.growth + dt / 300);
   }
   updateProjectiles(game, dt);
+  updateWeaponEffects(game, now);
   updateBroodWebs(game);
   updateCreatures(game, dt);
   reviveNodes(game);
@@ -7888,12 +7921,16 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, n
         ctx.stroke();
       }
     } else {
-      const trailLength = sniper ? 48 : pellet ? 18 : 28;
+      const trailLength = sniper ? 190 : pellet ? 18 : 28;
       const trail = ctx.createLinearGradient(-trailLength, 0, 10, 0);
       trail.addColorStop(0, sniper ? "rgba(99,222,235,0)" : "rgba(255,211,91,0)");
       trail.addColorStop(1, sniper ? "rgba(172,251,255,.98)" : "rgba(255,239,169,.95)");
       ctx.strokeStyle = trail;
       ctx.lineWidth = sniper ? 7 : pellet ? 3 : 5;
+      if (sniper) {
+        ctx.shadowColor = "#51c9ff";
+        ctx.shadowBlur = 14;
+      }
       ctx.beginPath();
       ctx.moveTo(-trailLength - 2, 0);
       ctx.lineTo(6, 0);
@@ -7903,6 +7940,143 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, n
       ctx.arc(8, 0, sniper ? 5 : pellet ? 2.5 : 4, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+  ctx.restore();
+}
+
+function drawSniperAim(ctx: CanvasRenderingContext2D, game: GameState, now: number) {
+  if (!game.started || game.dead || activeTool(game) !== "sniper") return;
+  const directionX = Math.cos(game.player.dir);
+  const directionY = Math.sin(game.player.dir);
+  const startX = game.player.x + directionX * 76;
+  const startY = game.player.y + directionY * 76;
+  const maximum = attackProfile("sniper").range;
+  let beamDistance = maximum;
+  let targetEntry = maximum;
+  let target: Creature | null = null;
+
+  for (const creature of game.creatures) {
+    if (creature.realm !== game.realm || creature.hp <= 0) continue;
+    const entry = rayCircleDistance(
+      startX,
+      startY,
+      directionX,
+      directionY,
+      { shape: "circle", x: creature.x, y: creature.y, radius: creatureRadius(creature) + 11 },
+      maximum,
+    );
+    if (entry === null || entry >= targetEntry) continue;
+    targetEntry = entry;
+    beamDistance = Math.min(
+      maximum,
+      Math.max(entry, (creature.x - startX) * directionX + (creature.y - startY) * directionY),
+    );
+    target = creature;
+  }
+
+  const endX = startX + directionX * beamDistance;
+  const endY = startY + directionY * beamDistance;
+  const pulse = 0.82 + Math.sin(now / 105) * 0.12;
+  const beam = ctx.createLinearGradient(startX, startY, endX, endY);
+  beam.addColorStop(0, "rgba(83,198,255,.35)");
+  beam.addColorStop(0.1, "rgba(83,198,255,.92)");
+  beam.addColorStop(1, target ? "rgba(176,249,255,.98)" : "rgba(83,198,255,.72)");
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = pulse;
+  ctx.strokeStyle = beam;
+  ctx.shadowColor = "#48c6ff";
+  ctx.shadowBlur = 13;
+  ctx.lineCap = "round";
+  ctx.lineWidth = 4.5;
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+  ctx.shadowBlur = 4;
+  ctx.strokeStyle = "rgba(229,254,255,.95)";
+  ctx.lineWidth = 1.25;
+  ctx.stroke();
+
+  ctx.translate(endX, endY);
+  if (target) {
+    const radius = creatureRadius(target) + 8;
+    ctx.strokeStyle = "rgba(125,226,255,.96)";
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([7, 5]);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * (radius + 4), Math.sin(angle) * (radius + 4));
+      ctx.lineTo(Math.cos(angle) * (radius + 14), Math.sin(angle) * (radius + 14));
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = "#d8fbff";
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawChimeraExplosion(ctx: CanvasRenderingContext2D, effect: WeaponEffect, now: number) {
+  const progress = Math.max(0, Math.min(1, (now - effect.startedAt) / effect.duration));
+  const expansion = 1 - Math.pow(1 - progress, 3);
+  const fade = Math.pow(1 - progress, 1.35);
+  const radius = 36 + expansion * (CHIMERA_EXPLOSION_VISUAL_RADIUS - 36);
+  const coreRadius = 26 * (1 - progress * 0.7);
+
+  ctx.save();
+  ctx.translate(effect.x, effect.y);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = fade;
+  ctx.shadowColor = "#8bf7ef";
+  ctx.shadowBlur = 30 * fade;
+
+  const blast = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+  blast.addColorStop(0, "rgba(255,255,241,.98)");
+  blast.addColorStop(0.16, "rgba(116,247,238,.92)");
+  blast.addColorStop(0.48, "rgba(210,91,238,.58)");
+  blast.addColorStop(0.78, "rgba(112,44,173,.24)");
+  blast.addColorStop(1, "rgba(80,25,126,0)");
+  ctx.fillStyle = blast;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(239,255,246,.92)";
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(4, coreRadius), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(154,253,246,.95)";
+  ctx.lineWidth = 8 * (1 - progress) + 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.92, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(231,138,248,.82)";
+  ctx.lineWidth = 4 * (1 - progress) + 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.68, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.lineCap = "round";
+  for (let spark = 0; spark < 18; spark++) {
+    const angle = (spark / 18) * Math.PI * 2 + effect.id * 0.37;
+    const variation = 0.62 + seeded(effect.id + spark, 944) * 0.36;
+    const distance = radius * variation;
+    const length = 14 + seeded(effect.id + spark, 945) * 28;
+    ctx.strokeStyle = spark % 2 === 0 ? "rgba(148,250,240,.88)" : "rgba(229,118,246,.8)";
+    ctx.lineWidth = 2 + seeded(effect.id + spark, 946) * 3;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle) * Math.max(6, distance - length), Math.sin(angle) * Math.max(6, distance - length));
+    ctx.lineTo(Math.cos(angle) * distance, Math.sin(angle) * distance);
+    ctx.stroke();
   }
   ctx.restore();
 }
@@ -8394,6 +8568,16 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
     ctx.fillStyle = "rgba(210,126,68," + ((game.clock - 0.4) * 0.9) + ")";
     ctx.fillRect(0, 0, width, height);
   }
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+  game.weaponEffects.forEach((effect) => {
+    if (effect.realm === game.realm && onScreen(effect.x, effect.y)) {
+      drawChimeraExplosion(ctx, effect, now);
+    }
+  });
+  drawSniperAim(ctx, game, now);
+  ctx.restore();
   ctx.strokeStyle = "rgba(255,255,255,.07)";
   ctx.lineWidth = 1;
   ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
