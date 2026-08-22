@@ -76,7 +76,6 @@ type Material =
   | "aetherium"
   | "guardianCore"
   | "mineralRock"
-  | "catalyst"
   | "carapacePlate"
   | "neuralGel"
   | "livingWeave"
@@ -561,7 +560,6 @@ const MATERIALS: { id: Material; name: string }[] = [
   { id: "aetherium", name: "Aetherium" },
   { id: "guardianCore", name: "Guardian Core" },
   { id: "mineralRock", name: "Mineral-Rich Rock" },
-  { id: "catalyst", name: "Catalyst" },
   { id: "carapacePlate", name: "Carapace Plate" },
   { id: "neuralGel", name: "Neural Gel" },
   { id: "livingWeave", name: "Living Weave" },
@@ -584,8 +582,8 @@ const BUILD_DATA: Record<
 > = {
   craftingBench: { name: "Crafting Bench", detail: "Unlocks advanced crafting nearby", icon: "CB", cost: { wood: 4, stone: 2 }, makes: 1, hp: 85 },
   laboratory: { name: "Laboratory", detail: "Researches blueprints and processes Alien Biomass", icon: "LB", cost: { wood: 10, iron: 8, copper: 6 }, makes: 1, hp: 145 },
-  chemicalLab: { name: "Chemical Lab", detail: "Makes bullets and Catalyst within 150 units", icon: "CL", cost: { iron: 8, copper: 6, stone: 4 }, makes: 1, hp: 135 },
-  mineralGrower: { name: "Mineral Grower", detail: "Replicates a seeded mineral with rich rock and Catalyst", icon: "MG", cost: { iron: 10, copper: 7, aetherium: 3 }, makes: 1, hp: 155 },
+  chemicalLab: { name: "Chemical Lab", detail: "Makes bullets and Mineral Growers within 150 units", icon: "CL", cost: { iron: 8, copper: 6, stone: 4 }, makes: 1, hp: 135 },
+  mineralGrower: { name: "Mineral Grower", detail: "Uses a mineral catalyst to enrich Mineral-Rich Rock", icon: "MG", cost: { iron: 10, copper: 7, aetherium: 3 }, makes: 1, hp: 155 },
   storageChest: { name: "Storage Chest", detail: "Holds separate resource stacks", icon: "CH", cost: { wood: 5, fiber: 2 }, makes: 1, hp: 110 },
   bedroll: { name: "Bedroll", detail: "Rest once each day to recover health", icon: "BR", cost: { wood: 2, fiber: 4 }, makes: 1, hp: 50 },
   torch: { name: "Standing Torch", detail: "Places instantly as a permanent light", icon: "TO", cost: { wood: 2, fiber: 1, coal: 1 }, makes: 2, hp: 35 },
@@ -670,11 +668,11 @@ const MINERAL_GROWTH_RECIPES: Record<
   GrowableMineral,
   { name: string; cost: Partial<Record<Material, number>>; output: number; durationMs: number }
 > = {
-  iron: { name: "Iron", cost: { iron: 1, mineralRock: 4, catalyst: 1 }, output: 5, durationMs: 45_000 },
-  copper: { name: "Copper", cost: { copper: 1, mineralRock: 4, catalyst: 1 }, output: 5, durationMs: 45_000 },
-  coal: { name: "Coal", cost: { coal: 1, mineralRock: 3, catalyst: 1 }, output: 6, durationMs: 40_000 },
-  sulfur: { name: "Sulfur", cost: { sulfur: 1, mineralRock: 4, catalyst: 1 }, output: 5, durationMs: 45_000 },
-  aetherium: { name: "Aetherium", cost: { aetherium: 1, mineralRock: 6, catalyst: 2 }, output: 3, durationMs: 90_000 },
+  iron: { name: "Iron", cost: { iron: 1, mineralRock: 4 }, output: 5, durationMs: 45_000 },
+  copper: { name: "Copper", cost: { copper: 1, mineralRock: 4 }, output: 5, durationMs: 45_000 },
+  coal: { name: "Coal", cost: { coal: 1, mineralRock: 3 }, output: 6, durationMs: 40_000 },
+  sulfur: { name: "Sulfur", cost: { sulfur: 1, mineralRock: 4 }, output: 5, durationMs: 45_000 },
+  aetherium: { name: "Aetherium", cost: { aetherium: 1, mineralRock: 6 }, output: 3, durationMs: 90_000 },
 };
 const GROWABLE_MINERALS = Object.keys(MINERAL_GROWTH_RECIPES) as GrowableMineral[];
 
@@ -805,7 +803,6 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   aetherium: "Aetherium",
   guardianCore: "Guardian Core",
   mineralRock: "Mineral-Rich Rock",
-  catalyst: "Catalyst",
   carapacePlate: "Carapace Plate",
   neuralGel: "Neural Gel",
   livingWeave: "Living Weave",
@@ -1575,7 +1572,7 @@ function makeGame(): GameState {
     realm: "meadow",
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
-    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, mineralRock: 0, catalyst: 0, carapacePlate: 0, neuralGel: 0, livingWeave: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, cookedMeat: 0, cookedMushrooms: 0, seeds: 0, hide: 0, biomass: 0, arrows: 0, bullets: 0 },
+    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, mineralRock: 0, carapacePlate: 0, neuralGel: 0, livingWeave: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, cookedMeat: 0, cookedMushrooms: 0, seeds: 0, hide: 0, biomass: 0, arrows: 0, bullets: 0 },
     gear: {
       spear: false,
       sword: false,
@@ -1764,7 +1761,7 @@ function startMineralGrowth(game: GameState, buildingId: number | null, material
   );
   if (!building || building.processMaterial) return "The Mineral Grower is unavailable or already running.";
   const recipe = MINERAL_GROWTH_RECIPES[material];
-  if (!canAfford(game, recipe.cost)) return "Not enough seed mineral, Mineral-Rich Rock, or Catalyst for this batch.";
+  if (!canAfford(game, recipe.cost)) return "This batch needs one mineral catalyst and enough Mineral-Rich Rock.";
   pay(game, recipe.cost);
   building.processMaterial = material;
   building.triggerAt = performance.now() + recipe.durationMs;
@@ -3001,7 +2998,7 @@ function interact(game: GameState): "openCrafting" | undefined {
       game.openChestId = null;
       game.openLaboratoryId = null;
       game.openGrowerId = null;
-      notify(game, "Chemical Lab online. Bullets, Catalyst, and the Mineral Grower are available in Crafting.");
+      notify(game, "Chemical Lab online. Bullets and the Mineral Grower are available in Crafting.");
       return "openCrafting";
     } else if (nearbyBuilding.kind === "mineralGrower") {
       game.openChestId = null;
@@ -4354,7 +4351,6 @@ function drawGroundDrop(ctx: CanvasRenderingContext2D, drop: GroundDrop, now: nu
       sulfur: "#d5be4d",
       aetherium: "#62dce8",
       mineralRock: "#776d59",
-      catalyst: "#62d9d8",
       hide: "#9b6b46",
       biomass: "#984db8",
     };
@@ -8658,16 +8654,6 @@ const CRAFT_RECIPES: Recipe[] = [
     },
   },
   {
-    id: "catalyst",
-    name: "Catalyst Batch ×2",
-    detail: "Reactive feedstock used by the Mineral Grower",
-    cost: { coal: 2, sulfur: 2, aetherium: 1 },
-    requiresLab: true,
-    action: (game) => {
-      addMaterial(game, "catalyst", 2);
-    },
-  },
-  {
     id: "copperArmor",
     name: "Copper Armor",
     detail: "Reduces incoming damage by 18%",
@@ -8931,7 +8917,6 @@ function RecipeVisual({ recipe }: { recipe: Recipe }) {
   if (["pistol", "smg", "shotgun", "rifle", "sniper", "chimera"].includes(recipe.id)) return <ToolGlyph type={recipe.id as Firearm} />;
   if (recipe.id === "arrows") return <MaterialIcon material="arrows" />;
   if (recipe.id === "bullets") return <MaterialIcon material="bullets" />;
-  if (recipe.id === "catalyst") return <MaterialIcon material="catalyst" />;
   if (recipe.id.endsWith("Armor")) return <span className={"recipe-special recipe-armor armor-" + recipe.id.replace("Armor", "")} aria-hidden="true"><i /><b /></span>;
   return <span className="recipe-special recipe-bandage" aria-hidden="true"><i /><b /></span>;
 }
@@ -9693,7 +9678,7 @@ export default function Game() {
                 <>
                   <div className="inventory-help bench-status">
                     <b>{nearCraftingBench(game) && nearChemicalLab(game) ? "Workshop network ready" : nearChemicalLab(game) ? "Chemical Lab in range" : nearCraftingBench(game) ? "Crafting Bench in range" : "Hand crafting"}</b>
-                    <span>{nearCraftingBench(game) && nearChemicalLab(game) ? "Weapons, advanced structures, bullets, Catalyst, and the Mineral Grower are available." : nearChemicalLab(game) ? "Bullets, Catalyst, and the Mineral Grower are available here. A bench is still required for weapons." : nearCraftingBench(game) ? "Advanced tools and weapons are unlocked. Build a Chemical Lab for bullets and Catalyst." : "Craft starter tools and a bench. Advanced production requires placed workstations."}</span>
+                    <span>{nearCraftingBench(game) && nearChemicalLab(game) ? "Weapons, advanced structures, bullets, and the Mineral Grower are available." : nearChemicalLab(game) ? "Bullets and the Mineral Grower are available here. A bench is still required for weapons." : nearCraftingBench(game) ? "Advanced tools and weapons are unlocked. Build a Chemical Lab for bullets and a Mineral Grower." : "Craft starter tools and a bench. Advanced production requires placed workstations."}</span>
                   </div>
                   <div className="recipe-list">
                     {CRAFT_RECIPES.map((recipe) => {
@@ -9852,20 +9837,20 @@ export default function Game() {
                 <MaterialIcon material={openGrower.processMaterial} />
                 <small>{growthRemainingSeconds === 0 ? "BATCH COMPLETE" : "CRYSTAL MATRIX ACTIVE"}</small>
                 <h3>{activeGrowth.name}</h3>
-                <p>{growthRemainingSeconds === 0 ? activeGrowth.output + " units are ready to collect." : "The seeded mineral is growing through the loaded Mineral-Rich Rock."}</p>
+                <p>{growthRemainingSeconds === 0 ? activeGrowth.output + " units are ready to collect." : "The " + activeGrowth.name + " catalyst is growing through the loaded Mineral-Rich Rock."}</p>
                 <strong>{growthRemainingSeconds === 0 ? "READY" : growthRemainingSeconds + "s remaining"}</strong>
                 <button disabled={growthRemainingSeconds > 0} onClick={collectMineralGrower}>{growthRemainingSeconds === 0 ? "Collect " + activeGrowth.output + " " + activeGrowth.name : "Growing…"}</button>
               </div>
             ) : (
               <div className="grower-menu">
-                <p>Choose one seed mineral. The Grower consumes it with Mineral-Rich Rock and Catalyst, then produces a larger batch.</p>
+                <p>Choose the mineral to use as the catalyst. The Grower consumes one unit of it with Mineral-Rich Rock, then produces a larger batch of that mineral.</p>
                 <div className="grower-grid">
                   {GROWABLE_MINERALS.map((material) => {
                     const recipe = MINERAL_GROWTH_RECIPES[material];
                     return (
                       <article key={material}>
                         <MaterialIcon material={material} />
-                        <div><h3>{recipe.name}</h3><p>Produces {recipe.output} in {Math.round(recipe.durationMs / 1000)} seconds</p><small>{costLabel(recipe.cost)}</small></div>
+                        <div><h3>{recipe.name} catalyst</h3><p>Produces {recipe.output} {recipe.name} in {Math.round(recipe.durationMs / 1000)} seconds</p><small>{costLabel(recipe.cost)}</small></div>
                         <button disabled={!canAfford(game, recipe.cost)} onClick={() => loadMineralGrower(material)} aria-label={"Load " + recipe.name + " growth batch"}>Load</button>
                       </article>
                     );

@@ -382,9 +382,9 @@ inventory material, never a renamed stone stack.
 Wood and stone tools, the spear, arrows, bandages, and basic building pieces
 can be made anywhere. Place a Crafting Bench and stand within 150 units to make
 advanced weapons, armor, metal tools, the Chemical Lab, and defenses. Bullets
-and Catalyst can only be made while the player is within 150 units of a
-completed Chemical Lab. The Mineral Grower ready piece is also fabricated near
-that lab. Durable tools and weapons can always be crafted again when the
+can only be made while the player is within 150 units of a completed Chemical
+Lab. The Mineral Grower ready piece is also fabricated near that lab. Durable
+tools and weapons can always be crafted again when the
 material and station requirements are met; their recipes never change to
 **Owned**. Each crafted copy joins that item's existing stack at full
 durability. Permanent armor cannot be crafted twice or downgraded; ammunition,
@@ -438,7 +438,6 @@ can be stored in chests and are consumed by the organic equipment recipes.
 | Sniper Rifle | 18 iron, 10 copper, 4 Aetherium | Requires the Assault Rifle; 145-damage precision firearm; 900 durability |
 | Chimera Cannon | 6 Aetherium, 4 Carapace Plate, 4 Neural Gel, 2 Living Weave | Alien super weapon; 120 impact damage plus a 52-damage pulse in a 90-unit radius; 1,200 durability; requires Xenotech Ballistics |
 | Bullet Bundle | 2 iron, 1 coal, 2 sulfur | Chemical Lab only; 12 shared firearm bullets |
-| Catalyst Batch | 2 coal, 2 sulfur, 1 Aetherium | Chemical Lab only; 2 Catalyst for Mineral Grower batches |
 | Copper Armor | 12 copper, 5 hide | Copper helmet; 18% damage reduction |
 | Iron Armor | 14 iron, 6 hide | Iron helmet; 35% damage reduction |
 | Blacksteel Armor | 18 iron, 10 coal, 4 sulfur, 8 hide | Blacksteel helmet; 55% damage reduction |
@@ -492,7 +491,7 @@ their respawn until that footprint is clear.
 | --- | --- | ---: | ---: | --- |
 | Crafting Bench | 4 wood, 2 stone | 1 | 85 | Enables advanced recipes within 150 units |
 | Laboratory | 10 wood, 8 iron, 6 copper | 1 | 145 | Opens with `E` to research organic recipes and process Alien Biomass compounds |
-| Chemical Lab | 8 iron, 6 copper, 4 stone | 1 | 135 | Opens Crafting with `E` and enables bullets, Catalyst, and Mineral Grower fabrication within 150 units |
+| Chemical Lab | 8 iron, 6 copper, 4 stone | 1 | 135 | Opens Crafting with `E` and enables bullets and Mineral Grower fabrication within 150 units |
 | Mineral Grower | 10 iron, 7 copper, 3 Aetherium | 1 | 155 | Opens a compact mineral-growth menu with `E`; its ready piece requires a nearby Chemical Lab |
 | Storage Chest | 5 wood, 2 fiber | 1 | 110 | Opens with `E` and stores resource stacks separately |
 | Bedroll | 2 wood, 4 fiber | 1 | 50 | Rest once per day for up to 25 health at a cost of 8 hunger |
@@ -529,24 +528,25 @@ consumed, or fired until retrieved. Deliberate hammer deconstruction returns
 the stored contents; if monsters destroy the chest, those contents are lost.
 
 The Chemical Lab is a solid, grid-built workstation with visible flasks and
-tubing. Pressing `E` within 150 units opens the Crafting menu. Its ammunition,
-Catalyst, and Mineral Grower recipes are enabled while the player remains within
-150 units of a completed lab in the current realm. Bullets remain one shared
+tubing. Pressing `E` within 150 units opens the Crafting menu. Its ammunition
+and Mineral Grower recipes are enabled while the player remains within 150
+units of a completed lab in the current realm. Bullets remain one shared
 ammunition stack for every firearm.
 
 Pressing `E` near a completed Mineral Grower opens a compact station menu. It
-runs one batch at a time. Starting a batch immediately consumes its listed seed
-mineral, Mineral-Rich Rock, and Catalyst. The finished output must be collected
-from the same menu before another batch can begin. Pausing freezes its timer;
-destroying or deconstructing a running Grower loses the loaded inputs.
+runs one batch at a time. The chosen mineral itself is the catalyst: starting a
+batch immediately consumes one unit of that mineral plus the listed quantity of
+Mineral-Rich Rock. The finished output must be collected from the same menu
+before another batch can begin. Pausing freezes its timer; destroying or
+deconstructing a running Grower loses the loaded inputs.
 
 | Grown mineral | Input | Output | Time |
 | --- | --- | ---: | ---: |
-| Iron | 1 iron, 4 Mineral-Rich Rock, 1 Catalyst | 5 iron | 45 seconds |
-| Copper | 1 copper, 4 Mineral-Rich Rock, 1 Catalyst | 5 copper | 45 seconds |
-| Coal | 1 coal, 3 Mineral-Rich Rock, 1 Catalyst | 6 coal | 40 seconds |
-| Sulfur | 1 sulfur, 4 Mineral-Rich Rock, 1 Catalyst | 5 sulfur | 45 seconds |
-| Aetherium | 1 Aetherium, 6 Mineral-Rich Rock, 2 Catalyst | 3 Aetherium | 90 seconds |
+| Iron | 1 iron catalyst, 4 Mineral-Rich Rock | 5 iron | 45 seconds |
+| Copper | 1 copper catalyst, 4 Mineral-Rich Rock | 5 copper | 45 seconds |
+| Coal | 1 coal catalyst, 3 Mineral-Rich Rock | 6 coal | 40 seconds |
+| Sulfur | 1 sulfur catalyst, 4 Mineral-Rich Rock | 5 sulfur | 45 seconds |
+| Aetherium | 1 Aetherium catalyst, 6 Mineral-Rich Rock | 3 Aetherium | 90 seconds |
 
 ## 10. Combat
 

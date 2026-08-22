@@ -326,7 +326,6 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .mark-aetherium { color: #16333b; background: #69dbe7; box-shadow: 0 0 8px rgba(105,219,231,.55); }
 .mark-guardianCore { color: #dffeff; background: #265d68; box-shadow: 0 0 9px rgba(105,230,239,.62); }
 .mark-mineralRock { color: #fff1c7; background: #625b4d; box-shadow: 0 0 7px rgba(224,183,83,.32); }
-.mark-catalyst { color: #e9ffff; background: #3d8185; box-shadow: 0 0 8px rgba(93,225,226,.45); }
 .mark-carapacePlate { color: #f8dcff; background: #704183; box-shadow: 0 0 8px rgba(202,100,223,.5); }
 .mark-neuralGel { color: #dcffff; background: #3c898b; box-shadow: 0 0 8px rgba(102,231,222,.52); }
 .mark-livingWeave { color: #f8e1ff; background: #87536f; box-shadow: 0 0 8px rgba(217,112,184,.45); }
@@ -427,8 +426,6 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-guardianCore b { left: 7px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 7px #dffeff; }
 .material-mineralRock i { border-color: #3d392f; background: #766b58; }
 .material-mineralRock b { width: 5px; height: 5px; background: #e5c35a; box-shadow: 7px 4px 0 #67d5d6, 2px 9px 0 #c78358; }
-.material-catalyst i { left: 6px; top: 4px; width: 9px; height: 15px; border: 2px solid #24585b; border-radius: 3px 3px 6px 6px; background: linear-gradient(transparent 0 35%, #72e4e2 36% 100%); box-shadow: inset 2px 0 rgba(255,255,255,.45); }
-.material-catalyst b { left: 8px; top: 1px; width: 5px; height: 5px; border: 2px solid #24585b; border-bottom: 0; border-radius: 2px 2px 0 0; background: #b8dbd7; }
 .material-carapacePlate i { left: 3px; top: 2px; width: 17px; height: 18px; border: 2px solid #3e2449; background: linear-gradient(135deg, #df8ded, #704183); clip-path: polygon(50% 0, 95% 22%, 84% 82%, 50% 100%, 16% 82%, 5% 22%); }
 .material-carapacePlate b { left: 9px; top: 5px; width: 5px; height: 12px; border-radius: 50%; background: #f5caff; box-shadow: 0 0 5px #eeb5fa; transform: rotate(-18deg); }
 .material-neuralGel i { left: 5px; top: 2px; width: 12px; height: 19px; border: 2px solid #24575b; border-radius: 4px 4px 7px 7px; background: linear-gradient(transparent 0 30%, #72e8df 31% 100%); box-shadow: inset 3px 0 rgba(255,255,255,.4), 0 0 5px rgba(109,235,227,.55); }
