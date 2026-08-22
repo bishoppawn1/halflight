@@ -85,7 +85,7 @@ to 48%. Flying crows and owls ignore resource, structure, and water collision.
 | --- | --- |
 | `WASD` or arrow keys | Move |
 | Pointer position | Aim the equipped tool independently of movement and choose targets |
-| Hold left mouse | Repeatedly gather or use melee weapons; hold a bow to draw it, then release to fire; start hammer deconstruction |
+| Hold left mouse | Repeatedly swing melee tools or gather; hold a bow to draw it, then release to fire; start hammer deconstruction |
 | Left click in build mode | Place one ready building piece |
 | Hold `Shift` and left-drag | Place ready pieces across each valid grid cell crossed |
 | Right click in build mode | Cancel placement without using a ready piece |
@@ -224,6 +224,13 @@ the camera moves. Once a held use starts on a resource, it stays locked to that
 resource despite camera movement until the player releases the control, moves
 out of range, or depletes it. Depleting the locked resource ends that held use
 instead of turning it into an unintended attack or selecting a different node.
+
+Axes are the exception to resource locking. Every axe input is a normal melee
+swing. All non-tamed creatures inside its attack arc take combat damage, while
+the nearest tree or forage footprint intersected by that same arc also takes
+gathering damage. A tree near or behind an animal never replaces the creature
+attack; one swing can hit both. Holding the input repeats complete swings at the
+axe's ordinary cooldown.
 
 | Tool tier | Node durability removed per hit | Axe cooldown | Pickaxe cooldown | Access |
 | --- | ---: | ---: | ---: | --- |
@@ -412,7 +419,9 @@ the stored contents; if monsters destroy the chest, those contents are lost.
 ## 10. Combat
 
 Melee attacks damage every non-tamed creature in the attack arc and apply
-knockback. Ranged weapons spend ammunition even on misses and fire a physical
+knockback. An axe swing can simultaneously apply its gathering damage to one
+intersected tree or forage node without suppressing any creature hit. Ranged
+weapons spend ammunition even on misses and fire a physical
 projectile in the exact pointer-facing direction. A projectile only deals
 damage if its path intersects a creature. Every completed attack produces a
 brief white directional flash. Spears use a narrow straight-ahead hit area and

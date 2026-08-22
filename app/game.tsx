@@ -331,6 +331,7 @@ const DECONSTRUCTION_SECONDS = 2.25;
 const BUILDING_HALF_SIZE = 23;
 const CROP_HALF_SIZE = GRID - 2;
 const AUTO_BUILD_RANGE = GRID * 3;
+const RESOURCE_USE_RANGE = 112;
 const SPAWN_X = 2780;
 const SPAWN_Y = 1940;
 const SHALLOW_WATER_SPEED_FACTOR = 0.48;
@@ -1675,6 +1676,39 @@ function targetNode(game: GameState, maxDistance: number) {
   return nearestNode(game, maxDistance);
 }
 
+function angleDifference(angle: number, reference: number) {
+  let difference = angle - reference;
+  while (difference > Math.PI) difference -= Math.PI * 2;
+  while (difference < -Math.PI) difference += Math.PI * 2;
+  return difference;
+}
+
+function targetAxeSwingNode(game: GameState, profile: AttackProfile) {
+  return game.nodes
+    .filter((node) => {
+      if (node.realm !== game.realm || node.hp <= 0 || isMineable(node.kind)) return false;
+      const dx = node.x - game.player.x;
+      const dy = node.y - game.player.y;
+      const centerDistance = Math.hypot(dx, dy);
+      const radius = nodeRadius(node.kind, node.size);
+      if (Math.max(0, centerDistance - radius) > RESOURCE_USE_RANGE) return false;
+      const forwardProjection = dx * Math.cos(game.player.dir) + dy * Math.sin(game.player.dir);
+      if (forwardProjection + radius <= 0) return false;
+      const angularRadius = centerDistance <= radius
+        ? Math.PI
+        : Math.asin(Math.min(1, radius / centerDistance));
+      return Math.abs(angleDifference(Math.atan2(dy, dx), game.player.dir)) <= profile.arc + angularRadius;
+    })
+    .sort((a, b) => {
+      const distanceA = distanceToNodeFootprint(a, game.player.x, game.player.y);
+      const distanceB = distanceToNodeFootprint(b, game.player.x, game.player.y);
+      if (distanceA !== distanceB) return distanceA - distanceB;
+      const angleA = Math.abs(angleDifference(Math.atan2(a.y - game.player.y, a.x - game.player.x), game.player.dir));
+      const angleB = Math.abs(angleDifference(Math.atan2(b.y - game.player.y, b.x - game.player.x), game.player.dir));
+      return angleA - angleB;
+    })[0] ?? null;
+}
+
 function buildLayer(kind: BuildKind) {
   if (kind === "floor") return "floor";
   if (kind === "roof") return "roof";
@@ -2491,6 +2525,16 @@ function dropNodeLoot(game: GameState, node: ResourceNode) {
   return loot.reduce((total, [, amount]) => total + amount, 0);
 }
 
+function damageResourceNode(game: GameState, node: ResourceNode, power: number, now: number) {
+  node.hp = Math.max(0, node.hp - power);
+  if (node.hp <= 0) {
+    node.respawnAt = now + respawnDelayMs(RESOURCE_RESPAWN_DAYS[node.kind]);
+    const dropCount = dropNodeLoot(game, node);
+    return [resourceNodeLabel(node.kind) + " depleted · " + dropCount + " items dropped. Walk over them to collect"];
+  }
+  return [resourceNodeLabel(node.kind) + " damaged"];
+}
+
 function harvestNode(game: GameState, node: ResourceNode) {
   const now = performance.now();
   if (now < game.player.useReady || now < game.player.attackReady || game.dead || !game.started) return;
@@ -2523,17 +2567,9 @@ function harvestNode(game: GameState, node: ResourceNode) {
     return;
   }
   const power = tree || mining ? TOOL_POWER[tier] : 1;
-  node.hp = Math.max(0, node.hp - power);
   game.player.swing = tree || mining ? profile.animationSeconds : 0;
   game.player.attackReady = now + profile.cooldown;
-  const feedback: string[] = [];
-  if (node.hp <= 0) {
-    node.respawnAt = now + respawnDelayMs(RESOURCE_RESPAWN_DAYS[node.kind]);
-    const dropCount = dropNodeLoot(game, node);
-    feedback.push(resourceNodeLabel(node.kind) + " depleted · " + dropCount + " items dropped. Walk over them to collect");
-  } else {
-    feedback.push(resourceNodeLabel(node.kind) + " damaged");
-  }
+  const feedback = damageResourceNode(game, node, power, now);
   if ((tree || mining) && isDurableTool(game.selected)) {
     const usedTool = game.selected;
     const wear = wearTool(game, usedTool);
@@ -2602,15 +2638,13 @@ function attack(game: GameState, bowCharge = 0) {
     startedAt: now,
     duration: profile.style === "thrust" ? 175 : 155,
   };
-  let hit = false;
+  let hitCreature = false;
   for (const creature of game.creatures) {
     if (creature.realm !== game.realm || creature.hp <= 0 || creature.tame) continue;
     const dx = creature.x - game.player.x;
     const dy = creature.y - game.player.y;
     const distance = Math.hypot(dx, dy);
-    let angle = Math.atan2(dy, dx) - game.player.dir;
-    while (angle > Math.PI) angle -= Math.PI * 2;
-    while (angle < -Math.PI) angle += Math.PI * 2;
+    const angle = angleDifference(Math.atan2(dy, dx), game.player.dir);
     if (distance < profile.range + Math.max(0, creatureRadius(creature) - 20) && Math.abs(angle) < profile.arc) {
       creature.hp -= profile.damage;
       creature.angry = true;
@@ -2624,16 +2658,25 @@ function attack(game: GameState, bowCharge = 0) {
         1,
         22,
       );
-      hit = true;
+      hitCreature = true;
       if (creature.hp <= 0) {
         awardCreatureDrop(game, creature);
       }
     }
   }
-  if (hit && isDurableTool(tool)) {
+
+  const toolInfo = durableToolInfo(tool);
+  const swingNode = toolInfo?.family === "axe" ? targetAxeSwingNode(game, profile) : null;
+  const resourceFeedback = swingNode && toolInfo
+    ? damageResourceNode(game, swingNode, TOOL_POWER[toolInfo.tier], now)
+    : [];
+  const feedback = hitCreature ? [profile.damage + " creature damage", ...resourceFeedback] : resourceFeedback;
+  const wearsTool = hitCreature || Boolean(swingNode && isTree(swingNode.kind));
+  if (wearsTool && isDurableTool(tool)) {
     const wear = wearTool(game, tool);
-    notify(game, profile.damage + " damage · " + toolWearMessage(tool, wear), 1000);
-  } else if (hit) notify(game, profile.damage + " damage", 700);
+    feedback.push(toolWearMessage(tool, wear));
+  }
+  if (feedback.length > 0) notify(game, feedback.join(" · "), swingNode?.hp === 0 ? 2200 : 1000);
 }
 
 function awardCreatureDrop(game: GameState, creature: Creature) {
@@ -2740,6 +2783,12 @@ function primaryAction(game: GameState, repeated = false) {
     if (game.heldAction?.kind !== "bow") beginBowCharge(game);
     return;
   }
+  if (durableToolInfo(activeTool(game))?.family === "axe") {
+    if (game.mouseHeld) game.heldAction = { kind: "free" };
+    if (repeated && game.heldAction?.kind !== "free") return;
+    attack(game);
+    return;
+  }
   if (repeated && game.heldAction?.kind === "resource") {
     const lockedNodeId = game.heldAction.nodeId;
     const lockedNode = game.nodes.find(
@@ -2749,7 +2798,7 @@ function primaryAction(game: GameState, repeated = false) {
       releasePrimaryInput(game);
       return;
     }
-    if (distanceToNodeFootprint(lockedNode, game.player.x, game.player.y) > 112) {
+    if (distanceToNodeFootprint(lockedNode, game.player.x, game.player.y) > RESOURCE_USE_RANGE) {
       releasePrimaryInput(game);
       return;
     }
@@ -2757,7 +2806,7 @@ function primaryAction(game: GameState, repeated = false) {
     if (lockedNode.hp <= 0) releasePrimaryInput(game);
     return;
   }
-  const node = targetNode(game, 112);
+  const node = targetNode(game, RESOURCE_USE_RANGE);
   if (node) {
     if (game.mouseHeld) game.heldAction = { kind: "resource", nodeId: node.id };
     harvestNode(game, node);
