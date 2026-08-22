@@ -21,20 +21,22 @@ type ResourceKind =
   | "mushroom";
 type FoodMaterial = "berries" | "mushrooms" | "meat" | "cookedMushrooms" | "cookedMeat";
 type RawCookableFood = "mushrooms" | "meat";
-type ToolTier = "none" | "wood" | "stone" | "iron" | "aetherium";
+type ToolTier = "none" | "wood" | "stone" | "iron" | "aetherium" | "biomass";
 type DurableTool =
   | "woodAxe"
   | "stoneAxe"
   | "ironAxe"
   | "aetheriumAxe"
+  | "carapaceAxe"
   | "woodPickaxe"
   | "stonePickaxe"
   | "ironPickaxe"
   | "aetheriumPickaxe";
-type Tool = DurableTool | "hammer" | "spear" | "sword" | "bow" | "ironBow" | "pistol" | "rifle" | FoodMaterial | "build" | "hands";
+type Tool = DurableTool | "hammer" | "spear" | "sword" | "tendrilBlade" | "bow" | "ironBow" | "pistol" | "rifle" | FoodMaterial | "build" | "hands";
 type ToolGlyphKind = "axe" | "pickaxe" | "hammer" | "spear" | "sword" | "bow" | "pistol" | "rifle" | "pack";
 type BuildKind =
   | "craftingBench"
+  | "laboratory"
   | "storageChest"
   | "bedroll"
   | "torch"
@@ -72,6 +74,7 @@ type Material =
   | "cookedMushrooms"
   | "seeds"
   | "hide"
+  | "biomass"
   | "arrows"
   | "bullets";
 type GroundAnimalKind = "bear" | "boar" | "deer" | "rabbit" | "fox" | "wolf" | "raccoon";
@@ -79,7 +82,8 @@ type BirdKind = "crow" | "owl" | "turkey";
 type AnimalKind = GroundAnimalKind | BirdKind;
 type MonsterKind = "shade" | "crawler" | "brute" | "stalker" | "wraith" | "maw" | "aetherWarden";
 type CreatureKind = MonsterKind | AnimalKind;
-type ArmorKind = "none" | "copper" | "iron" | "blacksteel";
+type ArmorKind = "none" | "copper" | "iron" | "blacksteel" | "symbiote";
+type ResearchKind = "carapaceAxe" | "tendrilBlade" | "symbioteArmor";
 type InventoryItem = Tool | BuildKind | Material;
 type Panel = "inventory" | "craft" | "build" | null;
 type AttackStyle = "slash" | "thrust" | "shot";
@@ -245,6 +249,7 @@ interface GameState {
   gear: {
     spear: boolean;
     sword: boolean;
+    tendrilBlade: boolean;
     bow: boolean;
     ironBow: boolean;
     pistol: boolean;
@@ -256,11 +261,13 @@ interface GameState {
   kits: Record<BuildKind, number>;
   selected: Tool;
   selectedSlot: number;
-  weapon: "spear" | "sword" | "bow" | "ironBow" | "pistol" | "rifle";
+  weapon: "spear" | "sword" | "tendrilBlade" | "bow" | "ironBow" | "pistol" | "rifle";
   inventory: (InventoryItem | null)[];
   hotbar: (InventoryItem | null)[];
   buildMode: BuildKind | null;
   openChestId: number | null;
+  openLaboratoryId: number | null;
+  research: Record<ResearchKind, boolean>;
   workOrders: WorkOrder[];
   autoBuildActive: boolean;
   nodes: ResourceNode[];
@@ -298,6 +305,7 @@ interface Recipe {
   requiresBench?: boolean;
   prerequisite?: (game: GameState) => boolean;
   prerequisiteLabel?: string;
+  requiresResearch?: ResearchKind;
   owned?: (game: GameState) => boolean;
   action: (game: GameState) => void;
 }
@@ -554,6 +562,7 @@ const MATERIALS: { id: Material; name: string }[] = [
   { id: "cookedMushrooms", name: "Cooked Mushrooms" },
   { id: "seeds", name: "Seeds" },
   { id: "hide", name: "Hide" },
+  { id: "biomass", name: "Alien Biomass" },
   { id: "arrows", name: "Arrows" },
   { id: "bullets", name: "Bullets" },
 ];
@@ -563,6 +572,7 @@ const BUILD_DATA: Record<
   { name: string; detail: string; icon: string; cost: Partial<Record<Material, number>>; makes: number; hp: number }
 > = {
   craftingBench: { name: "Crafting Bench", detail: "Unlocks advanced crafting nearby", icon: "CB", cost: { wood: 4, stone: 2 }, makes: 1, hp: 85 },
+  laboratory: { name: "Laboratory", detail: "Researches alien equipment with biomass", icon: "LB", cost: { wood: 10, iron: 8, copper: 6 }, makes: 1, hp: 145 },
   storageChest: { name: "Storage Chest", detail: "Holds separate resource stacks", icon: "CH", cost: { wood: 5, fiber: 2 }, makes: 1, hp: 110 },
   bedroll: { name: "Bedroll", detail: "Rest once each day to recover health", icon: "BR", cost: { wood: 2, fiber: 4 }, makes: 1, hp: 50 },
   torch: { name: "Standing Torch", detail: "Places instantly as a permanent light", icon: "TO", cost: { wood: 2, fiber: 1, coal: 1 }, makes: 2, hp: 35 },
@@ -586,6 +596,7 @@ const BUILD_DATA: Record<
 
 const BUILD_ORDER: BuildKind[] = [
   "craftingBench",
+  "laboratory",
   "storageChest",
   "bedroll",
   "torch",
@@ -606,6 +617,13 @@ const BUILD_ORDER: BuildKind[] = [
   "turret",
   "crop",
 ];
+
+const RESEARCH_ORDER: ResearchKind[] = ["carapaceAxe", "tendrilBlade", "symbioteArmor"];
+const RESEARCH_DATA: Record<ResearchKind, { name: string; detail: string; biomassCost: number }> = {
+  carapaceAxe: { name: "Carapace Tooling", detail: "Unlocks the durable Carapace Axe recipe.", biomassCost: 2 },
+  tendrilBlade: { name: "Tendril Weaponry", detail: "Unlocks the long-reaching Tendril Blade recipe.", biomassCost: 3 },
+  symbioteArmor: { name: "Symbiote Weave", detail: "Unlocks protective living armor.", biomassCost: 4 },
+};
 
 const ANIMAL_KINDS: AnimalKind[] = ["bear", "boar", "deer", "rabbit", "fox", "wolf", "raccoon", "crow", "owl", "turkey"];
 const BIRD_KINDS: BirdKind[] = ["crow", "owl", "turkey"];
@@ -629,6 +647,18 @@ const MONSTER_DATA: Record<
   wraith: { realm: "caveSystem", earliestNight: 1, hp: 42, speed: 96, damage: 10, attackReach: 108, senseRadius: 440 },
   maw: { realm: "caveSystem", earliestNight: 3, hp: 92, speed: 56, damage: 17, attackReach: 96, senseRadius: 260 },
   aetherWarden: { realm: "caveSystem", earliestNight: 1, hp: 118, speed: 70, damage: 14, attackReach: 104, senseRadius: 380 },
+};
+const MONSTER_LOOT: Record<
+  MonsterKind,
+  { hide: number; meat: number; meatChance: number; biomass: number; biomassChance: number; minerals?: [Material, number][] }
+> = {
+  shade: { hide: 1, meat: 1, meatChance: 0.22, biomass: 1, biomassChance: 0.18 },
+  crawler: { hide: 1, meat: 1, meatChance: 0.32, biomass: 1, biomassChance: 0.3 },
+  brute: { hide: 2, meat: 2, meatChance: 0.48, biomass: 1, biomassChance: 0.38, minerals: [["iron", 1]] },
+  stalker: { hide: 1, meat: 1, meatChance: 0.2, biomass: 1, biomassChance: 0.4 },
+  wraith: { hide: 1, meat: 1, meatChance: 0.18, biomass: 1, biomassChance: 0.58, minerals: [["sulfur", 1]] },
+  maw: { hide: 3, meat: 3, meatChance: 0.68, biomass: 2, biomassChance: 0.76, minerals: [["iron", 2], ["sulfur", 2]] },
+  aetherWarden: { hide: 2, meat: 2, meatChance: 0.4, biomass: 2, biomassChance: 0.7 },
 };
 const MONSTER_WAVE_ROSTERS: Record<Realm, MonsterKind[]> = {
   meadow: ["shade", "shade", "crawler", "shade", "brute", "crawler", "shade", "stalker"],
@@ -695,6 +725,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   stoneAxe: "Stone Axe",
   ironAxe: "Iron Axe",
   aetheriumAxe: "Aetherium Axe",
+  carapaceAxe: "Carapace Axe",
   woodPickaxe: "Wood Pickaxe",
   stonePickaxe: "Stone Pickaxe",
   ironPickaxe: "Iron Pickaxe",
@@ -702,6 +733,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   hammer: "Deconstruction Hammer",
   spear: "Stone Spear",
   sword: "Iron Sword",
+  tendrilBlade: "Tendril Blade",
   bow: "Hunting Bow",
   ironBow: "Iron Bow",
   pistol: "Scrap Pistol",
@@ -722,6 +754,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   cookedMushrooms: "Cooked Mushrooms",
   seeds: "Seeds",
   hide: "Hide",
+  biomass: "Alien Biomass",
   arrows: "Arrows",
   bullets: "Bullets",
 };
@@ -752,6 +785,7 @@ const TOOL_TIER_NAMES: Record<ToolTier, string> = {
   stone: "Stone",
   iron: "Iron",
   aetherium: "Aetherium",
+  biomass: "Biomass",
 };
 
 const DURABLE_TOOL_DATA: Record<
@@ -762,6 +796,7 @@ const DURABLE_TOOL_DATA: Record<
   stoneAxe: { family: "axe", tier: "stone", maxDurability: 72, damage: 9 },
   ironAxe: { family: "axe", tier: "iron", maxDurability: 120, damage: 14 },
   aetheriumAxe: { family: "axe", tier: "aetherium", maxDurability: 180, damage: 22 },
+  carapaceAxe: { family: "axe", tier: "biomass", maxDurability: 240, damage: 30 },
   woodPickaxe: { family: "pickaxe", tier: "wood", maxDurability: 36, damage: 5 },
   stonePickaxe: { family: "pickaxe", tier: "stone", maxDurability: 72, damage: 7 },
   ironPickaxe: { family: "pickaxe", tier: "iron", maxDurability: 120, damage: 11 },
@@ -791,6 +826,7 @@ const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
   stoneAxe: { damage: 9, range: 78, cooldown: 760, animationSeconds: 0.4, arc: 1.05, style: "slash" },
   ironAxe: { damage: 14, range: 78, cooldown: 700, animationSeconds: 0.38, arc: 1.05, style: "slash" },
   aetheriumAxe: { damage: 22, range: 78, cooldown: 620, animationSeconds: 0.34, arc: 1.05, style: "slash" },
+  carapaceAxe: { damage: 30, range: 82, cooldown: 620, animationSeconds: 0.34, arc: 1.08, style: "slash" },
   woodPickaxe: { damage: 5, range: 78, cooldown: 820, animationSeconds: 0.42, arc: 0.85, style: "slash" },
   stonePickaxe: { damage: 7, range: 78, cooldown: 860, animationSeconds: 0.44, arc: 0.85, style: "slash" },
   ironPickaxe: { damage: 11, range: 78, cooldown: 800, animationSeconds: 0.41, arc: 0.85, style: "slash" },
@@ -798,6 +834,7 @@ const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
   hammer: { damage: 3, range: 78, cooldown: 750, animationSeconds: 0.4, arc: 0.9, style: "slash" },
   spear: { damage: 17, range: 102, cooldown: 620, animationSeconds: 0.34, arc: 0.38, style: "thrust" },
   sword: { damage: 25, range: 102, cooldown: 480, animationSeconds: 0.3, arc: 1.15, style: "slash" },
+  tendrilBlade: { damage: 36, range: 112, cooldown: 520, animationSeconds: 0.32, arc: 1.18, style: "slash" },
   bow: { damage: 18, range: 520, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
   ironBow: { damage: 28, range: 600, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
   pistol: { damage: 54, range: 660, cooldown: 520, animationSeconds: 0.24, arc: 0, style: "shot" },
@@ -866,6 +903,7 @@ function itemCount(game: GameState, item: InventoryItem | null) {
   if (item === "hammer") return game.gear.hammer ? 1 : 0;
   if (item === "spear") return game.gear.spear ? 1 : 0;
   if (item === "sword") return game.gear.sword ? 1 : 0;
+  if (item === "tendrilBlade") return game.gear.tendrilBlade ? 1 : 0;
   if (item === "bow") return game.gear.bow ? 1 : 0;
   if (item === "ironBow") return game.gear.ironBow ? 1 : 0;
   if (item === "pistol") return game.gear.pistol ? 1 : 0;
@@ -1478,10 +1516,11 @@ function makeGame(): GameState {
     realm: "meadow",
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
-    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, cookedMeat: 0, cookedMushrooms: 0, seeds: 0, hide: 0, arrows: 0, bullets: 0 },
+    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, cookedMeat: 0, cookedMushrooms: 0, seeds: 0, hide: 0, biomass: 0, arrows: 0, bullets: 0 },
     gear: {
       spear: false,
       sword: false,
+      tendrilBlade: false,
       bow: false,
       ironBow: false,
       pistol: false,
@@ -1492,6 +1531,7 @@ function makeGame(): GameState {
         stoneAxe: [],
         ironAxe: [],
         aetheriumAxe: [],
+        carapaceAxe: [],
         woodPickaxe: [],
         stonePickaxe: [],
         ironPickaxe: [],
@@ -1501,6 +1541,7 @@ function makeGame(): GameState {
     },
     kits: {
       craftingBench: 0,
+      laboratory: 0,
       storageChest: 0,
       bedroll: 0,
       torch: 0,
@@ -1528,6 +1569,8 @@ function makeGame(): GameState {
     hotbar: ["berries", "woodAxe", null, null, null, null, null, null, null, null],
     buildMode: null,
     openChestId: null,
+    openLaboratoryId: null,
+    research: { carapaceAxe: false, tendrilBlade: false, symbioteArmor: false },
     workOrders: [],
     autoBuildActive: false,
     nodes,
@@ -1817,7 +1860,7 @@ function selectSlot(game: GameState, slot: number) {
     return;
   }
   game.selected = item;
-  if (item === "spear" || item === "sword" || item === "bow" || item === "ironBow" || item === "pistol" || item === "rifle") game.weapon = item;
+  if (item === "spear" || item === "sword" || item === "tendrilBlade" || item === "bow" || item === "ironBow" || item === "pistol" || item === "rifle") game.weapon = item;
 }
 
 function isBabyAnimal(creature: Creature, now = performance.now()) {
@@ -2814,13 +2857,17 @@ function interact(game: GameState) {
   }
   const nearbyBuilding = game.buildings.find((building) => {
     if (building.realm !== game.realm || building.construction < 1) return false;
-    if (building.kind !== "woodGate" && building.kind !== "stoneGate" && building.kind !== "door" && building.kind !== "crop" && building.kind !== "storageChest" && building.kind !== "bedroll") return false;
+    if (building.kind !== "woodGate" && building.kind !== "stoneGate" && building.kind !== "door" && building.kind !== "crop" && building.kind !== "storageChest" && building.kind !== "bedroll" && building.kind !== "laboratory") return false;
     return distanceToBuilding(building, game.player.x, game.player.y) < 58;
   });
   if (nearbyBuilding) {
     if (nearbyBuilding.kind === "storageChest") {
       game.openChestId = nearbyBuilding.id;
       notify(game, "Storage Chest opened. Stored materials are unavailable for crafting until removed.");
+    } else if (nearbyBuilding.kind === "laboratory") {
+      game.openChestId = null;
+      game.openLaboratoryId = nearbyBuilding.id;
+      notify(game, "Laboratory online. Spend Alien Biomass to research new blueprints.");
     } else if (nearbyBuilding.kind === "bedroll") {
       if (nearbyBuilding.restedDay === game.day) {
         notify(game, "You have already rested here today.");
@@ -2856,8 +2903,8 @@ function interact(game: GameState) {
   notify(game, "Nothing close enough to interact with.");
 }
 
-const TOOL_TIER_RANK: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 4 };
-const TOOL_POWER: Record<ToolTier, number> = { none: 0.5, wood: 1, stone: 2, iron: 3, aetherium: 5 };
+const TOOL_TIER_RANK: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 4, biomass: 5 };
+const TOOL_POWER: Record<ToolTier, number> = { none: 0.5, wood: 1, stone: 2, iron: 3, aetherium: 5, biomass: 6 };
 
 function wearTool(game: GameState, tool: DurableTool) {
   const copies = game.gear.toolDurability[tool];
@@ -3124,23 +3171,41 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
         ". Walk over the piles to collect them.",
       2400,
     );
+    return;
   }
+  if (!isMonster(creature.kind)) return;
+
+  const dropData = MONSTER_LOOT[creature.kind];
+  const loot: [Material, number][] = [["hide", dropData.hide]];
+  if (Math.random() < dropData.meatChance) loot.push(["meat", dropData.meat]);
+  if (Math.random() < dropData.biomassChance) loot.push(["biomass", dropData.biomass]);
+  if (!creature.boss && dropData.minerals) loot.push(...dropData.minerals);
   if (creature.boss) {
     addMaterial(game, "guardianCore", 1);
     game.projectiles = game.projectiles.filter((projectile) => projectile.kind !== "broodWeb");
-    notify(game, "Brood Mother defeated · Guardian Core recovered · Assault Rifle recipe unlocked", 4500);
-    return;
   }
-  if (creature.kind === "brute") addMaterial(game, "iron", 1);
-  if (creature.kind === "wraith") addMaterial(game, "sulfur", 1);
-  if (creature.kind === "maw") {
-    addMaterial(game, "iron", 2);
-    addMaterial(game, "sulfur", 2);
-  }
+  scatterGroundDrops(
+    game,
+    creature.realm,
+    creature.x,
+    creature.y,
+    loot,
+    creature.id * 17,
+    CREATURE_DROP_COLLECTION_DELAY_MS,
+  );
+  notify(
+    game,
+    (creature.boss
+      ? "Brood Mother defeated · Guardian Core recovered · Assault Rifle recipe unlocked · dropped "
+      : creature.kind[0].toUpperCase() + creature.kind.slice(1) + " dropped ") +
+      loot.map(([material, amount]) => amount + " " + itemLabel(material)).join(" · ") +
+      ". Walk over the piles to collect them.",
+    creature.boss ? 4800 : 3000,
+  );
 }
 
 function damagePlayer(game: GameState, damage: number, source = "") {
-  const armorReduction = game.gear.armor === "blacksteel" ? 0.55 : game.gear.armor === "iron" ? 0.35 : game.gear.armor === "copper" ? 0.18 : 0;
+  const armorReduction = game.gear.armor === "symbiote" ? 0.68 : game.gear.armor === "blacksteel" ? 0.55 : game.gear.armor === "iron" ? 0.35 : game.gear.armor === "copper" ? 0.18 : 0;
   const received = damage * (1 - armorReduction);
   game.player.hp -= received;
   notify(game, source ? source + " · " + Math.round(received) + " damage!" : "You took " + Math.round(received) + " damage!", 1100);
@@ -3750,6 +3815,7 @@ function finishDeconstruction(game: GameState, building: Building) {
   }
   game.buildings = game.buildings.filter((candidate) => candidate.id !== building.id);
   if (game.openChestId === building.id) game.openChestId = null;
+  if (game.openLaboratoryId === building.id) game.openLaboratoryId = null;
   notify(
     game,
     BUILD_DATA[building.kind].name + " deconstructed" + (recovered.length ? " · recovered " + recovered.join(", ") : "."),
@@ -4061,6 +4127,26 @@ function drawGroundDrop(ctx: CanvasRenderingContext2D, drop: GroundDrop, now: nu
       ctx.fill();
       ctx.stroke();
     }
+  } else if (drop.material === "biomass") {
+    const pulse = 1 + Math.sin(now / 180 + drop.id) * 0.08;
+    ctx.scale(pulse, pulse);
+    ctx.fillStyle = "#984db8";
+    ctx.strokeStyle = "#3c2545";
+    ctx.shadowColor = "#d878ea";
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(-5, 2, 10, 0, Math.PI * 2);
+    ctx.arc(6, -2, 9, 0, Math.PI * 2);
+    ctx.arc(4, 7, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#e8b4f3";
+    for (const [x, y] of [[-7, -1], [4, -4], [6, 6]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else {
     const oreColor: Partial<Record<Material, string>> = {
       stone: "#8b9690",
@@ -4070,6 +4156,7 @@ function drawGroundDrop(ctx: CanvasRenderingContext2D, drop: GroundDrop, now: nu
       sulfur: "#d5be4d",
       aetherium: "#62dce8",
       hide: "#9b6b46",
+      biomass: "#984db8",
     };
     ctx.fillStyle = oreColor[drop.material] ?? "#a8b2ad";
     for (const [x, y, radius] of [[-7, 3, 9], [5, 1, 10], [1, -8, 7]] as const) {
@@ -4716,21 +4803,24 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     return;
   }
   ctx.strokeStyle = "#432f2b";
-  ctx.lineWidth = tool === "spear" ? 5 : 7;
+  ctx.lineWidth = tool === "spear" || tool === "tendrilBlade" ? 5 : 7;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(4, 0);
-  ctx.lineTo(tool === "spear" ? 49 : 39, 0);
+  ctx.lineTo(tool === "spear" || tool === "tendrilBlade" ? 49 : 39, 0);
   ctx.stroke();
   if (durableTool?.family === "axe") {
     const tier = durableTool.tier;
-    const headColor = tier === "wood" ? "#a66b3e" : tier === "stone" ? "#858f89" : tier === "iron" ? "#b8c6c3" : "#63dae7";
-    const edgeColor = tier === "wood" ? "#e0b06a" : tier === "stone" ? "#c3cbc7" : tier === "iron" ? "#f3f7f5" : "#d7fcff";
-    ctx.strokeStyle = tier === "wood" ? "#55372a" : tier === "aetherium" ? "#256a72" : "#344540";
+    const headColor = tier === "wood" ? "#a66b3e" : tier === "stone" ? "#858f89" : tier === "iron" ? "#b8c6c3" : tier === "biomass" ? "#934bb0" : "#63dae7";
+    const edgeColor = tier === "wood" ? "#e0b06a" : tier === "stone" ? "#c3cbc7" : tier === "iron" ? "#f3f7f5" : tier === "biomass" ? "#efb7f8" : "#d7fcff";
+    ctx.strokeStyle = tier === "wood" ? "#55372a" : tier === "aetherium" ? "#256a72" : tier === "biomass" ? "#40264a" : "#344540";
     ctx.lineWidth = 3;
     if (tier === "aetherium") {
       ctx.shadowColor = "#69e6ef";
       ctx.shadowBlur = 12;
+    } else if (tier === "biomass") {
+      ctx.shadowColor = "#d178e9";
+      ctx.shadowBlur = 10;
     }
     ctx.beginPath();
     if (tier === "wood") {
@@ -4756,7 +4846,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
       ctx.quadraticCurveTo(35, -37, 57, -26);
       ctx.quadraticCurveTo(49, -18, 42, -12);
       ctx.lineTo(41, -5);
-    } else {
+    } else if (tier === "aetherium") {
       ctx.moveTo(28, -5);
       ctx.lineTo(27, -15);
       ctx.lineTo(15, -24);
@@ -4767,6 +4857,13 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
       ctx.lineTo(62, -20);
       ctx.lineTo(49, -13);
       ctx.lineTo(42, -11);
+      ctx.lineTo(41, -5);
+    } else {
+      ctx.moveTo(28, -5);
+      ctx.lineTo(27, -14);
+      ctx.quadraticCurveTo(18, -17, 13, -26);
+      ctx.quadraticCurveTo(29, -37, 54, -29);
+      ctx.quadraticCurveTo(48, -16, 40, -9);
       ctx.lineTo(41, -5);
     }
     ctx.closePath();
@@ -4789,6 +4886,9 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
       ctx.lineTo(39, -36);
       ctx.lineTo(56, -28);
       ctx.lineTo(62, -20);
+    } else if (tier === "biomass") {
+      ctx.moveTo(13, -26);
+      ctx.quadraticCurveTo(29, -37, 54, -29);
     } else {
       ctx.moveTo(tier === "iron" ? 15 : 19, tier === "iron" ? -26 : -24);
       ctx.quadraticCurveTo(35, tier === "iron" ? -37 : -32, tier === "iron" ? 57 : 52, tier === "iron" ? -26 : -24);
@@ -4924,6 +5024,31 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+  } else if (tool === "tendrilBlade") {
+    ctx.fillStyle = "#9f52bd";
+    ctx.strokeStyle = "#3e2549";
+    ctx.lineWidth = 3;
+    ctx.shadowColor = "#d57de9";
+    ctx.shadowBlur = 9;
+    ctx.beginPath();
+    ctx.moveTo(60, 0);
+    ctx.quadraticCurveTo(48, -12, 37, -5);
+    ctx.quadraticCurveTo(47, 1, 37, 8);
+    ctx.quadraticCurveTo(50, 11, 60, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#e7b0f2";
+    ctx.beginPath();
+    ctx.arc(48, -1, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#705032";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(9, -9);
+    ctx.lineTo(9, 9);
+    ctx.stroke();
   } else {
     ctx.fillStyle = "#d89b47";
     roundedRect(ctx, 28, -10, 19, 20, 4);
@@ -4991,9 +5116,9 @@ function drawAttackFlash(ctx: CanvasRenderingContext2D, flash: AttackFlash, now:
 
 function drawHelmet(ctx: CanvasRenderingContext2D, armor: ArmorKind) {
   if (armor === "none") return;
-  const fill = armor === "copper" ? "#c47a4a" : armor === "iron" ? "#aeb8b5" : "#343d42";
-  const edge = armor === "copper" ? "#70402f" : armor === "iron" ? "#53615f" : "#141a20";
-  const shine = armor === "copper" ? "#e5a16b" : armor === "iron" ? "#dce3df" : "#6e7d84";
+  const fill = armor === "copper" ? "#c47a4a" : armor === "iron" ? "#aeb8b5" : armor === "symbiote" ? "#834b9a" : "#343d42";
+  const edge = armor === "copper" ? "#70402f" : armor === "iron" ? "#53615f" : armor === "symbiote" ? "#392342" : "#141a20";
+  const shine = armor === "copper" ? "#e5a16b" : armor === "iron" ? "#dce3df" : armor === "symbiote" ? "#e2a4ef" : "#6e7d84";
   ctx.fillStyle = fill;
   ctx.strokeStyle = edge;
   ctx.lineWidth = 4;
@@ -5025,6 +5150,15 @@ function drawHelmet(ctx: CanvasRenderingContext2D, armor: ArmorKind) {
     ctx.lineTo(-10, 18);
     ctx.closePath();
     ctx.fill();
+  } else if (armor === "symbiote") {
+    ctx.strokeStyle = "#c876dd";
+    ctx.lineWidth = 4;
+    for (const offset of [-9, 0, 9]) {
+      ctx.beginPath();
+      ctx.moveTo(-12, offset);
+      ctx.quadraticCurveTo(-25, offset - 7, -28, offset + 5);
+      ctx.stroke();
+    }
   }
 }
 
@@ -6479,6 +6613,48 @@ function drawBuilding(ctx: CanvasRenderingContext2D, building: Building, alpha =
     ctx.fillStyle = "#69787a";
     roundedRect(ctx, 6, -10, 18, 8, 2);
     ctx.fill();
+  } else if (kind === "laboratory") {
+    ctx.fillStyle = "rgba(25,35,31,.25)";
+    ctx.beginPath();
+    ctx.ellipse(3, 15, 29, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#526762";
+    ctx.strokeStyle = "#263b37";
+    ctx.lineWidth = 4;
+    roundedRect(ctx, -25, -21, 50, 42, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#203b34";
+    roundedRect(ctx, -19, -16, 38, 23, 6);
+    ctx.fill();
+    ctx.stroke();
+    const pulse = 9 + Math.sin(now / 240 + building.id) * 1.2;
+    ctx.fillStyle = "#bd5fe0";
+    ctx.shadowColor = "#dd83f3";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(0, -5, pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#eab4f8";
+    ctx.beginPath();
+    ctx.arc(-3, -8, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#92aaa3";
+    ctx.lineWidth = 3;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * 12, 9);
+      ctx.lineTo(side * 19, 17);
+      ctx.lineTo(side * 24, 17);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#e3bd59";
+    for (const xx of [-12, 0, 12]) {
+      ctx.beginPath();
+      ctx.arc(xx, 14, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else if (kind === "storageChest") {
     ctx.fillStyle = "rgba(31,34,28,.2)";
     ctx.beginPath();
@@ -7612,11 +7788,12 @@ function nearbyPrompt(game: GameState) {
     (item) =>
       item.realm === game.realm &&
       item.construction >= 1 &&
-      ["woodGate", "stoneGate", "door", "crop", "storageChest", "bedroll"].includes(item.kind) &&
+      ["woodGate", "stoneGate", "door", "crop", "storageChest", "bedroll", "laboratory"].includes(item.kind) &&
       distanceToBuilding(item, game.player.x, game.player.y) < 58,
   );
   if (building) {
     if (building.kind === "storageChest") return "E · Open Storage Chest";
+    if (building.kind === "laboratory") return "E · Use Laboratory";
     if (building.kind === "bedroll") return "E · Rest at Bedroll";
     if (building.kind === "crop") return "E · " + (building.growth >= 1 ? "Harvest crop" : "Check crop");
     return "E · " + (building.open ? "Close" : "Open") + " " + BUILD_DATA[building.kind].name;
@@ -7813,7 +7990,7 @@ const CRAFT_RECIPES: Recipe[] = [
     detail: "Reduces incoming damage by 35%",
     cost: { iron: 14, hide: 6 },
     requiresBench: true,
-    owned: (game) => game.gear.armor === "iron" || game.gear.armor === "blacksteel",
+    owned: (game) => game.gear.armor === "iron" || game.gear.armor === "blacksteel" || game.gear.armor === "symbiote",
     action: (game) => {
       game.gear.armor = "iron";
     },
@@ -7824,7 +8001,7 @@ const CRAFT_RECIPES: Recipe[] = [
     detail: "Reduces incoming damage by 55%",
     cost: { iron: 18, coal: 10, sulfur: 4, hide: 8 },
     requiresBench: true,
-    owned: (game) => game.gear.armor === "blacksteel",
+    owned: (game) => game.gear.armor === "blacksteel" || game.gear.armor === "symbiote",
     action: (game) => {
       game.gear.armor = "blacksteel";
     },
@@ -7870,6 +8047,43 @@ const CRAFT_RECIPES: Recipe[] = [
     },
   },
   {
+    id: "carapaceAxe",
+    name: "Carapace Axe",
+    detail: "6 chopping damage · 30 combat damage · 240 durability",
+    cost: { wood: 4, iron: 4, biomass: 3 },
+    requiresBench: true,
+    requiresResearch: "carapaceAxe",
+    action: (game) => {
+      addDurableTool(game, "carapaceAxe");
+    },
+  },
+  {
+    id: "tendrilBlade",
+    name: "Tendril Blade",
+    detail: "Living weapon · 36 damage · 112 reach",
+    cost: { iron: 6, hide: 3, biomass: 5 },
+    requiresBench: true,
+    requiresResearch: "tendrilBlade",
+    owned: (game) => game.gear.tendrilBlade,
+    action: (game) => {
+      game.gear.tendrilBlade = true;
+      game.weapon = "tendrilBlade";
+      equipNewItem(game, "tendrilBlade");
+    },
+  },
+  {
+    id: "symbioteArmor",
+    name: "Symbiote Armor",
+    detail: "Living armor · reduces incoming damage by 68%",
+    cost: { iron: 8, hide: 8, biomass: 7 },
+    requiresBench: true,
+    requiresResearch: "symbioteArmor",
+    owned: (game) => game.gear.armor === "symbiote",
+    action: (game) => {
+      game.gear.armor = "symbiote";
+    },
+  },
+  {
     id: "bandage",
     name: "Field Bandage",
     detail: "Restore 35 health",
@@ -7900,6 +8114,7 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
       stone: { head: "#858f89", edge: "#c3cbc7", outline: "#3d4b47" },
       iron: { head: "#b8c6c3", edge: "#f3f7f5", outline: "#3a4946" },
       aetherium: { head: "#63dae7", edge: "#d7fcff", outline: "#256a72" },
+      biomass: { head: "#9a4dbc", edge: "#edb5fa", outline: "#3f244b" },
     };
     const palette = colors[material];
     const axeHead: Record<ToolTier, string> = {
@@ -7908,6 +8123,7 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
       stone: "M28 17 L21 13 L7 20 L11 11 L24 2 L32 14 L38 18 L35 27 L29 27 Z",
       iron: "M28 17 L21 12 Q10 13 4 20 Q12 7 25 1 L32 14 L38 18 L35 27 L29 27 Z",
       aetherium: "M28 17 L20 12 L5 20 L10 10 L19 8 L24 0 L31 7 L32 14 L39 18 L35 28 L29 27 Z",
+      biomass: "M28 17 L19 13 Q10 15 5 22 Q12 8 23 3 Q28 0 32 8 L33 14 L40 18 L36 29 L29 27 Z",
     };
     const axeEdge: Record<ToolTier, string> = {
       none: "M8 20 Q14 8 25 2",
@@ -7915,8 +8131,9 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
       stone: "M7 20 L11 11 L24 2",
       iron: "M4 20 Q12 7 25 1",
       aetherium: "M5 20 L10 10 L19 8 L24 0",
+      biomass: "M5 22 Q12 8 23 3",
     };
-    const pickCurve = material === "wood" ? "M5 21 Q25 8 47 16" : material === "stone" ? "M4 22 Q25 6 48 16" : material === "aetherium" ? "M3 23 Q25 4 49 15" : "M4 22 Q25 5 48 15";
+    const pickCurve = material === "wood" ? "M5 21 Q25 8 47 16" : material === "stone" ? "M4 22 Q25 6 48 16" : material === "aetherium" || material === "biomass" ? "M3 23 Q25 4 49 15" : "M4 22 Q25 5 48 15";
     return (
       <span className={"tool-glyph tool-" + type + " tier-" + material} aria-hidden="true">
         <svg className="tool-svg" viewBox="0 0 52 52" focusable="false">
@@ -7946,16 +8163,27 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
   }
   if (type === "sword") {
     return (
-      <span className="tool-glyph tool-sword" aria-hidden="true">
+      <span className={"tool-glyph tool-sword" + (tier ? " tier-" + tier : "")} aria-hidden="true">
         <svg className="tool-svg" viewBox="0 0 52 52" focusable="false">
-          <g transform="rotate(40 26 26)">
-            <path d="M26 1 L33 9 L31 31 L21 31 L19 9 Z" fill="#dce6e3" stroke="#33443f" strokeWidth="2.5" strokeLinejoin="round" />
-            <path d="M26 5 L26 28 L31 11" fill="none" stroke="#f6faf8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            <rect x="13" y="29" width="26" height="6" rx="3" fill="#d6a94b" stroke="#5b4525" strokeWidth="2" />
-            <rect x="22" y="34" width="8" height="13" rx="3" fill="#68432e" stroke="#35261f" strokeWidth="2" />
-            <path d="M22 38 L30 38 M22 42 L30 42" stroke="#d6a94b" strokeWidth="1.5" />
-            <circle cx="26" cy="48" r="4" fill="#d6a94b" stroke="#5b4525" strokeWidth="2" />
-          </g>
+          {tier === "biomass" ? (
+            <g transform="rotate(40 26 26)">
+              <path d="M26 1 Q38 9 31 31 L21 31 Q14 10 26 1 Z" fill="#9f52bd" stroke="#3e2549" strokeWidth="2.5" strokeLinejoin="round" />
+              <path d="M26 5 Q30 17 25 28" fill="none" stroke="#efb9f8" strokeWidth="1.8" strokeLinecap="round" />
+              <circle cx="29" cy="13" r="2.2" fill="#edb5fa" />
+              <rect x="13" y="29" width="26" height="6" rx="3" fill="#795338" stroke="#412f25" strokeWidth="2" />
+              <rect x="22" y="34" width="8" height="13" rx="3" fill="#583929" stroke="#35261f" strokeWidth="2" />
+              <circle cx="26" cy="48" r="4" fill="#9850b7" stroke="#43264d" strokeWidth="2" />
+            </g>
+          ) : (
+            <g transform="rotate(40 26 26)">
+              <path d="M26 1 L33 9 L31 31 L21 31 L19 9 Z" fill="#dce6e3" stroke="#33443f" strokeWidth="2.5" strokeLinejoin="round" />
+              <path d="M26 5 L26 28 L31 11" fill="none" stroke="#f6faf8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <rect x="13" y="29" width="26" height="6" rx="3" fill="#d6a94b" stroke="#5b4525" strokeWidth="2" />
+              <rect x="22" y="34" width="8" height="13" rx="3" fill="#68432e" stroke="#35261f" strokeWidth="2" />
+              <path d="M22 38 L30 38 M22 42 L30 42" stroke="#d6a94b" strokeWidth="1.5" />
+              <circle cx="26" cy="48" r="4" fill="#d6a94b" stroke="#5b4525" strokeWidth="2" />
+            </g>
+          )}
         </svg>
       </span>
     );
@@ -7997,12 +8225,14 @@ function RecipeVisual({ recipe }: { recipe: Recipe }) {
         ? "iron"
         : recipe.id.startsWith("aether")
           ? "aetherium"
+          : recipe.id.startsWith("carapace") || recipe.id.startsWith("tendril")
+            ? "biomass"
           : undefined;
   if (recipe.id.toLowerCase().includes("axe")) return <ToolGlyph type="axe" tier={tier} />;
   if (recipe.id.toLowerCase().includes("pick")) return <ToolGlyph type="pickaxe" tier={tier} />;
   if (recipe.id === "hammer") return <ToolGlyph type="hammer" />;
   if (recipe.id === "spear") return <ToolGlyph type="spear" />;
-  if (recipe.id === "sword") return <ToolGlyph type="sword" />;
+  if (recipe.id === "sword" || recipe.id === "tendrilBlade") return <ToolGlyph type="sword" tier={tier} />;
   if (recipe.id === "bow" || recipe.id === "ironBow") return <ToolGlyph type="bow" tier={tier} />;
   if (recipe.id === "pistol") return <ToolGlyph type="pistol" />;
   if (recipe.id === "rifle") return <ToolGlyph type="rifle" />;
@@ -8019,6 +8249,9 @@ function ItemVisual({ item }: { item: InventoryItem; game: GameState }) {
   }
   if (item === "ironBow") {
     return <ToolGlyph type="bow" tier="iron" />;
+  }
+  if (item === "tendrilBlade") {
+    return <ToolGlyph type="sword" tier="biomass" />;
   }
   if (["hammer", "spear", "sword", "bow", "pistol", "rifle"].includes(item)) {
     return <ToolGlyph type={item as ToolGlyphKind} />;
@@ -8046,6 +8279,9 @@ export default function Game() {
   const openChest = game.buildings.find(
     (building) => building.id === game.openChestId && building.kind === "storageChest",
   );
+  const openLaboratory = game.buildings.find(
+    (building) => building.id === game.openLaboratoryId && building.kind === "laboratory" && building.construction >= 1,
+  );
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   const togglePause = useCallback(() => {
     const currentGame = gameRef.current;
@@ -8054,6 +8290,7 @@ export default function Game() {
     setGamePaused(currentGame, nextPaused);
     if (nextPaused) {
       currentGame.openChestId = null;
+      currentGame.openLaboratoryId = null;
       setPanel(null);
       setMoveSource(null);
       requestAnimationFrame(() => pauseResumeRef.current?.focus());
@@ -8125,7 +8362,7 @@ export default function Game() {
       if (event.repeat) return;
       if (key === "e") {
         interact(game);
-        if (game.openChestId !== null) setPanel(null);
+        if (game.openChestId !== null || game.openLaboratoryId !== null) setPanel(null);
       }
       if (key === " ") {
         event.preventDefault();
@@ -8140,24 +8377,29 @@ export default function Game() {
       }
       if (key === "q") {
         game.openChestId = null;
+        game.openLaboratoryId = null;
         setPanel((value) => (value === "build" ? null : "build"));
       }
       if (key === "c") {
         game.openChestId = null;
+        game.openLaboratoryId = null;
         setPanel((value) => (value === "craft" ? null : "craft"));
       }
       if (key === "i") {
         game.openChestId = null;
+        game.openLaboratoryId = null;
         setPanel((value) => (value === "inventory" ? null : "inventory"));
       }
       if (key === "b") {
         game.openChestId = null;
+        game.openLaboratoryId = null;
         setPanel(null);
         toggleNearbyAutoBuild(game);
       }
       if (key === "escape") {
         cancelBuildMode(game);
         game.openChestId = null;
+        game.openLaboratoryId = null;
         setPanel(null);
       }
       if (key === "=" || key === "+") game.zoom = Math.min(1.55, game.zoom + 0.1);
@@ -8222,6 +8464,11 @@ export default function Game() {
   };
 
   const craft = (recipe: Recipe) => {
+    if (recipe.requiresResearch && !game.research[recipe.requiresResearch]) {
+      notify(game, "Research " + RESEARCH_DATA[recipe.requiresResearch].name + " at a Laboratory first.");
+      refresh();
+      return;
+    }
     if (recipe.requiresBench && !nearCraftingBench(game)) {
       notify(game, "Stand near a placed Crafting Bench to make " + recipe.name + ".");
       refresh();
@@ -8256,6 +8503,7 @@ export default function Game() {
     }
     game.buildMode = kind;
     game.openChestId = null;
+    game.openLaboratoryId = null;
     game.selected = "build";
     setPanel(null);
     notify(game, BUILD_DATA[kind].name + " selected — click once, or hold Shift while placing several. Right-click cancels.");
@@ -8287,6 +8535,30 @@ export default function Game() {
     game.openChestId = null;
     refresh();
     canvasRef.current?.focus();
+  };
+
+  const closeLaboratory = () => {
+    game.openLaboratoryId = null;
+    refresh();
+    canvasRef.current?.focus();
+  };
+
+  const researchProject = (kind: ResearchKind) => {
+    const project = RESEARCH_DATA[kind];
+    if (game.research[kind]) {
+      notify(game, project.name + " is already researched.");
+      refresh();
+      return;
+    }
+    if (game.resources.biomass < project.biomassCost) {
+      notify(game, "Need " + project.biomassCost + " Alien Biomass for " + project.name + ".");
+      refresh();
+      return;
+    }
+    pay(game, { biomass: project.biomassCost });
+    game.research[kind] = true;
+    notify(game, project.name + " researched. Its recipe is now available in Crafting.", 3600);
+    refresh();
   };
 
   const zoom = (amount: number) => {
@@ -8358,7 +8630,9 @@ export default function Game() {
     ? " · draw " + Math.round(bowChargeRatio(game) * 100) + "%"
     : "";
   const toolName =
-    game.selected === "sword"
+    game.selected === "tendrilBlade"
+      ? "Tendril Blade"
+      : game.selected === "sword"
       ? "Iron Sword"
       : game.selected === "spear"
         ? "Stone Spear"
@@ -8483,14 +8757,14 @@ export default function Game() {
         <div className="brand-pill"><span>H</span><strong>HALFLIGHT</strong><small>{game.realm === "caveSystem" ? "THE CAVES" : meadowAreaName(game.player.x, game.player.y)}</small></div>
 
         <section className="resource-strip" aria-label="Resources">
-          {MATERIALS.filter((material) => ["wood", "stone", "iron", "copper", "aetherium", "berries"].includes(material.id)).map((material) => (
+          {MATERIALS.filter((material) => ["wood", "stone", "iron", "copper", "aetherium", "biomass", "berries"].includes(material.id)).map((material) => (
             <div key={material.id} title={material.name}>
               <MaterialIcon material={material.id} />
               <b>{game.resources[material.id]}</b>
               <small>{material.name}</small>
             </div>
           ))}
-          <button onClick={() => { game.openChestId = null; setPanel("inventory"); }} aria-label="Open inventory">Inventory <kbd>I</kbd></button>
+          <button onClick={() => { game.openChestId = null; game.openLaboratoryId = null; setPanel("inventory"); }} aria-label="Open inventory">Inventory <kbd>I</kbd></button>
         </section>
       </div>
 
@@ -8557,7 +8831,7 @@ export default function Game() {
 
       <nav className="hotbar" aria-label="Equipment hotbar">
         {game.hotbar.map((_, index) => inventorySlot("hotbar", index, false))}
-        <button className="hotbar-pack" onClick={() => { game.openChestId = null; setPanel("inventory"); }} aria-label="Open free inventory">
+        <button className="hotbar-pack" onClick={() => { game.openChestId = null; game.openLaboratoryId = null; setPanel("inventory"); }} aria-label="Open free inventory">
           <kbd>I</kbd><ToolGlyph type="pack" /><span>Inventory</span>
         </button>
         <div className="equipped-label"><small>EQUIPPED</small><strong>{toolName}</strong></div>
@@ -8610,13 +8884,14 @@ export default function Game() {
             aria-label="Move down"
           >↓</button>
         </div>
-        <button className="touch-e" onClick={() => { interact(game); refresh(); }}>E<small>Interact</small></button>
+        <button className="touch-e" onClick={() => { interact(game); if (game.openLaboratoryId !== null || game.openChestId !== null) setPanel(null); refresh(); }}>E<small>Interact</small></button>
         <button className="touch-feed" onClick={() => { feedAnimal(game); refresh(); }}>F<small>Feed</small></button>
         <button
           className="touch-build"
           aria-pressed={game.autoBuildActive}
           onClick={() => {
             game.openChestId = null;
+            game.openLaboratoryId = null;
             setPanel(null);
             toggleNearbyAutoBuild(game);
             refresh();
@@ -8686,11 +8961,12 @@ export default function Game() {
                       const owned = Boolean(recipe.owned?.(game));
                       const needsBench = Boolean(recipe.requiresBench && !nearCraftingBench(game));
                       const missingPrerequisite = Boolean(recipe.prerequisite && !recipe.prerequisite(game));
+                      const needsResearch = Boolean(recipe.requiresResearch && !game.research[recipe.requiresResearch]);
                       return (
                         <article key={recipe.id}>
                           <div className="recipe-badge"><RecipeVisual recipe={recipe} /></div>
-                          <div><h3>{recipe.name}</h3><p>{recipe.detail}</p><small>{costLabel(recipe.cost)}{recipe.requiresBench ? " · bench" : ""}</small></div>
-                          <button disabled={!canAfford(game, recipe.cost) || owned || needsBench || missingPrerequisite} onClick={() => craft(recipe)}>{owned ? "Owned" : needsBench ? "Need bench" : missingPrerequisite ? recipe.prerequisiteLabel ?? "Locked" : "Craft"}</button>
+                          <div><h3>{recipe.name}</h3><p>{recipe.detail}</p><small>{costLabel(recipe.cost)}{recipe.requiresResearch ? " · laboratory research" : ""}{recipe.requiresBench ? " · bench" : ""}</small></div>
+                          <button disabled={!canAfford(game, recipe.cost) || owned || needsBench || needsResearch || missingPrerequisite} onClick={() => craft(recipe)}>{owned ? "Owned" : needsResearch ? "Research first" : missingPrerequisite ? recipe.prerequisiteLabel ?? "Locked" : needsBench ? "Need bench" : "Craft"}</button>
                         </article>
                       );
                     })}
@@ -8755,6 +9031,41 @@ export default function Game() {
                   {!MATERIALS.some((material) => (openChest.storage?.[material.id] ?? 0) > 0) && <div className="chest-empty">This chest is empty.</div>}
                 </div>
               </section>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {openLaboratory && (
+        <div className="panel-scrim laboratory-scrim" onPointerDown={closeLaboratory}>
+          <aside className="game-panel laboratory-panel" role="dialog" aria-modal="true" aria-labelledby="laboratory-title" onPointerDown={(event) => event.stopPropagation()}>
+            <header>
+              <div><small>ALIEN ANALYSIS STATION</small><h2 id="laboratory-title">Laboratory</h2></div>
+              <button onClick={closeLaboratory} aria-label="Close laboratory">×</button>
+            </header>
+            <div className="laboratory-content">
+              <div className="laboratory-biomass" aria-label={game.resources.biomass + " Alien Biomass available"}>
+                <MaterialIcon material="biomass" />
+                <span><small>RESEARCH CURRENCY</small><b>{game.resources.biomass} Alien Biomass</b></span>
+              </div>
+              <p>Monster tissue can be stabilized into new blueprints. Research unlocks a recipe; craft the finished equipment from the normal Crafting menu.</p>
+              <div className="research-list">
+                {RESEARCH_ORDER.map((kind) => {
+                  const project = RESEARCH_DATA[kind];
+                  const researched = game.research[kind];
+                  return (
+                    <article key={kind} className={researched ? "researched" : ""}>
+                      <div className="research-specimen" aria-hidden="true"><i /><b /></div>
+                      <small>{researched ? "BLUEPRINT STABILIZED" : "UNANALYZED SPECIMEN"}</small>
+                      <h3>{project.name}</h3>
+                      <p>{project.detail}</p>
+                      <button disabled={researched || game.resources.biomass < project.biomassCost} onClick={() => researchProject(kind)}>
+                        {researched ? "Researched" : "Research · " + project.biomassCost + " biomass"}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
           </aside>
         </div>

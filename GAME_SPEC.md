@@ -14,14 +14,15 @@ complete run.
 ## 2. Core loop
 
 1. Explore the open Meadow, its three forests, lakes, and marshes.
-2. Gather wood, stone, fiber, food, seeds, hide, and specialized materials.
+2. Gather wood, stone, fiber, food, seeds, hide, Alien Biomass, and specialized materials.
 3. Explore three distinct caves for stone, iron, copper, coal, sulfur,
    mushrooms, and rare Aetherium.
-4. Craft tools, armor, melee weapons, bows, a pistol, an assault rifle,
+4. Build a Laboratory and spend Alien Biomass to research advanced organic equipment.
+5. Craft tools, armor, melee weapons, bows, a pistol, an assault rifle,
    ammunition, and healing.
-5. Build a shelter, crops, barriers, automated defenses, and multiple traps.
-6. Lure and feed adult wildlife, then breed two well-fed animals of the same species.
-7. Survive an increasingly large night wave, recover at dawn, and continue.
+6. Build a shelter, crops, barriers, automated defenses, and multiple traps.
+7. Lure and feed adult wildlife, then breed two well-fed animals of the same species.
+8. Survive an increasingly large night wave, recover at dawn, and continue.
 
 ## 3. New-run state
 
@@ -34,14 +35,16 @@ complete run.
 | Fiber | 0 |
 | Berries | 3 |
 | Seeds | 0 |
+| Alien Biomass | 0 |
 | Ready building pieces | None |
 | Equipment | Wood Axe in hotbar slot 2; berries begin selected in slot 1 |
 | Placed structures | One completed campfire beside the spawn point |
 | Armor | None |
 
 The player is a plain, top-down painted circle. The equipped item appears beside
-the circle. Equipping copper, iron, or blacksteel armor adds a small cartoony
-helmet whose color and construction match that metal tier.
+the circle. Equipping copper, iron, blacksteel, or symbiote armor adds a small
+cartoony helmet whose color and construction match that tier; symbiote armor is
+purple, softly glowing, and edged with short living tendrils.
 
 Every held item's forward axis matches the active aim direction exactly. Bow
 arrows, gun barrels, spearheads, and idle tool handles point along the same
@@ -51,7 +54,8 @@ from that line, and it returns to the exact aim direction afterward.
 
 Axe and pickaxe heads change both material and silhouette at every tier: wood
 is crude and lashed, stone is chunky, iron is forged and tapered, and
-Aetherium is crystalline and glowing. Resource stacks, recipes, and ready
+Aetherium is crystalline and glowing, while Carapace is purple, curved, and
+organic. Resource stacks, recipes, and ready
 building pieces use recognizable miniature illustrations rather than letter
 abbreviations.
 
@@ -292,6 +296,7 @@ axe's ordinary cooldown.
 | Stone | 2 | 760 ms | 860 ms | Trees, stone, iron, copper, coal, and sulfur |
 | Iron | 3 | 700 ms | 800 ms | All deposits, including Aetherium |
 | Aetherium | 5 | 620 ms | 700 ms | All deposits |
+| Carapace | 6 | 620 ms | — | Trees and forage; Laboratory research required |
 
 Each equipped item has one shared action cooldown. An axe or pickaxe uses the
 same cooldown against a resource node and a creature, and changing targets does
@@ -314,6 +319,7 @@ automatically; the slot disappears only when no copies remain.
 | Stone | 72 |
 | Iron | 120 |
 | Aetherium | 180 |
+| Carapace | 240 |
 
 Hits only reduce node durability. When a node is fully depleted, all of its
 materials appear as illustrated ground drops near the node. Moving within 36
@@ -375,6 +381,19 @@ screen-wide menu. Every recipe occupies its own square card with a prominent
 illustration, name, description, material cost, bench requirement, and craft
 button.
 
+A completed Laboratory opens with `E`. It presents three independent research
+projects and shows the player's current Alien Biomass. Research permanently
+spends the listed biomass and unlocks the matching recipe; it never grants the
+finished item. The unlocked item must still be crafted at a Crafting Bench with
+its full recipe cost. Locked organic recipes remain visible in Crafting with a
+**Research first** state.
+
+| Laboratory research | Biomass cost | Recipe unlocked |
+| --- | ---: | --- |
+| Carapace Tooling | 2 | Carapace Axe |
+| Tendril Weaponry | 3 | Tendril Blade |
+| Symbiote Weave | 4 | Symbiote Armor |
+
 | Recipe | Cost | Result |
 | --- | --- | --- |
 | Wood Axe | 3 wood | 1 node damage per swing; 36 durability |
@@ -397,10 +416,14 @@ button.
 | Iron Pickaxe | 4 wood, 5 iron | 3 node damage per swing; mines Aetherium; 120 durability |
 | Aetherium Axe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 22 combat damage, and 180 durability |
 | Aetherium Pickaxe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 18 combat damage, and 180 durability |
+| Carapace Axe | 4 wood, 4 iron, 3 Alien Biomass | 6 node damage per swing, 30 combat damage, and 240 durability; requires Carapace Tooling |
+| Tendril Blade | 6 iron, 3 hide, 5 Alien Biomass | 36 damage and 112 reach; requires Tendril Weaponry |
+| Symbiote Armor | 8 iron, 8 hide, 7 Alien Biomass | Living helmet; 68% damage reduction; requires Symbiote Weave |
 | Field Bandage | 5 fiber, 1 berry | Immediately restores up to 35 health |
 
 Crafting a higher armor tier replaces the visible helmet and protection tier.
-A higher tier cannot be downgraded through the crafting panel.
+A researched Symbiote Armor set is the strongest armor tier. Permanent armor
+recipes cannot downgrade it through the crafting panel.
 
 ## 9. Building and traps
 
@@ -438,6 +461,7 @@ their respawn until that footprint is clear.
 | Piece | Cost | Made | Health | Function |
 | --- | --- | ---: | ---: | --- |
 | Crafting Bench | 4 wood, 2 stone | 1 | 85 | Enables advanced recipes within 150 units |
+| Laboratory | 10 wood, 8 iron, 6 copper | 1 | 145 | Opens with `E` and spends Alien Biomass to unlock organic equipment recipes |
 | Storage Chest | 5 wood, 2 fiber | 1 | 110 | Opens with `E` and stores resource stacks separately |
 | Bedroll | 2 wood, 4 fiber | 1 | 50 | Rest once per day for up to 25 health at a cost of 8 hunger |
 | Standing Torch | 2 wood, 1 fiber, 1 coal | 2 | 35 | Placed fully built; permanent 225-unit light radius |
@@ -497,12 +521,14 @@ alternate attack remains an immediate base-damage shot.
 | Stone axe | 9 | 78 | 760 ms |
 | Iron axe | 14 | 78 | 700 ms |
 | Aetherium axe | 22 | 78 | 620 ms |
+| Carapace axe | 30 | 82 | 620 ms |
 | Wood pickaxe | 5 | 78 | 820 ms |
 | Stone pickaxe | 7 | 78 | 860 ms |
 | Iron pickaxe | 11 | 78 | 800 ms |
 | Aetherium pickaxe | 18 | 78 | 700 ms |
 | Stone spear | 17 | 102 | 620 ms |
 | Iron sword | 25 | 102 | 480 ms |
+| Tendril Blade | 36 | 112 | 520 ms |
 | Hunting bow | 18 | 520 | 780 ms |
 | Iron bow | 28 | 600 | 780 ms |
 | Scrap pistol | 54 | 660 | 520 ms |
@@ -539,11 +565,25 @@ damage exceeds the fully drawn Iron Bow's 49 damage. The Assault Rifle is the
 next firearm tier: it deals 62 damage per bullet and fires much faster.
 
 Wildlife leaves visible, illustrated piles of its species-specific meat and hide
-at the death position; birds provide meat but no hide. The piles become
-collectible after 650 ms, then enter the inventory when the player comes within
-36 units. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2
-sulfur. The Brood Mother is the exception to normal maw loot. Every creature
-defeated by the player or a trap increases the threat count.
+at the death position; birds provide meat but no hide. Monsters always leave
+hide, can leave meat, and can leave glowing Alien Biomass. Their existing
+mineral rewards are scattered into the same physical loot field. All creature
+piles become collectible after 650 ms, then enter the inventory when the player
+comes within 36 units. Every creature defeated by the player or a trap increases
+the threat count.
+
+Each meat and biomass chance is rolled independently on death. A failed roll
+omits that material; hide and listed minerals are guaranteed.
+
+| Monster | Guaranteed hide | Meat chance and amount | Alien Biomass chance and amount | Guaranteed minerals |
+| --- | ---: | --- | --- | --- |
+| Shade | 1 | 22% for 1 | 18% for 1 | — |
+| Crawler | 1 | 32% for 1 | 30% for 1 | — |
+| Brute | 2 | 48% for 2 | 38% for 1 | 1 iron |
+| Stalker | 1 | 20% for 1 | 40% for 1 | — |
+| Wraith | 1 | 18% for 1 | 58% for 1 | 1 sulfur |
+| Maw | 3 | 68% for 3 | 76% for 2 | 2 iron and 2 sulfur |
+| Aether Warden | 2 | 40% for 2 | 70% for 2 | — |
 
 The **Brood Mother** is a giant spider-like cave boss with twelve long jointed
 legs, five separate mouths, many visible teeth, 320 health, 118 speed, 22 melee
@@ -559,11 +599,12 @@ Each clot deals 3 damage before armor and bursts into a 60-unit web pool when it
 hits the player, cave rock, a completed solid structure, or its range limit.
 Fired pools last 14 seconds. Standing on any nest or fired web reduces movement
 to 42% and deals 2 damage before armor once every 1.6 seconds. A new volley can
-begin at most once every 3.2 seconds. Defeating the Brood Mother awards no
-ordinary iron, sulfur, or Aetherium bundle. It instead gives exactly one
-Guardian Core, removes any web projectiles still in flight, and unlocks the
-Assault Rifle recipe. Crafting that rifle at a bench consumes the core and
-requires an already-crafted Scrap Pistol.
+begin at most once every 3.2 seconds. Defeating the Brood Mother rolls the maw's
+normal hide, meat, and Alien Biomass drops, but awards no ordinary iron, sulfur,
+or Aetherium bundle. It instead gives exactly one Guardian Core directly to the
+inventory, removes any web projectiles still in flight, and unlocks the Assault
+Rifle recipe. Crafting that rifle at a bench consumes the core and requires an
+already-crafted Scrap Pistol.
 
 ## 11. Wildlife feeding and breeding
 
