@@ -511,13 +511,19 @@ const CAVES: CaveDefinition[] = [
 ];
 
 const CAVE_HUB: CaveRoom = { x: 3500, y: 2600, radius: 620, ground: "#414a46" };
-const CAVE_ROOMS: CaveRoom[] = [
-  CAVE_HUB,
+const CAVE_SIDE_ROOMS: CaveRoom[] = [
   { x: 2050, y: 2280, radius: 430, ground: "#3e4944" },
   { x: 3450, y: 820, radius: 420, ground: "#444b49" },
   { x: 5250, y: 2460, radius: 460, ground: "#454945" },
   { x: 2700, y: 4150, radius: 470, ground: "#42473d" },
 ];
+const DREAD_TITAN_ROOM: CaveRoom = { x: 980, y: 4140, radius: 560, ground: "#342d43" };
+const CAVE_RESOURCE_ROOMS: CaveRoom[] = [CAVE_HUB, ...CAVE_SIDE_ROOMS];
+const CAVE_ROOMS: CaveRoom[] = [...CAVE_RESOURCE_ROOMS, DREAD_TITAN_ROOM];
+const DREAD_TITAN_ROUTE_MARKER = {
+  x: CAVE_SIDE_ROOMS[3].x - CAVE_SIDE_ROOMS[3].radius * 0.72,
+  y: CAVE_SIDE_ROOMS[3].y,
+};
 const CAVE_CONNECTIONS: CaveConnection[] = [
   { start: { x: CAVES[0].undergroundX, y: CAVES[0].undergroundY }, end: CAVE_ROOMS[1], halfWidth: 195 },
   { start: CAVE_ROOMS[1], end: CAVE_HUB, halfWidth: 185 },
@@ -531,6 +537,7 @@ const CAVE_CONNECTIONS: CaveConnection[] = [
   { start: CAVE_ROOMS[4], end: CAVE_HUB, halfWidth: 185 },
   { start: { x: CAVES[2].undergroundX, y: CAVES[2].undergroundY }, end: CAVE_ROOMS[3], halfWidth: 170 },
   { start: CAVE_ROOMS[1], end: CAVE_ROOMS[4], halfWidth: 155 },
+  { start: CAVE_ROOMS[4], end: DREAD_TITAN_ROOM, halfWidth: 142 },
 ];
 
 function caveEncounterPoint(cave: CaveDefinition, distance: number, lateral = 0) {
@@ -1305,10 +1312,9 @@ function makeGame(): GameState {
   let id = 1;
   const treasureCave = CAVES[Math.floor(Math.random() * CAVES.length)];
   const treasurePoint = caveEncounterPoint(treasureCave, treasureCave.chamberRadius * 0.48, -95);
-  const broodMotherRooms = CAVE_ROOMS.slice(1);
-  const broodMotherRoom = broodMotherRooms[Math.floor(Math.random() * broodMotherRooms.length)];
+  const broodMotherRoom = CAVE_SIDE_ROOMS[Math.floor(Math.random() * CAVE_SIDE_ROOMS.length)];
   const broodMotherPoint = { x: broodMotherRoom.x, y: broodMotherRoom.y };
-  const dreadTitanPoint = { x: CAVE_HUB.x, y: CAVE_HUB.y };
+  const dreadTitanPoint = { x: DREAD_TITAN_ROOM.x, y: DREAD_TITAN_ROOM.y };
   const addNode = (
     kind: ResourceKind,
     realm: Realm,
@@ -1341,6 +1347,7 @@ function makeGame(): GameState {
       (Math.hypot(x - treasurePoint.x, y - treasurePoint.y) > radius + 75 &&
         Math.hypot(x - broodMotherPoint.x, y - broodMotherPoint.y) > radius + 95 &&
         Math.hypot(x - dreadTitanPoint.x, y - dreadTitanPoint.y) > radius + DREAD_TITAN_RADIUS + 70 &&
+        Math.hypot(x - DREAD_TITAN_ROUTE_MARKER.x, y - DREAD_TITAN_ROUTE_MARKER.y) > radius + 110 &&
         AETHER_SITES.every((site) => Math.hypot(x - site.guard.x, y - site.guard.y) > radius + 70));
     if (!clearSpawn || !clearExit || !clearCave || !clearWater || !insideCave || !clearCaveNode || !clearEncounter) return false;
     const hp = nodeHp(kind, size);
@@ -1439,7 +1446,7 @@ function makeGame(): GameState {
     }
   }
 
-  for (const [roomIndex, room] of CAVE_ROOMS.entries()) {
+  for (const [roomIndex, room] of CAVE_RESOURCE_ROOMS.entries()) {
     for (let i = 0; i < 12; i++) {
       const angle = seeded(i, 171 + roomIndex * 13) * Math.PI * 2;
       const distance = 90 + Math.sqrt(seeded(i, 172 + roomIndex * 13)) * (room.radius - 190);
@@ -1837,6 +1844,10 @@ function spawnMonstersInRealm(game: GameState, realm: Realm, count: number) {
       const candidateY = 70 + seeded(candidateIndex + 1, game.day * 19 + 103) * (WORLD_H - 140);
       if (realm === game.realm && Math.hypot(candidateX - game.player.x, candidateY - game.player.y) < 360) continue;
       if (realm === "caveSystem" && !isCaveFloor(candidateX, candidateY, 38)) continue;
+      if (
+        realm === "caveSystem" &&
+        Math.hypot(candidateX - DREAD_TITAN_ROOM.x, candidateY - DREAD_TITAN_ROOM.y) < DREAD_TITAN_ROOM.radius + 60
+      ) continue;
       if (realm === "meadow" && inDeepWater(candidateX, candidateY, 30)) continue;
       if (pointIsLit(game, realm, candidateX, candidateY, MONSTER_SPAWN_LIGHT_PADDING)) continue;
       if (reservedBuildingAt(game, realm, candidateX, candidateY, 30)) continue;
@@ -7947,6 +7958,77 @@ function drawCave(
   ctx.restore();
 }
 
+function drawDreadTitanLairFloor(ctx: CanvasRenderingContext2D) {
+  ctx.save();
+  ctx.translate(DREAD_TITAN_ROOM.x, DREAD_TITAN_ROOM.y);
+
+  const aura = ctx.createRadialGradient(0, 0, 70, 0, 0, DREAD_TITAN_ROOM.radius * 0.92);
+  aura.addColorStop(0, "rgba(91,59,123,.34)");
+  aura.addColorStop(0.52, "rgba(66,48,88,.16)");
+  aura.addColorStop(1, "rgba(28,22,38,0)");
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(0, 0, DREAD_TITAN_ROOM.radius * 0.92, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(111,226,215,.28)";
+  ctx.lineWidth = 8;
+  ctx.setLineDash([34, 24]);
+  ctx.beginPath();
+  ctx.arc(0, 0, 315, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.strokeStyle = "rgba(157,119,187,.42)";
+  ctx.lineWidth = 7;
+  ctx.lineCap = "round";
+  for (const side of [-1, 1] as const) {
+    ctx.beginPath();
+    ctx.moveTo(-18, side * 35);
+    ctx.lineTo(-70, side * 95);
+    ctx.lineTo(-145, side * 145);
+    ctx.lineTo(-235, side * 172);
+    ctx.stroke();
+    for (const [x, y, tineX, tineY] of [
+      [-72, 96, -35, 155],
+      [-135, 139, -112, 212],
+      [-205, 163, -207, 238],
+    ] as const) {
+      ctx.beginPath();
+      ctx.moveTo(x, side * y);
+      ctx.lineTo(tineX, side * tineY);
+      ctx.stroke();
+    }
+  }
+
+  ctx.fillStyle = "rgba(210,245,237,.46)";
+  ctx.font = "900 28px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("DREAD TITAN LAIR", 0, -255);
+  ctx.font = "900 17px Arial";
+  ctx.fillStyle = "rgba(205,178,220,.42)";
+  ctx.fillText("NO NIGHT HOLDS IT", 0, -224);
+
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(DREAD_TITAN_ROUTE_MARKER.x, DREAD_TITAN_ROUTE_MARKER.y);
+  ctx.fillStyle = "rgba(212,190,222,.45)";
+  ctx.font = "900 19px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("TITAN LAIR  ←", 0, -32);
+  ctx.strokeStyle = "rgba(111,226,215,.38)";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(80, 0);
+  ctx.lineTo(-80, 0);
+  ctx.lineTo(-52, -19);
+  ctx.moveTo(-80, 0);
+  ctx.lineTo(-52, 19);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = "#141c1b";
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
@@ -7977,7 +8059,7 @@ function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
   for (const { start, end, halfWidth } of CAVE_CONNECTIONS) {
     const gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
     gradient.addColorStop(0, caveAreaAt(start.x, start.y).ground);
-    gradient.addColorStop(1, caveAreaAt(end.x, end.y).ground);
+    gradient.addColorStop(1, end === DREAD_TITAN_ROOM ? DREAD_TITAN_ROOM.ground : caveAreaAt(end.x, end.y).ground);
     ctx.strokeStyle = gradient;
     ctx.lineWidth = halfWidth * 2;
     ctx.beginPath();
@@ -8010,13 +8092,16 @@ function drawCaveSystemTerrain(ctx: CanvasRenderingContext2D) {
     const y = seeded(i, 232) * WORLD_H;
     if (!isCaveFloor(x, y, 12)) continue;
     const area = caveAreaAt(x, y);
-    ctx.fillStyle = i % 2 ? area.textureA : area.textureB;
+    const inTitanLair = Math.hypot(x - DREAD_TITAN_ROOM.x, y - DREAD_TITAN_ROOM.y) < DREAD_TITAN_ROOM.radius;
+    ctx.fillStyle = inTitanLair ? (i % 2 ? "#5b4969" : "#292336") : i % 2 ? area.textureA : area.textureB;
     ctx.globalAlpha = 0.42;
     ctx.beginPath();
     ctx.arc(x, y, 2 + seeded(i, 233) * 4, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+
+  drawDreadTitanLairFloor(ctx);
 
   const boundaries = [
     ...CAVES.map((cave) => ({ x: cave.undergroundX, y: cave.undergroundY, radius: cave.chamberRadius })),
@@ -8553,6 +8638,11 @@ function drawDarkness(
     reveal(center.x, center.y, radius, 55);
   });
   game.creatures.forEach((creature) => {
+    if (
+      creature.realm === game.realm &&
+      isDreadTitan(creature) &&
+      creature.hp > 0
+    ) reveal(creature.x, creature.y, 350, 88);
     if (
       creature.realm === game.realm &&
       creature.kind === "aetherWarden" &&

@@ -178,8 +178,9 @@ Inventory and hotbar moves use the two-tap flow.
 ## 5. World and time
 
 The Meadow and connected cave system are separate 7,200 by 5,200 world spaces.
-The caves and their chambers are deliberately unnamed; entrances, exits,
-prompts, and the location display identify them only as caves.
+The three main caves and ordinary chambers are deliberately unnamed; entrances,
+exits, prompts, and the location display identify them only as caves. The marked
+Dread Titan lair is the one named underground arena.
 
 - **The Meadow** contains open grassland, sparse clumps of harvestable wild
   grass, thirteen scattered metal deposits—eight copper and five iron—scattered
@@ -203,13 +204,16 @@ prompts, and the location display identify them only as caves.
   resource chambers.
 
 The three vast, unnamed resource chambers share one underground realm with a
-large central cavern and four secondary caverns. Visible, solid rock walls
-enclose every space. Twelve long, variable-width tunnels form multiple loops,
-so every entrance has alternate routes to the other two instead of a single
-spoke through the center. Each main chamber keeps its own terrain palette and
-resource mix, but creatures and placed buildings share the connected cave
-system. Each main chamber has an exit to its matching Meadow entrance, so the
-player can enter through one cave, cross the network, and leave through another.
+large central cavern, four secondary caverns, and a dedicated Dread Titan lair
+off the southwestern side. Visible, solid rock walls enclose every space.
+Twelve long, variable-width tunnels form multiple loops, so every entrance has
+alternate routes to the other two instead of a single spoke through the center.
+A thirteenth, narrower tunnel leaves the southwestern secondary cavern and ends
+at the Titan's otherwise isolated lair. Each main chamber keeps its own terrain
+palette and resource mix, but creatures and placed buildings share the
+connected cave system. Each main chamber has an exit to its matching Meadow
+entrance, so the player can enter through one cave, cross the network, and leave
+through another.
 Ore seams are intentionally sparse among the much more common ordinary rock.
 Each main resource chamber has one guaranteed Aetherium patch. Two are medium
 and the iron chamber's patch is huge. A dedicated Aether Warden stands beside
@@ -224,7 +228,16 @@ at random for the Brood Mother. Her nine-pool web nest appears around the center
 of that room. She has no dedicated arena, secret route, fixed escort, or sentry
 gauntlet; ordinary cave monsters can still roam through the selected room as
 part of the shared cave population. The central cavern is kept clear for the
-permanent Dread Titan encounter.
+shared routes instead of containing another boss.
+
+The Titan lair contains no ordinary generated resource nodes or random cave
+population spawns. A large purple floor aura, antler-shaped markings, a
+**DREAD TITAN LAIR** inscription, and a marked arrow at the branch tunnel make
+the route and arena identifiable. The living Titan permanently reveals a
+350-unit pool of dim cyan-purple light around itself, so its enormous overhead
+silhouette cannot disappear into the cave darkness once the lair is on screen.
+Only the wraiths and maws deliberately summoned by the Titan can begin inside
+the lair.
 
 The three tree species and every rock are drawn from directly overhead. Pines
 use overlapping jagged needle whorls at different angles, giving the full crown
@@ -719,12 +732,12 @@ Rifle recipe. Crafting that rifle at a bench consumes the core and requires an
 already-crafted Scrap Pistol.
 
 The **Dread Titan** is a massive, uniquely drawn top-down cave boss that is
-always present at the center of the central cavern from the start of a run. It
-is not nocturnal, is not created by a night wave, and remains underground until
-defeated. It has 1,200 health, 45 speed, 30 contact damage, a 162-unit melee
-reach, a 1,000-unit sense radius, and an approximately 104-unit collision
-radius. Encountering or defeating it does not replace or remove the endless
-night system.
+always present at the center of its dedicated southwestern side cavern from the
+start of a run. It is not nocturnal, is not created by a night wave, and remains
+underground until defeated. It has 1,200 health, 45 speed, 30 contact damage, a
+162-unit melee reach, a 1,000-unit sense radius, and an approximately 104-unit
+collision radius. Encountering or defeating it does not replace or remove the
+endless night system.
 
 Its overhead face resembles a corrupted deer: a long pale skull, two luminous
 eyes, a broad rack of many branching antlers, and a split black mouth lined with
@@ -821,9 +834,10 @@ feeding progress, and no remembered wariness.
 ## 12. Endless night progression
 
 The cave system begins with three fixed Aether Wardens, three ordinary wraiths,
-the Brood Mother, and the Dread Titan. The Titan is fixed in the central cavern,
-while the Brood Mother uses a random secondary cavern. The Wardens do not
-respawn individually, and the Brood Mother has no fixed guards.
+the Brood Mother, and the Dread Titan. The Titan is fixed in its dedicated
+southwestern side cavern, while the Brood Mother uses a random secondary
+cavern. The Wardens do not respawn individually, and the Brood Mother has no
+fixed guards.
 Once the surviving non-boss cave population falls below six, ordinary wraith or
 maw replacements restore that population floor. If none remain, one replacement
 appears immediately at a valid distant point; otherwise at most one appears
@@ -844,9 +858,9 @@ them. Each day advances after dawn. Enemy health, speed, contact damage, attack
 reach, and sense radius never scale with the day. Progression comes only from
 larger populations and fixed-stat species unlocking on later nights.
 
-The Dread Titan is independent of this progression: it already exists in the
-central cavern on day 1 and never waits for a particular night. Its summoned
-cave swarms add to, rather than replace, the persistent underground population.
+The Dread Titan is independent of this progression: it already exists in its
+side lair on day 1 and never waits for a particular night. Its summoned cave
+swarms add to, rather than replace, the persistent underground population.
 Defeating it is an endgame milestone, not a victory condition.
 
 Each monster's position is sampled independently from valid points across its
@@ -870,7 +884,7 @@ protection.
 | Wraith | Cave system | 1 | 42 | 96 | 10 | 108 | 440 |
 | Maw | Cave system | 3 | 92 | 56 | 17 | 96 | 260 |
 | Aether Warden | Guarded cave ore only | — | 118 | 70 | 14 | 104 | 380 |
-| Dread Titan | Central cave boss | — | 1,200 | 45 | 30 | 162 | 1,000 |
+| Dread Titan | Dedicated side-cave boss | — | 1,200 | 45 | 30 | 162 | 1,000 |
 
 Each monster family has a separate overhead silhouette instead of sharing one
 round tentacled base. Shades are compact pulsing cores with five short wisps.
