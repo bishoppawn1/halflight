@@ -4111,11 +4111,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ? Math.max(0, Math.min(1, 1 - swing / profile.animationSeconds))
     : 0;
   const motion = swing > 0 ? Math.sin(progress * Math.PI) : 0;
-  const angle = tool === "spear"
-    ? -0.08
-    : tool === "bow" || tool === "ironBow" || tool === "pistol"
-      ? -0.22
-      : -0.22 - motion * 0.68;
+  const angle = profile.style === "slash" ? -motion * 0.68 : 0;
   const forwardMotion = tool === "spear" ? motion * 30 : tool === "pistol" ? -motion * 7 : 0;
   ctx.save();
   ctx.translate(19 + forwardMotion, 6);

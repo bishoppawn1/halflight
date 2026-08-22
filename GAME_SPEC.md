@@ -42,6 +42,12 @@ The player is a plain, top-down painted circle. The equipped item appears beside
 the circle. Equipping copper, iron, or blacksteel armor adds a small cartoony
 helmet whose color and construction match that metal tier.
 
+Every held item's forward axis matches the active aim direction exactly. Bow
+arrows, gun barrels, spearheads, and idle tool handles point along the same
+pointer-facing line used by projectiles, melee hit areas, and gathering rays.
+Only a tool's temporary swing or recoil animation may rotate or move it away
+from that line, and it returns to the exact aim direction afterward.
+
 Axe and pickaxe heads change both material and silhouette at every tier: wood
 is crude and lashed, stone is chunky, iron is forged and tapered, and
 Aetherium is crystalline and glowing. Resource stacks, recipes, and ready
