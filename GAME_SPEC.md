@@ -227,7 +227,7 @@ instead of turning it into an unintended attack or selecting a different node.
 
 | Tool tier | Node durability removed per hit | Axe cooldown | Pickaxe cooldown | Access |
 | --- | ---: | ---: | ---: | --- |
-| Hands | 1 | 600 ms | — | Trees only |
+| Hands | 0.5 | 600 ms | — | Trees only |
 | Wood | 1 | 700 ms | 820 ms | Trees and ordinary rock |
 | Stone | 2 | 760 ms | 860 ms | Trees, stone, iron, copper, coal, and sulfur |
 | Iron | 3 | 700 ms | 800 ms | All deposits, including Aetherium |
@@ -236,9 +236,10 @@ instead of turning it into an unintended attack or selecting a different node.
 Each equipped item has one shared action cooldown. An axe or pickaxe uses the
 same cooldown against a resource node and a creature, and changing targets does
 not bypass that timer. Forage also uses the selected item's cooldown but does
-not play its attack animation. Wild grass is the only natural source of fiber.
-Higher tiers remove more node durability per hit and give access to stronger
-deposits.
+not play its attack animation. A Wood Axe removes twice as much tree durability
+per hit as bare hands, so punching remains possible but is substantially
+slower. Wild grass is the only natural source of fiber. Higher tiers remove
+more node durability per hit and give access to stronger deposits.
 
 Every axe and pickaxe tier is a separate tool type. Crafting a Stone Pickaxe,
 for example, does not remove or alter any owned Wood Pickaxes. Each type can be

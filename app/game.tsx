@@ -2419,7 +2419,7 @@ function interact(game: GameState) {
 }
 
 const TOOL_TIER_RANK: Record<ToolTier, number> = { none: 0, wood: 1, stone: 2, iron: 3, aetherium: 4 };
-const TOOL_POWER: Record<ToolTier, number> = { none: 1, wood: 1, stone: 2, iron: 3, aetherium: 5 };
+const TOOL_POWER: Record<ToolTier, number> = { none: 0.5, wood: 1, stone: 2, iron: 3, aetherium: 5 };
 
 function wearTool(game: GameState, tool: DurableTool) {
   const copies = game.gear.toolDurability[tool];
