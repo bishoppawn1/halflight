@@ -756,6 +756,8 @@ const CHIMERA_BURST_RADIUS = 90;
 const CHIMERA_BURST_DAMAGE = 52;
 const CHIMERA_EXPLOSION_DURATION_MS = 1200;
 const CHIMERA_EXPLOSION_VISUAL_RADIUS = 160;
+const CHIMERA_EXPLOSION_TEXTURE_PADDING = 40;
+const CHIMERA_EXPLOSION_TEXTURE_SCALE = 2;
 const WARY_ESCAPE_DISTANCE = 520;
 const WARY_NOTICE_BONUS = 120;
 const MEAT_EATING_ANIMALS: AnimalKind[] = ["bear", "fox", "wolf"];
@@ -8108,6 +8110,49 @@ function drawSniperAim(ctx: CanvasRenderingContext2D, game: GameState, now: numb
   ctx.restore();
 }
 
+let chimeraExplosionTexture: HTMLCanvasElement | null = null;
+
+function getChimeraExplosionTexture() {
+  if (chimeraExplosionTexture) return chimeraExplosionTexture;
+  const textureRadius = CHIMERA_EXPLOSION_VISUAL_RADIUS + CHIMERA_EXPLOSION_TEXTURE_PADDING;
+  const textureSize = textureRadius * 2;
+  const texture = document.createElement("canvas");
+  texture.width = textureSize * CHIMERA_EXPLOSION_TEXTURE_SCALE;
+  texture.height = textureSize * CHIMERA_EXPLOSION_TEXTURE_SCALE;
+  const textureContext = texture.getContext("2d");
+  if (!textureContext) return null;
+  textureContext.setTransform(
+    CHIMERA_EXPLOSION_TEXTURE_SCALE,
+    0,
+    0,
+    CHIMERA_EXPLOSION_TEXTURE_SCALE,
+    0,
+    0,
+  );
+  textureContext.translate(textureRadius, textureRadius);
+  textureContext.shadowColor = "#8bf7ef";
+  textureContext.shadowBlur = 30;
+  const blast = textureContext.createRadialGradient(
+    0,
+    0,
+    0,
+    0,
+    0,
+    CHIMERA_EXPLOSION_VISUAL_RADIUS,
+  );
+  blast.addColorStop(0, "rgba(255,255,241,.98)");
+  blast.addColorStop(0.16, "rgba(116,247,238,.92)");
+  blast.addColorStop(0.48, "rgba(210,91,238,.58)");
+  blast.addColorStop(0.78, "rgba(112,44,173,.24)");
+  blast.addColorStop(1, "rgba(80,25,126,0)");
+  textureContext.fillStyle = blast;
+  textureContext.beginPath();
+  textureContext.arc(0, 0, CHIMERA_EXPLOSION_VISUAL_RADIUS, 0, Math.PI * 2);
+  textureContext.fill();
+  chimeraExplosionTexture = texture;
+  return texture;
+}
+
 function drawChimeraExplosion(ctx: CanvasRenderingContext2D, effect: WeaponEffect, now: number) {
   const progress = Math.max(0, Math.min(1, (now - effect.startedAt) / effect.duration));
   const expansion = 1 - Math.pow(1 - progress, 3);
@@ -8119,19 +8164,13 @@ function drawChimeraExplosion(ctx: CanvasRenderingContext2D, effect: WeaponEffec
   ctx.translate(effect.x, effect.y);
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = fade;
-  ctx.shadowColor = "#8bf7ef";
-  ctx.shadowBlur = 30 * fade;
-
-  const blast = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-  blast.addColorStop(0, "rgba(255,255,241,.98)");
-  blast.addColorStop(0.16, "rgba(116,247,238,.92)");
-  blast.addColorStop(0.48, "rgba(210,91,238,.58)");
-  blast.addColorStop(0.78, "rgba(112,44,173,.24)");
-  blast.addColorStop(1, "rgba(80,25,126,0)");
-  ctx.fillStyle = blast;
-  ctx.beginPath();
-  ctx.arc(0, 0, radius, 0, Math.PI * 2);
-  ctx.fill();
+  const blastTexture = getChimeraExplosionTexture();
+  if (blastTexture) {
+    const textureRadius = CHIMERA_EXPLOSION_VISUAL_RADIUS + CHIMERA_EXPLOSION_TEXTURE_PADDING;
+    const textureScale = radius / CHIMERA_EXPLOSION_VISUAL_RADIUS;
+    const drawRadius = textureRadius * textureScale;
+    ctx.drawImage(blastTexture, -drawRadius, -drawRadius, drawRadius * 2, drawRadius * 2);
+  }
 
   ctx.fillStyle = "rgba(239,255,246,.92)";
   ctx.beginPath();
@@ -8912,6 +8951,7 @@ const CRAFT_RECIPES: Recipe[] = [
     requiresBench: true,
     requiresResearch: "xenoBallistics",
     action: (game) => {
+      getChimeraExplosionTexture();
       game.gear.chimera = true;
       game.weapon = "chimera";
       addDurableTool(game, "chimera");
