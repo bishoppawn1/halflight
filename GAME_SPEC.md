@@ -17,7 +17,8 @@ complete run.
 2. Gather wood, stone, fiber, food, seeds, hide, and specialized materials.
 3. Explore three distinct caves for stone, iron, copper, coal, sulfur,
    mushrooms, and rare Aetherium.
-4. Craft tools, armor, melee weapons, bows, guns, ammunition, and healing.
+4. Craft tools, armor, melee weapons, bows, a pistol, an assault rifle,
+   ammunition, and healing.
 5. Build a shelter, crops, barriers, automated defenses, and multiple traps.
 6. Lure and feed adult wildlife, then breed two well-fed animals of the same species.
 7. Survive an increasingly large night wave, recover at dawn, and continue.
@@ -142,8 +143,8 @@ prompts, and the location display identify them only as caves.
 
 - **The Meadow** contains open grassland, sparse clumps of harvestable wild
   grass, eight scattered iron and copper deposits, scattered ordinary rock with
-  occasional huge outcrops, three cave entrances, one rare Aetherium deposit,
-  three forests, and three bodies of water.
+  occasional huge outcrops, three cave entrances, three forests, and three
+  bodies of water.
 - **The Blackwood** is a large, visibly darker forest biome filled with closely
   spaced oak, pine, and birch trees, forage, bears, and other wildlife.
 - **Pine Reach** is a separate northeastern woodland dominated by pines.
@@ -155,8 +156,7 @@ prompts, and the location display identify them only as caves.
   occasional lily pads instead of perfect concentric rings or dashed markings.
 - One chamber is rich in stone, with some coal and
   mushrooms.
-- One chamber concentrates iron and copper, with some coal, stone, and rare
-  Aetherium.
+- One chamber concentrates iron and copper, with some coal and stone.
 - One chamber concentrates sulfur and coal, with mushrooms and some copper.
 - Four secondary caverns contain sparse pockets of ordinary rock, coal, and
   mushrooms between the three main resource chambers.
@@ -170,12 +170,20 @@ resource mix, but creatures and placed buildings share the connected cave
 system. Each main chamber has an exit to its matching Meadow entrance, so the
 player can enter through one cave, cross the network, and leave through another.
 Ore seams are intentionally sparse among the much more common ordinary rock.
+Each main resource chamber has one guaranteed Aetherium patch. Two are medium
+and the iron chamber's patch is huge. A dedicated Aether Warden stands beside
+each patch; Aetherium does not generate on the Meadow.
 
-At the start of each run, one random chamber contains a one-use treasure cache
-and one random chamber contains a giant cave guardian. The two selections are
-independent, so a chamber can contain the cache, the guardian, both, or neither.
-Opening the cache with `E` awards 4 stone, 5 iron, 4 copper, 3 coal, 3 sulfur,
+At the start of each run, one random main chamber contains a one-use treasure
+cache. Opening it with `E` awards 4 stone, 5 iron, 4 copper, 3 coal, 3 sulfur,
 and 2 Aetherium. Its opened chest remains visible.
+
+The cave guardian never appears in an ordinary resource chamber. A narrow,
+unmarked passage leaves the eastern secondary cavern, bends through two dark
+pockets, and opens into a dedicated 650-unit-radius guardian arena. Eight fixed
+wraiths and maws occupy the secret route, and twelve more surround the guardian
+inside the arena. The route and arena stay part of the connected cave realm but
+have no cave entrance, exit, treasure cache, or ordinary resource clutter.
 
 The three tree species and every rock are drawn from directly overhead. Pines
 use overlapping jagged needle whorls at different angles, giving the full crown
@@ -345,7 +353,8 @@ button.
 | Hunting Bow | 6 wood, 4 fiber, 2 copper | 18-damage bow; up to 32 damage at full draw |
 | Iron Bow | 6 wood, 4 fiber, 5 iron | Tier-two 28-damage bow; up to 49 damage at full draw |
 | Arrow Bundle | 2 wood, 1 stone | 12 arrows |
-| Scrap Pistol | 8 iron, 6 copper, 3 coal, 2 sulfur | 34-damage ranged weapon |
+| Scrap Pistol | 8 iron, 6 copper, 3 coal, 2 sulfur | 54-damage firearm; stronger per shot than a fully drawn Iron Bow |
+| Assault Rifle | 1 Guardian Core, 6 Aetherium, 12 iron, 8 copper | Requires the Scrap Pistol; 62-damage rapid-fire guardian-tier weapon |
 | Bullet Bundle | 2 iron, 1 coal, 2 sulfur | 12 bullets |
 | Copper Armor | 12 copper, 5 hide | Copper helmet; 18% damage reduction |
 | Iron Armor | 14 iron, 6 hide | Iron helmet; 35% damage reduction |
@@ -462,7 +471,8 @@ alternate attack remains an immediate base-damage shot.
 | Iron sword | 25 | 102 | 480 ms |
 | Hunting bow | 18 | 520 | 780 ms |
 | Iron bow | 28 | 600 | 780 ms |
-| Scrap pistol | 34 | 640 | 460 ms |
+| Scrap pistol | 54 | 660 | 520 ms |
+| Assault rifle | 62 | 760 | 230 ms |
 | Deconstruction hammer | 3 | 78 | 750 ms |
 | Hands, food, or build tool | 3 | 78 | 600 ms |
 
@@ -482,12 +492,18 @@ telegraph the attack before the brute spends 560 ms airborne. Landing in the
 circle deals 150% of its normal damage. A brute waits 4.2 seconds before it can
 leap again, and a solid structure stops the leap and takes the impact instead.
 
+Both firearms use bullets and always fire as attacks instead of being captured
+by nearby resource targeting. Holding the primary input repeats pistol or
+assault-rifle shots at the equipped weapon's cooldown. The Scrap Pistol's 54
+damage exceeds the fully drawn Iron Bow's 49 damage. The Assault Rifle is the
+next firearm tier: it deals 62 damage per bullet and fires much faster.
+
 Wildlife leaves visible, illustrated piles of its species-specific meat and hide
 at the death position; birds provide meat but no hide. The piles become
 collectible after 650 ms, then enter the inventory when the player comes within
 36 units. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2
-sulfur. Every creature defeated by the player or a trap increases the threat
-count.
+sulfur. The cave guardian is the exception to normal maw loot. Every creature
+defeated by the player or a trap increases the threat count.
 
 The cave guardian is an oversized maw with 240 health, 78 speed, 22 melee
 damage, a 114-unit melee reach, and a 540-unit sense radius. From 220 to 520
@@ -498,9 +514,11 @@ blocked by cave rock and completed solid structures; an orb that hits a
 structure deals the same 14 damage to it. The charge and moving orbs cast their
 own warning light in the cave darkness. The ranged attack begins a new charge at
 most once every 2.6 seconds. Closing inside 220 units makes the guardian resume
-its faster melee pursuit. Defeating it awards the maw's normal drop plus 5 iron,
-5 sulfur, and 3 Aetherium, for a total of 7 iron, 7 sulfur, and 3 Aetherium. Any
-remaining guardian orbs disappear when it dies.
+its faster melee pursuit. Defeating it awards no ordinary iron, sulfur, or
+Aetherium bundle. It instead gives exactly one Guardian Core, removes all
+remaining guardian orbs, and unlocks the Assault Rifle recipe. Crafting that
+rifle at a bench consumes the core and requires an already-crafted Scrap
+Pistol.
 
 ## 11. Wildlife feeding and breeding
 
@@ -579,11 +597,14 @@ feeding progress, and no remembered wariness.
 
 ## 12. Endless night progression
 
-The cave system begins with six ordinary cave horrors in addition to its
-guardian. This is its low daytime population. If all six are defeated, one
-replacement appears immediately at a valid distant point; otherwise a missing
-member is replaced at most once every 18 seconds until the population returns
-to six. Surviving cave enemies above that floor are never removed automatically.
+The cave system begins with 23 non-boss encounter monsters in addition to its
+guardian: three Aether Wardens, eight secret-route guards, and twelve guardian
+arena sentries. These fixed encounter monsters do not respawn individually.
+Once the surviving non-boss cave population falls below six, ordinary wraith or
+maw replacements restore that population floor. If none remain, one replacement
+appears immediately at a valid distant point; otherwise at most one appears
+every 18 seconds. Surviving cave enemies above the floor are never removed
+automatically.
 
 Every night spawns `6 + 3 × day` new Meadow monsters and adds `4 + 2 × day`
 reinforcements to the persistent cave population, with no wave-size cap. Night
@@ -616,6 +637,7 @@ lights and unfinished blueprints provide no spawn protection.
 | Brute | Meadow | 3 | 54 | 13 | 60 | 12 | 88 | 300 |
 | Wraith | Cave system | 1 | 42 | 10 | 96 | 10 | 108 | 440 |
 | Maw | Cave system | 3 | 92 | 17 | 56 | 17 | 96 | 260 |
+| Aether Warden | Guarded cave ore only | — | 118 | 0 | 72 | 14 | 104 | 380 |
 
 Each monster family has a separate overhead silhouette instead of sharing one
 round tentacled base. Shades are compact pulsing cores with five short wisps.
@@ -623,7 +645,10 @@ Crawlers have narrow carapaces, six jointed limbs, and two much longer striking
 arms. Brutes have broad plated bodies, massive forelimbs, and claws that flare
 during their leap wind-up. Wraiths are tapered spectral bodies trailing six
 flowing ribbons. Maws have a circular toothed mouth and eight short, heavy
-limbs; the cave guardian is an oversized maw.
+limbs; the cave guardian is an oversized maw. Aether Wardens are faceted teal
+constructs ringed with seven luminous crystal spikes, carry a visible label,
+and cast a small cyan warning glow. They never join random night waves and drop
+no bonus material; the Aetherium patch they defend is the reward.
 
 Monsters initially prowl instead of knowing the player's location. They chase
 after sensing the player or being attacked, stop at their attack reach when the

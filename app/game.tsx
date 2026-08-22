@@ -30,8 +30,8 @@ type DurableTool =
   | "stonePickaxe"
   | "ironPickaxe"
   | "aetheriumPickaxe";
-type Tool = DurableTool | "hammer" | "spear" | "sword" | "bow" | "ironBow" | "pistol" | FoodMaterial | "build" | "hands";
-type ToolGlyphKind = "axe" | "pickaxe" | "hammer" | "spear" | "sword" | "bow" | "pistol" | "pack";
+type Tool = DurableTool | "hammer" | "spear" | "sword" | "bow" | "ironBow" | "pistol" | "rifle" | FoodMaterial | "build" | "hands";
+type ToolGlyphKind = "axe" | "pickaxe" | "hammer" | "spear" | "sword" | "bow" | "pistol" | "rifle" | "pack";
 type BuildKind =
   | "craftingBench"
   | "storageChest"
@@ -62,6 +62,7 @@ type Material =
   | "coal"
   | "sulfur"
   | "aetherium"
+  | "guardianCore"
   | "fiber"
   | "berries"
   | "meat"
@@ -73,7 +74,7 @@ type Material =
 type GroundAnimalKind = "bear" | "boar" | "deer" | "rabbit" | "fox" | "wolf" | "raccoon";
 type BirdKind = "crow" | "owl" | "turkey";
 type AnimalKind = GroundAnimalKind | BirdKind;
-type MonsterKind = "shade" | "crawler" | "brute" | "wraith" | "maw";
+type MonsterKind = "shade" | "crawler" | "brute" | "wraith" | "maw" | "aetherWarden";
 type CreatureKind = MonsterKind | AnimalKind;
 type ArmorKind = "none" | "copper" | "iron" | "blacksteel";
 type InventoryItem = Tool | BuildKind | Material;
@@ -235,6 +236,7 @@ interface GameState {
     bow: boolean;
     ironBow: boolean;
     pistol: boolean;
+    rifle: boolean;
     hammer: boolean;
     toolDurability: Record<DurableTool, number[]>;
     armor: ArmorKind;
@@ -242,7 +244,7 @@ interface GameState {
   kits: Record<BuildKind, number>;
   selected: Tool;
   selectedSlot: number;
-  weapon: "spear" | "sword" | "bow" | "ironBow" | "pistol";
+  weapon: "spear" | "sword" | "bow" | "ironBow" | "pistol" | "rifle";
   inventory: (InventoryItem | null)[];
   hotbar: (InventoryItem | null)[];
   buildMode: BuildKind | null;
@@ -279,6 +281,8 @@ interface Recipe {
   detail: string;
   cost: Partial<Record<Material, number>>;
   requiresBench?: boolean;
+  prerequisite?: (game: GameState) => boolean;
+  prerequisiteLabel?: string;
   owned?: (game: GameState) => boolean;
   action: (game: GameState) => void;
 }
@@ -443,12 +447,18 @@ const CAVES: CaveDefinition[] = [
 ];
 
 const CAVE_HUB: CaveRoom = { x: 3500, y: 2600, radius: 620, ground: "#414a46" };
+const GUARDIAN_PATH_ENTRY: CaveRoom = { x: 5910, y: 3210, radius: 180, ground: "#343d42" };
+const GUARDIAN_PATH_BEND: CaveRoom = { x: 5800, y: 3740, radius: 170, ground: "#303a40" };
+const GUARDIAN_ARENA: CaveRoom = { x: 6350, y: 4350, radius: 650, ground: "#363b43" };
 const CAVE_ROOMS: CaveRoom[] = [
   CAVE_HUB,
   { x: 2050, y: 2280, radius: 430, ground: "#3e4944" },
   { x: 3450, y: 820, radius: 420, ground: "#444b49" },
   { x: 5250, y: 2460, radius: 460, ground: "#454945" },
   { x: 2700, y: 4150, radius: 470, ground: "#42473d" },
+  GUARDIAN_PATH_ENTRY,
+  GUARDIAN_PATH_BEND,
+  GUARDIAN_ARENA,
 ];
 const CAVE_CONNECTIONS: CaveConnection[] = [
   { start: { x: CAVES[0].undergroundX, y: CAVES[0].undergroundY }, end: CAVE_ROOMS[1], halfWidth: 195 },
@@ -463,6 +473,9 @@ const CAVE_CONNECTIONS: CaveConnection[] = [
   { start: CAVE_ROOMS[4], end: CAVE_HUB, halfWidth: 185 },
   { start: { x: CAVES[2].undergroundX, y: CAVES[2].undergroundY }, end: CAVE_ROOMS[3], halfWidth: 170 },
   { start: CAVE_ROOMS[1], end: CAVE_ROOMS[4], halfWidth: 155 },
+  { start: CAVE_ROOMS[3], end: GUARDIAN_PATH_ENTRY, halfWidth: 68 },
+  { start: GUARDIAN_PATH_ENTRY, end: GUARDIAN_PATH_BEND, halfWidth: 74 },
+  { start: GUARDIAN_PATH_BEND, end: GUARDIAN_ARENA, halfWidth: 105 },
 ];
 
 function caveEncounterPoint(cave: CaveDefinition, distance: number, lateral = 0) {
@@ -473,6 +486,32 @@ function caveEncounterPoint(cave: CaveDefinition, distance: number, lateral = 0)
   };
 }
 
+const AETHER_SITES = CAVES.map((cave, index) => {
+  const deposit = caveEncounterPoint(cave, cave.chamberRadius * 0.56, 150);
+  const towardCenterX = cave.undergroundX - deposit.x;
+  const towardCenterY = cave.undergroundY - deposit.y;
+  const towardCenterLength = Math.hypot(towardCenterX, towardCenterY) || 1;
+  return {
+    deposit,
+    guard: {
+      x: deposit.x + (towardCenterX / towardCenterLength) * 155,
+      y: deposit.y + (towardCenterY / towardCenterLength) * 155,
+    },
+    size: index === 1 ? "huge" as const : "medium" as const,
+  };
+});
+
+const GUARDIAN_PATH_GUARDS: { kind: "wraith" | "maw"; x: number; y: number }[] = [
+  { kind: "wraith", x: 5480, y: 2735 },
+  { kind: "maw", x: 5635, y: 2895 },
+  { kind: "wraith", x: 5790, y: 3060 },
+  { kind: "maw", x: 5880, y: 3310 },
+  { kind: "wraith", x: 5840, y: 3520 },
+  { kind: "wraith", x: 5800, y: 3730 },
+  { kind: "maw", x: 5940, y: 3900 },
+  { kind: "wraith", x: 6110, y: 4080 },
+];
+
 const MATERIALS: { id: Material; name: string }[] = [
   { id: "wood", name: "Wood" },
   { id: "stone", name: "Stone" },
@@ -481,6 +520,7 @@ const MATERIALS: { id: Material; name: string }[] = [
   { id: "coal", name: "Coal" },
   { id: "sulfur", name: "Sulfur" },
   { id: "aetherium", name: "Aetherium" },
+  { id: "guardianCore", name: "Guardian Core" },
   { id: "fiber", name: "Fiber" },
   { id: "berries", name: "Berries" },
   { id: "meat", name: "Meat" },
@@ -542,7 +582,7 @@ const BUILD_ORDER: BuildKind[] = [
 
 const ANIMAL_KINDS: AnimalKind[] = ["bear", "boar", "deer", "rabbit", "fox", "wolf", "raccoon", "crow", "owl", "turkey"];
 const BIRD_KINDS: BirdKind[] = ["crow", "owl", "turkey"];
-const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "wraith", "maw"];
+const MONSTER_KINDS: MonsterKind[] = ["shade", "crawler", "brute", "wraith", "maw", "aetherWarden"];
 const MONSTER_DATA: Record<
   MonsterKind,
   {
@@ -561,6 +601,7 @@ const MONSTER_DATA: Record<
   brute: { realm: "meadow", earliestNight: 3, hp: 54, hpScale: 13, speed: 60, damage: 12, attackReach: 88, senseRadius: 300 },
   wraith: { realm: "caveSystem", earliestNight: 1, hp: 42, hpScale: 10, speed: 96, damage: 10, attackReach: 108, senseRadius: 440 },
   maw: { realm: "caveSystem", earliestNight: 3, hp: 92, hpScale: 17, speed: 56, damage: 17, attackReach: 96, senseRadius: 260 },
+  aetherWarden: { realm: "caveSystem", earliestNight: 1, hp: 118, hpScale: 0, speed: 70, damage: 14, attackReach: 104, senseRadius: 380 },
 };
 const MONSTER_WAVE_ROSTERS: Record<Realm, MonsterKind[]> = {
   meadow: ["shade", "shade", "crawler", "shade", "brute"],
@@ -631,6 +672,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   bow: "Hunting Bow",
   ironBow: "Iron Bow",
   pistol: "Scrap Pistol",
+  rifle: "Assault Rifle",
   wood: "Wood",
   stone: "Stone",
   iron: "Iron",
@@ -638,6 +680,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   coal: "Coal",
   sulfur: "Sulfur",
   aetherium: "Aetherium",
+  guardianCore: "Guardian Core",
   fiber: "Fiber",
   berries: "Berries",
   meat: "Meat",
@@ -722,7 +765,8 @@ const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
   sword: { damage: 25, range: 102, cooldown: 480, animationSeconds: 0.3, arc: 1.15, style: "slash" },
   bow: { damage: 18, range: 520, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
   ironBow: { damage: 28, range: 600, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
-  pistol: { damage: 34, range: 640, cooldown: 460, animationSeconds: 0.24, arc: 0, style: "shot" },
+  pistol: { damage: 54, range: 660, cooldown: 520, animationSeconds: 0.24, arc: 0, style: "shot" },
+  rifle: { damage: 62, range: 760, cooldown: 230, animationSeconds: 0.16, arc: 0, style: "shot" },
 };
 
 function attackProfile(tool: Tool) {
@@ -731,6 +775,10 @@ function attackProfile(tool: Tool) {
 
 function isBowTool(tool: Tool): tool is "bow" | "ironBow" {
   return tool === "bow" || tool === "ironBow";
+}
+
+function isFirearm(tool: Tool): tool is "pistol" | "rifle" {
+  return tool === "pistol" || tool === "rifle";
 }
 
 function isDurableTool(item: InventoryItem | null): item is DurableTool {
@@ -776,6 +824,7 @@ function itemCount(game: GameState, item: InventoryItem | null) {
   if (item === "bow") return game.gear.bow ? 1 : 0;
   if (item === "ironBow") return game.gear.ironBow ? 1 : 0;
   if (item === "pistol") return game.gear.pistol ? 1 : 0;
+  if (item === "rifle") return game.gear.rifle ? 1 : 0;
   return 0;
 }
 
@@ -1004,9 +1053,8 @@ function makeGame(): GameState {
   const nodes: ResourceNode[] = [];
   let id = 1;
   const treasureCave = CAVES[Math.floor(Math.random() * CAVES.length)];
-  const guardianCave = CAVES[Math.floor(Math.random() * CAVES.length)];
   const treasurePoint = caveEncounterPoint(treasureCave, treasureCave.chamberRadius * 0.48, -95);
-  const guardianPoint = caveEncounterPoint(guardianCave, guardianCave.chamberRadius * 0.38, 95);
+  const guardianPoint = { x: GUARDIAN_ARENA.x, y: GUARDIAN_ARENA.y };
   const addNode = (
     kind: ResourceKind,
     realm: Realm,
@@ -1037,7 +1085,8 @@ function makeGame(): GameState {
     const clearEncounter =
       realm !== "caveSystem" ||
       (Math.hypot(x - treasurePoint.x, y - treasurePoint.y) > radius + 75 &&
-        Math.hypot(x - guardianPoint.x, y - guardianPoint.y) > radius + 95);
+        Math.hypot(x - guardianPoint.x, y - guardianPoint.y) > radius + 95 &&
+        AETHER_SITES.every((site) => Math.hypot(x - site.guard.x, y - site.guard.y) > radius + 70));
     if (!clearSpawn || !clearExit || !clearCave || !clearWater || !insideCave || !clearCaveNode || !clearEncounter) return;
     const hp = nodeHp(kind, size);
     nodes.push({ id: id++, kind, size, realm, x, y, hp, maxHp: hp, respawnAt: 0 });
@@ -1077,16 +1126,6 @@ function makeGame(): GameState {
       size,
     );
   }
-  for (let i = 0; i < 1; i++) {
-    addNode(
-      "aetherOre",
-      "meadow",
-      280 + seeded(i, 137) * (WORLD_W - 560),
-      280 + seeded(i, 138) * (WORLD_H - 560),
-      "huge",
-    );
-  }
-
   for (const [forestIndex, forest] of FOREST_REGIONS.entries()) {
     for (let i = 0; i < forest.treeCount; i++) {
       const angle = seeded(i, 41 + forestIndex * 31) * Math.PI * 2;
@@ -1109,6 +1148,10 @@ function makeGame(): GameState {
     }
   }
 
+  for (const site of AETHER_SITES) {
+    addNode("aetherOre", "caveSystem", site.deposit.x, site.deposit.y, site.size);
+  }
+
   for (const [caveIndex, cave] of CAVES.entries()) {
     for (let i = 0; i < 68; i++) {
       const roll = i % 24;
@@ -1116,7 +1159,7 @@ function makeGame(): GameState {
       if (cave.id === "stone") {
         kind = roll === 1 ? "coal" : roll === 5 || roll === 17 ? "mushroom" : "rock";
       } else if (cave.id === "iron") {
-        kind = i === 67 ? "aetherOre" : roll === 0 || roll === 12 ? "ironOre" : roll === 7 ? "copperOre" : roll === 3 ? "coal" : "rock";
+        kind = roll === 0 || roll === 12 ? "ironOre" : roll === 7 ? "copperOre" : roll === 3 ? "coal" : "rock";
       } else {
         kind = roll === 0 || roll === 8 || roll === 16 ? "sulfur" : roll === 5 || roll === 15 ? "coal" : roll === 3 || roll === 19 ? "mushroom" : roll === 11 ? "copperOre" : "rock";
       }
@@ -1132,7 +1175,7 @@ function makeGame(): GameState {
     }
   }
 
-  for (const [roomIndex, room] of CAVE_ROOMS.slice(1).entries()) {
+  for (const [roomIndex, room] of CAVE_ROOMS.slice(1, 5).entries()) {
     for (let i = 0; i < 10; i++) {
       const angle = seeded(i, 171 + roomIndex * 13) * Math.PI * 2;
       const distance = 90 + Math.sqrt(seeded(i, 172 + roomIndex * 13)) * (room.radius - 190);
@@ -1158,6 +1201,47 @@ function makeGame(): GameState {
     },
   ];
   const creatures: Creature[] = [];
+  const addMonster = (kind: MonsterKind, x: number, y: number, phase: number, boss = false) => {
+    const stats = MONSTER_DATA[kind];
+    const hp = boss ? 240 : stats.hp + stats.hpScale;
+    const direction = Math.atan2(CAVE_HUB.y - y, CAVE_HUB.x - x);
+    creatures.push({
+      id: id++,
+      kind,
+      realm: "caveSystem",
+      x,
+      y,
+      hp,
+      maxHp: hp,
+      speed: boss ? BOSS_SPEED : stats.speed + 2,
+      damage: boss ? 22 : stats.damage,
+      fed: 0,
+      maturesAt: 0,
+      breedReadyAt: 0,
+      angry: false,
+      hitAt: 0,
+      attackAt: 0,
+      phase,
+      slowUntil: 0,
+      rewarded: false,
+      dir: direction,
+      structureHitAt: 0,
+      rangedAt: boss ? -BOSS_RANGED_COOLDOWN_MS : 0,
+      rangedChargeUntil: 0,
+      rangedAim: direction,
+      boss,
+      homeX: x,
+      homeY: y,
+      provokedUntil: 0,
+      waryOfPlayer: false,
+      respawnAt: 0,
+      fleeing: false,
+      abilityReadyAt: 0,
+      abilityStartedAt: 0,
+      abilityTargetX: x,
+      abilityTargetY: y,
+    });
+  };
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = ANIMAL_DATA[kind];
     creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, maturesAt: 0, breedReadyAt: 0, angry: false, hitAt: 0, attackAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false, abilityReadyAt: 0, abilityStartedAt: 0, abilityTargetX: x, abilityTargetY: y });
@@ -1214,42 +1298,23 @@ function makeGame(): GameState {
     }
     addAnimal(wildlifeRoster[i], x, y, i * 0.73);
   }
-  creatures.push({
-    id: id++,
-    kind: "maw",
-    realm: "caveSystem",
-    x: guardianPoint.x,
-    y: guardianPoint.y,
-    hp: 240,
-    maxHp: 240,
-    speed: BOSS_SPEED,
-    damage: 22,
-    fed: 0,
-    maturesAt: 0,
-    breedReadyAt: 0,
-    angry: false,
-    hitAt: 0,
-    attackAt: 0,
-    phase: 19.7,
-    slowUntil: 0,
-    rewarded: false,
-    dir: Math.atan2(CAVE_HUB.y - guardianPoint.y, CAVE_HUB.x - guardianPoint.x),
-    structureHitAt: 0,
-    rangedAt: -BOSS_RANGED_COOLDOWN_MS,
-    rangedChargeUntil: 0,
-    rangedAim: Math.atan2(CAVE_HUB.y - guardianPoint.y, CAVE_HUB.x - guardianPoint.x),
-    boss: true,
-    homeX: guardianPoint.x,
-    homeY: guardianPoint.y,
-    provokedUntil: 0,
-    waryOfPlayer: false,
-    respawnAt: 0,
-    fleeing: false,
-    abilityReadyAt: 0,
-    abilityStartedAt: 0,
-    abilityTargetX: guardianPoint.x,
-    abilityTargetY: guardianPoint.y,
+  AETHER_SITES.forEach((site, index) => {
+    addMonster("aetherWarden", site.guard.x, site.guard.y, 31 + index * 1.7);
   });
+  GUARDIAN_PATH_GUARDS.forEach((guard, index) => {
+    addMonster(guard.kind, guard.x, guard.y, 41 + index * 0.83);
+  });
+  for (let index = 0; index < 12; index++) {
+    const angle = (index / 12) * Math.PI * 2 + 0.16;
+    const distance = index % 2 === 0 ? 315 : 405;
+    addMonster(
+      index % 3 === 0 ? "maw" : "wraith",
+      GUARDIAN_ARENA.x + Math.cos(angle) * distance,
+      GUARDIAN_ARENA.y + Math.sin(angle) * distance,
+      53 + index * 0.71,
+    );
+  }
+  addMonster("maw", guardianPoint.x, guardianPoint.y, 19.7, true);
   const startingCampfire: Building = {
     id: id++,
     kind: "campfire",
@@ -1276,13 +1341,14 @@ function makeGame(): GameState {
     realm: "meadow",
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
-    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, seeds: 0, hide: 0, arrows: 0, bullets: 0 },
+    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, seeds: 0, hide: 0, arrows: 0, bullets: 0 },
     gear: {
       spear: false,
       sword: false,
       bow: false,
       ironBow: false,
       pistol: false,
+      rifle: false,
       hammer: false,
       toolDurability: {
         woodAxe: [DURABLE_TOOL_DATA.woodAxe.maxDurability],
@@ -1384,7 +1450,7 @@ function notify(game: GameState, message: string, duration = 2300) {
 
 function costLabel(cost: Partial<Record<Material, number>>) {
   return Object.entries(cost)
-    .map(([key, value]) => String(value) + " " + key)
+    .map(([key, value]) => String(value) + " " + (ITEM_LABELS[key as Material] ?? key))
     .join(" · ");
 }
 
@@ -1572,7 +1638,7 @@ function selectSlot(game: GameState, slot: number) {
     return;
   }
   game.selected = item;
-  if (item === "spear" || item === "sword" || item === "bow" || item === "ironBow" || item === "pistol") game.weapon = item;
+  if (item === "spear" || item === "sword" || item === "bow" || item === "ironBow" || item === "pistol" || item === "rifle") game.weapon = item;
 }
 
 function isBabyAnimal(creature: Creature, now = performance.now()) {
@@ -2098,7 +2164,7 @@ function reservedBuildingAt(game: GameState, realm: Realm, x: number, y: number,
 
 function creatureRadius(creature: Creature) {
   if (creature.boss) return 49;
-  const radius = creature.kind === "maw" || creature.kind === "bear" || creature.kind === "brute"
+  const radius = creature.kind === "maw" || creature.kind === "bear" || creature.kind === "brute" || creature.kind === "aetherWarden"
     ? 27
     : creature.kind === "rabbit"
       ? 14
@@ -2754,7 +2820,8 @@ function attack(game: GameState, bowCharge = 0) {
   const tool = activeTool(game);
   const profile = attackProfile(tool);
   const isBow = isBowTool(tool);
-  if (isBow || tool === "pistol") {
+  const isGun = isFirearm(tool);
+  if (isBow || isGun) {
     const ammo: Material = isBow ? "arrows" : "bullets";
     if (game.resources[ammo] <= 0) {
       notify(game, "Out of " + ammo + ". Craft more ammunition.", 1000);
@@ -2774,23 +2841,24 @@ function attack(game: GameState, bowCharge = 0) {
       arc: 0,
       style: profile.style,
       startedAt: now,
-      duration: tool === "pistol" ? 120 : 155,
+      duration: isGun ? 120 : 155,
     };
     const charge = isBow ? Math.max(0, Math.min(1, bowCharge)) : 0;
-    const baseSpeed = tool === "ironBow" ? 720 : tool === "bow" ? 620 : 1120;
+    const baseSpeed = tool === "ironBow" ? 720 : tool === "bow" ? 620 : tool === "rifle" ? 1450 : 1120;
     const speed = isBow ? baseSpeed * (0.9 + charge * 0.15) : baseSpeed;
     const damage = isBow
       ? Math.round(profile.damage * (1 + charge * BOW_MAX_DAMAGE_BONUS))
       : profile.damage;
+    const muzzleDistance = tool === "rifle" ? 68 : 34;
     game.projectiles.push({
       id: game.lastId++,
       kind: isBow ? "arrow" : "bullet",
       realm: game.realm,
-      x: game.player.x + Math.cos(game.player.dir) * 34,
-      y: game.player.y + Math.sin(game.player.dir) * 34,
+      x: game.player.x + Math.cos(game.player.dir) * muzzleDistance,
+      y: game.player.y + Math.sin(game.player.dir) * muzzleDistance,
       vx: Math.cos(game.player.dir) * speed,
       vy: Math.sin(game.player.dir) * speed,
-      life: tool === "ironBow" ? 0.84 : tool === "bow" ? 0.9 : 0.58,
+      life: isBow ? (tool === "ironBow" ? 0.84 : 0.9) : profile.range / speed,
       damage,
     });
     return;
@@ -2867,18 +2935,17 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
       2400,
     );
   }
+  if (creature.boss) {
+    addMaterial(game, "guardianCore", 1);
+    game.projectiles = game.projectiles.filter((projectile) => projectile.kind !== "guardianOrb");
+    notify(game, "Cave guardian defeated · Guardian Core recovered · Assault Rifle recipe unlocked", 4500);
+    return;
+  }
   if (creature.kind === "brute") addMaterial(game, "iron", 1);
   if (creature.kind === "wraith") addMaterial(game, "sulfur", 1);
   if (creature.kind === "maw") {
     addMaterial(game, "iron", 2);
     addMaterial(game, "sulfur", 2);
-  }
-  if (creature.boss) {
-    addMaterial(game, "iron", 5);
-    addMaterial(game, "sulfur", 5);
-    addMaterial(game, "aetherium", 3);
-    game.projectiles = game.projectiles.filter((projectile) => projectile.kind !== "guardianOrb");
-    notify(game, "Cave guardian defeated · 7 iron · 7 sulfur · 3 Aetherium", 4500);
   }
 }
 
@@ -2958,6 +3025,12 @@ function primaryAction(game: GameState, repeated = false) {
   }
   if (game.mouseHeld && isBowTool(activeTool(game))) {
     if (game.heldAction?.kind !== "bow") beginBowCharge(game);
+    return;
+  }
+  if (isFirearm(activeTool(game))) {
+    if (game.mouseHeld) game.heldAction = { kind: "free" };
+    if (repeated && game.heldAction?.kind !== "free") return;
+    attack(game);
     return;
   }
   if (durableToolInfo(activeTool(game))?.family === "axe") {
@@ -4035,6 +4108,40 @@ function drawRock(ctx: CanvasRenderingContext2D, node: ResourceNode) {
       ctx.stroke();
     }
   }
+  if (node.kind === "aetherOre") {
+    const crystals = [
+      { x: -0.34, y: -0.42, width: 0.2, height: 0.58 },
+      { x: 0.02, y: -0.54, width: 0.24, height: 0.76 },
+      { x: 0.34, y: -0.35, width: 0.18, height: 0.52 },
+    ];
+    ctx.shadowColor = "rgba(104,235,246,.8)";
+    ctx.shadowBlur = radius * 0.22;
+    for (const crystal of crystals) {
+      const x = radius * crystal.x;
+      const baseY = radius * crystal.y;
+      const width = radius * crystal.width;
+      const height = radius * crystal.height;
+      ctx.beginPath();
+      ctx.moveTo(x, baseY - height * 0.58);
+      ctx.lineTo(x + width, baseY - height * 0.12);
+      ctx.lineTo(x + width * 0.62, baseY + height * 0.42);
+      ctx.lineTo(x - width * 0.62, baseY + height * 0.42);
+      ctx.lineTo(x - width, baseY - height * 0.12);
+      ctx.closePath();
+      ctx.fillStyle = "#42cfde";
+      ctx.strokeStyle = "#bafaff";
+      ctx.lineWidth = Math.max(2, radius * 0.035);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, baseY - height * 0.52);
+      ctx.lineTo(x, baseY + height * 0.34);
+      ctx.strokeStyle = "rgba(230,255,255,.75)";
+      ctx.lineWidth = Math.max(1.5, radius * 0.022);
+      ctx.stroke();
+    }
+    ctx.shadowColor = "transparent";
+  }
   ctx.restore();
 }
 
@@ -4112,7 +4219,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     : 0;
   const motion = swing > 0 ? Math.sin(progress * Math.PI) : 0;
   const angle = profile.style === "slash" ? -motion * 0.68 : 0;
-  const forwardMotion = tool === "spear" ? motion * 30 : tool === "pistol" ? -motion * 7 : 0;
+  const forwardMotion = tool === "spear" ? motion * 30 : isFirearm(tool) ? -motion * (tool === "rifle" ? 10 : 7) : 0;
   ctx.save();
   ctx.translate(19 + forwardMotion, 6);
   ctx.rotate(angle);
@@ -4229,6 +4336,50 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.stroke();
     ctx.fillStyle = "#2d3638";
     roundedRect(ctx, 9, -15, 6, 4, 1);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (tool === "rifle") {
+    ctx.fillStyle = "#3e4b4c";
+    ctx.strokeStyle = "#1d2728";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-6, -9);
+    ctx.lineTo(55, -9);
+    ctx.lineTo(67, -4);
+    ctx.lineTo(67, 4);
+    ctx.lineTo(30, 7);
+    ctx.lineTo(5, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#91a3a4";
+    roundedRect(ctx, 18, -6, 37, 7, 2);
+    ctx.fill();
+    ctx.fillStyle = "#283334";
+    roundedRect(ctx, 57, -5, 15, 5, 2);
+    ctx.fill();
+    ctx.fillStyle = "#6e513c";
+    ctx.beginPath();
+    ctx.moveTo(-9, -6);
+    ctx.lineTo(8, -5);
+    ctx.lineTo(12, 4);
+    ctx.lineTo(-11, 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#273132";
+    ctx.beginPath();
+    ctx.moveTo(27, 5);
+    ctx.lineTo(43, 4);
+    ctx.lineTo(40, 24);
+    ctx.lineTo(27, 21);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#68dbe6";
+    roundedRect(ctx, 31, -13, 15, 5, 2);
     ctx.fill();
     ctx.restore();
     return;
@@ -5379,6 +5530,54 @@ function drawMonsterCreature(ctx: CanvasRenderingContext2D, creature: Creature, 
     return;
   }
 
+  if (creature.kind === "aetherWarden") {
+    ctx.save();
+    ctx.shadowColor = "#61e8f1";
+    ctx.shadowBlur = 16;
+    for (let crystal = 0; crystal < 7; crystal++) {
+      const angle = (crystal / 7) * Math.PI * 2 + Math.sin(now / 700 + creature.phase) * 0.08;
+      const inner = 18;
+      const outer = 39 + (crystal % 2) * 8;
+      ctx.fillStyle = crystal % 2 ? "#4cc7d3" : "#83edf2";
+      ctx.strokeStyle = "#1c5962";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle - 0.18) * inner, Math.sin(angle - 0.18) * inner);
+      ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+      ctx.lineTo(Math.cos(angle + 0.18) * inner, Math.sin(angle + 0.18) * inner);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#235e68";
+    ctx.strokeStyle = "#102f35";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(-27, 0);
+    ctx.lineTo(-12, -25 - pulse);
+    ctx.lineTo(19, -22);
+    ctx.lineTo(32, 0);
+    ctx.lineTo(19, 22);
+    ctx.lineTo(-12, 25 + pulse);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#071517";
+    ctx.beginPath();
+    ctx.ellipse(12, 0, 11, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#e8ffff";
+    ctx.beginPath();
+    ctx.moveTo(12, -9);
+    ctx.lineTo(21, 0);
+    ctx.lineTo(12, 9);
+    ctx.lineTo(6, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
   if (creature.kind === "wraith") {
     for (const side of [-1, 1] as const) {
       for (let trail = 0; trail < 3; trail++) {
@@ -5521,6 +5720,8 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     ? 1.82
     : creature.kind === "brute"
       ? 1.28
+      : creature.kind === "aetherWarden"
+        ? 1.15
       : creature.kind === "bear"
         ? 1.2
         : creature.kind === "rabbit"
@@ -5607,6 +5808,11 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     ctx.font = "900 10px Arial";
     ctx.textAlign = "center";
     ctx.fillText("CAVE GUARDIAN", 0, -51);
+  } else if (creature.kind === "aetherWarden") {
+    ctx.fillStyle = "#bffcff";
+    ctx.font = "900 9px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("AETHER WARDEN", 0, -52);
   }
   if (isAnimal(creature.kind)) {
     if (baby) {
@@ -6548,6 +6754,11 @@ function drawDarkness(
   game.creatures.forEach((creature) => {
     if (
       creature.realm === game.realm &&
+      creature.kind === "aetherWarden" &&
+      creature.hp > 0
+    ) reveal(creature.x, creature.y, 118, 24);
+    if (
+      creature.realm === game.realm &&
       creature.boss &&
       creature.hp > 0 &&
       creature.rangedChargeUntil > now
@@ -6889,7 +7100,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "pistol",
     name: "Scrap Pistol",
-    detail: "640 range · 34 damage",
+    detail: "660 range · 54 damage · stronger per shot than a fully drawn Iron Bow",
     cost: { iron: 8, copper: 6, coal: 3, sulfur: 2 },
     requiresBench: true,
     owned: (game) => game.gear.pistol,
@@ -6900,9 +7111,24 @@ const CRAFT_RECIPES: Recipe[] = [
     },
   },
   {
+    id: "rifle",
+    name: "Assault Rifle",
+    detail: "Guardian tier · 760 range · 62 damage · rapid automatic fire",
+    cost: { guardianCore: 1, aetherium: 6, iron: 12, copper: 8 },
+    requiresBench: true,
+    prerequisite: (game) => game.gear.pistol,
+    prerequisiteLabel: "Need pistol",
+    owned: (game) => game.gear.rifle,
+    action: (game) => {
+      game.gear.rifle = true;
+      game.weapon = "rifle";
+      equipNewItem(game, "rifle");
+    },
+  },
+  {
     id: "bullets",
     name: "Bullet Bundle ×12",
-    detail: "Ammunition for pistols",
+    detail: "Ammunition for pistols and assault rifles",
     cost: { iron: 2, coal: 1, sulfur: 2 },
     requiresBench: true,
     action: (game) => {
@@ -7102,6 +7328,7 @@ function RecipeVisual({ recipe }: { recipe: Recipe }) {
   if (recipe.id === "sword") return <ToolGlyph type="sword" />;
   if (recipe.id === "bow" || recipe.id === "ironBow") return <ToolGlyph type="bow" tier={tier} />;
   if (recipe.id === "pistol") return <ToolGlyph type="pistol" />;
+  if (recipe.id === "rifle") return <ToolGlyph type="rifle" />;
   if (recipe.id === "arrows") return <MaterialIcon material="arrows" />;
   if (recipe.id === "bullets") return <MaterialIcon material="bullets" />;
   if (recipe.id.endsWith("Armor")) return <span className={"recipe-special recipe-armor armor-" + recipe.id.replace("Armor", "")} aria-hidden="true"><i /><b /></span>;
@@ -7116,7 +7343,7 @@ function ItemVisual({ item }: { item: InventoryItem; game: GameState }) {
   if (item === "ironBow") {
     return <ToolGlyph type="bow" tier="iron" />;
   }
-  if (["hammer", "spear", "sword", "bow", "pistol"].includes(item)) {
+  if (["hammer", "spear", "sword", "bow", "pistol", "rifle"].includes(item)) {
     return <ToolGlyph type={item as ToolGlyphKind} />;
   }
   if (isBuildKind(item)) {
@@ -7323,6 +7550,11 @@ export default function Game() {
       refresh();
       return;
     }
+    if (recipe.prerequisite && !recipe.prerequisite(game)) {
+      notify(game, recipe.name + " requires the Scrap Pistol first.");
+      refresh();
+      return;
+    }
     if (recipe.owned?.(game)) {
       notify(game, recipe.name + " already crafted.");
       refresh();
@@ -7459,6 +7691,8 @@ export default function Game() {
           ? "Iron Bow · " + game.resources.arrows + " arrows" + bowChargeLabel
       : game.selected === "pistol"
             ? "Scrap Pistol · " + game.resources.bullets + " bullets"
+      : game.selected === "rifle"
+        ? "Assault Rifle · " + game.resources.bullets + " bullets"
       : isDurableTool(game.selected)
         ? itemLabel(game.selected, game) + " · " + activeToolDurability(game, game.selected) + "/" +
           DURABLE_TOOL_DATA[game.selected].maxDurability + " durability · " + durableToolCount(game, game.selected) +
@@ -7763,11 +7997,12 @@ export default function Game() {
                     {CRAFT_RECIPES.map((recipe) => {
                       const owned = Boolean(recipe.owned?.(game));
                       const needsBench = Boolean(recipe.requiresBench && !nearCraftingBench(game));
+                      const missingPrerequisite = Boolean(recipe.prerequisite && !recipe.prerequisite(game));
                       return (
                         <article key={recipe.id}>
                           <div className="recipe-badge"><RecipeVisual recipe={recipe} /></div>
                           <div><h3>{recipe.name}</h3><p>{recipe.detail}</p><small>{costLabel(recipe.cost)}{recipe.requiresBench ? " · bench" : ""}</small></div>
-                          <button disabled={!canAfford(game, recipe.cost) || owned || needsBench} onClick={() => craft(recipe)}>{owned ? "Owned" : needsBench ? "Need bench" : "Craft"}</button>
+                          <button disabled={!canAfford(game, recipe.cost) || owned || needsBench || missingPrerequisite} onClick={() => craft(recipe)}>{owned ? "Owned" : needsBench ? "Need bench" : missingPrerequisite ? recipe.prerequisiteLabel ?? "Locked" : "Craft"}</button>
                         </article>
                       );
                     })}

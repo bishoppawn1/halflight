@@ -274,6 +274,7 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .mark-coal { background: #313b3b; }
 .mark-sulfur { color: #303225; background: #dccd49; }
 .mark-aetherium { color: #16333b; background: #69dbe7; box-shadow: 0 0 8px rgba(105,219,231,.55); }
+.mark-guardianCore { color: #dffeff; background: #265d68; box-shadow: 0 0 9px rgba(105,230,239,.62); }
 .mark-fiber { background: #69a754; }
 .mark-food { background: #d85d53; }
 .mark-berries { background: #c94f58; }
@@ -328,7 +329,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-copper i,
 .material-coal i,
 .material-sulfur i,
-.material-aetherium i {
+.material-aetherium i,
+.material-guardianCore i {
   inset: 3px 2px 2px 3px;
   border: 2px solid rgba(34,48,43,.7);
   background: rgba(255,255,255,.26);
@@ -340,7 +342,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-copper b,
 .material-coal b,
 .material-sulfur b,
-.material-aetherium b {
+.material-aetherium b,
+.material-guardianCore b {
   left: 6px;
   top: 7px;
   width: 4px;
@@ -360,6 +363,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-sulfur b { background: #fff8b0; box-shadow: 6px 5px 0 #8e8329; }
 .material-aetherium i { border-color: #276b73; background: #9df5fa; filter: drop-shadow(0 0 3px #bffcff); }
 .material-aetherium b { background: #fff; box-shadow: 6px 5px 0 #3fbac7; }
+.material-guardianCore i { inset: 1px; border-color: #173f48; background: linear-gradient(135deg, #dffeff, #4fd2df 48%, #225965); filter: drop-shadow(0 0 4px #83edf2); clip-path: polygon(50% 0, 88% 23%, 100% 67%, 63% 100%, 20% 88%, 0 43%); }
+.material-guardianCore b { left: 7px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 7px #dffeff; }
 
 .material-fiber i {
   left: 8px;
@@ -902,6 +907,10 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .tool-pistol i { left: 4px; top: 6px; width: 33px; height: 13px; border: 3px solid #2d3838; border-radius: 3px 7px 4px 3px; background: linear-gradient(#91a0a3 0 42%, #657477 43% 100%); transform: none; }
 .tool-pistol i:after { content: ""; position: absolute; right: 4px; top: 3px; width: 8px; height: 4px; border-radius: 1px; background: #30393b; }
 .tool-pistol b { left: 10px; top: 17px; width: 14px; height: 17px; border: 3px solid #3f322a; border-radius: 2px 3px 5px 4px; background: #795238; clip-path: polygon(5% 0, 100% 0, 78% 100%, 22% 100%); transform: skew(-8deg); }
+.tool-rifle i { left: 1px; top: 7px; width: 36px; height: 12px; border: 3px solid #1e292a; border-radius: 3px; background: linear-gradient(#a5b4b4 0 37%, #4f6061 38% 100%); transform: none; }
+.tool-rifle i:before { content: ""; position: absolute; left: -9px; top: 2px; width: 12px; height: 10px; border: 2px solid #3f322a; border-radius: 4px 1px 1px 4px; background: #76543c; transform: skew(-13deg); }
+.tool-rifle i:after { content: ""; position: absolute; right: -9px; top: 3px; width: 12px; height: 4px; border-radius: 0 3px 3px 0; background: #273334; }
+.tool-rifle b { left: 20px; top: 18px; width: 11px; height: 16px; border: 2px solid #1f292a; border-radius: 2px 2px 5px 4px; background: #364344; clip-path: polygon(0 0, 100% 0, 82% 100%, 16% 88%); transform: rotate(4deg); }
 .tool-build i { left: 16px; top: 8px; height: 28px; transform: rotate(40deg); }
 .tool-build b { left: 7px; top: 3px; width: 26px; height: 13px; border: 2px solid #3b413f; border-radius: 4px; background: #d1a04d; transform: rotate(10deg); }
 .tool-pack i { left: 5px; top: 10px; width: 28px; height: 23px; border: 3px solid #3c302b; border-radius: 8px; background: #a66b42; transform: none; }
