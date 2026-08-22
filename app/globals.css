@@ -38,7 +38,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 
 .hallucinating .world-canvas {
   transform-origin: center;
-  animation: hallucination-world 1.8s ease-in-out infinite alternate;
+  will-change: filter, transform;
+  animation: hallucination-world 1.05s ease-in-out infinite;
 }
 
 .hallucination-overlay {
@@ -46,12 +47,13 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   z-index: 3;
   inset: -12%;
   pointer-events: none;
-  opacity: .42;
+  opacity: .58;
   mix-blend-mode: screen;
   background:
+    repeating-linear-gradient(104deg, transparent 0 46px, rgba(255,103,210,.1) 52px 55px, transparent 61px 92px),
     repeating-radial-gradient(circle at 38% 43%, transparent 0 36px, rgba(103,243,201,.26) 41px 46px, transparent 51px 76px),
     conic-gradient(from 45deg at 62% 58%, rgba(245,91,176,.23), transparent 18%, rgba(78,216,240,.2) 36%, transparent 57%, rgba(238,214,76,.19) 74%, transparent);
-  animation: hallucination-drift 3.2s linear infinite;
+  animation: hallucination-drift 2.4s linear infinite, hallucination-throb .7s steps(2, end) infinite alternate;
 }
 
 .hallucination-overlay::before,
@@ -93,12 +95,20 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .hallucination-status span { color: #d8f8e7; font-size: 8px; font-weight: 800; line-height: 1.35; }
 
 @keyframes hallucination-world {
-  from { filter: hue-rotate(-18deg) saturate(1.12); transform: scale(1.006) translate(-2px, 1px); }
-  to { filter: hue-rotate(24deg) saturate(1.5) contrast(1.06); transform: scale(1.016) translate(3px, -2px); }
+  0% { filter: hue-rotate(-52deg) saturate(1.65) contrast(1.08); transform: scale(1.028) rotate(-.35deg) skewX(-.45deg) translate(-4px, 2px); }
+  25% { filter: hue-rotate(22deg) saturate(2) contrast(1.14); transform: scale(1.042) rotate(.25deg) skewX(.65deg) translate(5px, -3px); }
+  50% { filter: hue-rotate(76deg) saturate(1.72) contrast(1.1); transform: scale(1.034) rotate(.5deg) skewX(-.32deg) translate(1px, 4px); }
+  75% { filter: hue-rotate(8deg) saturate(2.1) contrast(1.17); transform: scale(1.045) rotate(-.22deg) skewX(.72deg) translate(-5px, -1px); }
+  100% { filter: hue-rotate(-52deg) saturate(1.65) contrast(1.08); transform: scale(1.028) rotate(-.35deg) skewX(-.45deg) translate(-4px, 2px); }
 }
 
 @keyframes hallucination-drift {
   to { transform: rotate(360deg) scale(1.08); }
+}
+
+@keyframes hallucination-throb {
+  from { opacity: .42; filter: blur(0); }
+  to { opacity: .72; filter: blur(1.4px); }
 }
 
 @keyframes hallucination-ring {

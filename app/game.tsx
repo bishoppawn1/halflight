@@ -340,6 +340,9 @@ const RAW_MEAT_SICKNESS_CHANCE = 0.2;
 const RAW_MUSHROOM_HALLUCINATION_CHANCE = 0.12;
 const HALLUCINATION_DURATION_MS = 15_000;
 const CREATURE_DROP_COLLECTION_DELAY_MS = 650;
+const HALLUCINATION_PHANTOM_COUNT = 6;
+const HALLUCINATION_FLICKER_PERIOD_MS = 2_600;
+let hallucinationFrameBuffer: HTMLCanvasElement | null = null;
 const CREATURE_ATTACK_COOLDOWN_MS = 1250;
 const CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS = 1200;
 const BRUTE_LEAP_COOLDOWN_MS = 4200;
@@ -7598,6 +7601,160 @@ function drawDarkness(
   ctx.drawImage(lightingLayer, 0, 0, width, height);
 }
 
+function hallucinationObjectAlpha(game: GameState, now: number, key: number) {
+  if (game.hallucinatingUntil <= now) return 1;
+  const offset = seeded(key, 811) * HALLUCINATION_FLICKER_PERIOD_MS;
+  const phase = (now + offset) % HALLUCINATION_FLICKER_PERIOD_MS;
+  if (phase < 820 || phase >= 1_940) return 1;
+  if (phase < 1_040) return 1 - (phase - 820) / 220;
+  if (phase < 1_700) return 0;
+  return (phase - 1_700) / 240;
+}
+
+function drawHallucinatingObject(
+  ctx: CanvasRenderingContext2D,
+  game: GameState,
+  now: number,
+  key: number,
+  draw: () => void,
+) {
+  const alpha = hallucinationObjectAlpha(game, now, key);
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  if (alpha < 0.8) {
+    ctx.translate(Math.sin(now / 42 + key) * 3.5, Math.cos(now / 55 + key) * 2);
+    ctx.filter = "hue-rotate(95deg) saturate(1.8)";
+  }
+  draw();
+  ctx.restore();
+}
+
+function hallucinationPhantoms(game: GameState, now: number) {
+  if (game.hallucinatingUntil <= now) return [];
+  const kinds: Exclude<MonsterKind, "aetherWarden">[] = ["shade", "crawler", "brute", "stalker", "wraith", "maw"];
+  const phantoms: { creature: Creature; alpha: number }[] = [];
+  const cycleDuration = 1_900;
+
+  for (let index = 0; index < HALLUCINATION_PHANTOM_COUNT; index++) {
+    const shiftedNow = now + index * 347;
+    const cycle = Math.floor(shiftedNow / cycleDuration);
+    const localTime = shiftedNow % cycleDuration;
+    if (localTime < 120 || localTime > 1_560) continue;
+    const progress = (localTime - 120) / 1_440;
+    const fadeIn = Math.min(1, progress / 0.14);
+    const fadeOut = Math.min(1, (1 - progress) / 0.2);
+    const alpha = Math.max(0, Math.min(fadeIn, fadeOut)) * 0.94;
+    const seed = cycle * HALLUCINATION_PHANTOM_COUNT + index;
+    const kind = kinds[Math.floor(seeded(seed, 823) * kinds.length)];
+    const stats = MONSTER_DATA[kind];
+    const angle = seeded(seed, 824) * Math.PI * 2;
+    const startingRadius = 190 + seeded(seed, 825) * 340;
+    const radius = startingRadius - progress * (90 + seeded(seed, 826) * 90);
+    const sideways = Math.sin(progress * Math.PI * 3 + seeded(seed, 827) * Math.PI * 2) * 34;
+    const x = Math.max(35, Math.min(WORLD_W - 35, game.player.x + Math.cos(angle) * radius - Math.sin(angle) * sideways));
+    const y = Math.max(35, Math.min(WORLD_H - 35, game.player.y + Math.sin(angle) * radius + Math.cos(angle) * sideways));
+    phantoms.push({
+      alpha,
+      creature: {
+        id: -(seed + 1),
+        kind,
+        realm: game.realm,
+        x,
+        y,
+        hp: stats.hp,
+        maxHp: stats.hp,
+        speed: stats.speed,
+        damage: 0,
+        fed: 0,
+        maturesAt: 0,
+        breedReadyAt: 0,
+        angry: true,
+        hitAt: 0,
+        attackAt: 0,
+        phase: seeded(seed, 828) * Math.PI * 2,
+        slowUntil: 0,
+        rewarded: true,
+        dir: Math.atan2(game.player.y - y, game.player.x - x),
+        structureHitAt: 0,
+        rangedAt: 0,
+        rangedChargeUntil: 0,
+        rangedAim: 0,
+        boss: false,
+        homeX: x,
+        homeY: y,
+        provokedUntil: 0,
+        waryOfPlayer: false,
+        respawnAt: 0,
+        fleeing: false,
+        abilityReadyAt: 0,
+        abilityStartedAt: 0,
+        abilityTargetX: game.player.x,
+        abilityTargetY: game.player.y,
+      },
+    });
+  }
+  return phantoms;
+}
+
+function drawHallucinationPhantom(
+  ctx: CanvasRenderingContext2D,
+  phantom: { creature: Creature; alpha: number },
+  now: number,
+  opacity = 1,
+) {
+  const jitterX = Math.sin(now / 38 + phantom.creature.phase) * 6;
+  const jitterY = Math.cos(now / 47 + phantom.creature.phase) * 4;
+  ctx.save();
+  ctx.globalAlpha = phantom.alpha * opacity * 0.28;
+  ctx.translate(jitterX + 5, jitterY - 2);
+  ctx.filter = "hue-rotate(145deg) saturate(2.1)";
+  drawCreature(ctx, phantom.creature, now);
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = phantom.alpha * opacity;
+  ctx.translate(jitterX, jitterY);
+  drawCreature(ctx, phantom.creature, now);
+  ctx.restore();
+}
+
+function applyHallucinationWave(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  now: number,
+) {
+  if (!hallucinationFrameBuffer) hallucinationFrameBuffer = document.createElement("canvas");
+  if (hallucinationFrameBuffer.width !== canvas.width || hallucinationFrameBuffer.height !== canvas.height) {
+    hallucinationFrameBuffer.width = canvas.width;
+    hallucinationFrameBuffer.height = canvas.height;
+  }
+  const bufferContext = hallucinationFrameBuffer.getContext("2d");
+  if (!bufferContext) return;
+  bufferContext.setTransform(1, 0, 0, 1, 0, 0);
+  bufferContext.clearRect(0, 0, canvas.width, canvas.height);
+  bufferContext.drawImage(canvas, 0, 0);
+
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const sliceHeight = Math.max(10, Math.round(14 * dpr));
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let y = 0; y < canvas.height; y += sliceHeight) {
+    const height = Math.min(sliceHeight, canvas.height - y);
+    const cssY = y / dpr;
+    const shift = Math.round(
+      (Math.sin(cssY / 43 + now / 225) * 8 + Math.sin(cssY / 91 - now / 360) * 5) * dpr,
+    );
+    ctx.drawImage(hallucinationFrameBuffer, 0, y, canvas.width, height, shift, y, canvas.width, height);
+    if (shift > 0) {
+      ctx.drawImage(hallucinationFrameBuffer, canvas.width - shift, y, shift, height, 0, y, shift, height);
+    } else if (shift < 0) {
+      ctx.drawImage(hallucinationFrameBuffer, 0, y, -shift, height, canvas.width + shift, y, -shift, height);
+    }
+  }
+  ctx.restore();
+}
+
 function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, game: GameState) {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
@@ -7667,40 +7824,69 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   const viewTop = game.camera.y - height / (2 * scale) - 140;
   const viewBottom = game.camera.y + height / (2 * scale) + 140;
   const onScreen = (x: number, y: number) => x >= viewLeft && x <= viewRight && y >= viewTop && y <= viewBottom;
+  const phantoms = hallucinationPhantoms(game, now);
   const visibleBuildings = game.buildings.filter((building) => {
     const center = buildingWorldCenter(building);
     return building.realm === game.realm && onScreen(center.x, center.y);
   });
-  visibleBuildings.filter((building) => building.kind === "floor").forEach((building) => drawBuilding(ctx, building, 1, now));
+  visibleBuildings.filter((building) => building.kind === "floor").forEach((building) =>
+    drawHallucinatingObject(ctx, game, now, 300_000 + building.id, () => drawBuilding(ctx, building, 1, now)),
+  );
 
   const drawables: { y: number; draw: () => void }[] = [];
   game.nodes.forEach((node) => {
     if (node.realm !== game.realm || node.hp <= 0 || !onScreen(node.x, node.y)) return;
     drawables.push({
       y: node.y,
-      draw: () => {
+      draw: () => drawHallucinatingObject(ctx, game, now, node.id, () => {
         if (isTree(node.kind)) drawTree(ctx, node);
         else if (node.kind === "berryBush" || node.kind === "grass" || node.kind === "mushroom") drawBush(ctx, node);
         else drawRock(ctx, node);
         drawResourceHealth(ctx, node);
-      },
+      }),
     });
   });
   game.drops.forEach((drop) => {
     if (drop.realm !== game.realm || !onScreen(drop.x, drop.y)) return;
-    drawables.push({ y: drop.y + 18, draw: () => drawGroundDrop(ctx, drop, now) });
+    drawables.push({
+      y: drop.y + 18,
+      draw: () => drawHallucinatingObject(ctx, game, now, 100_000 + drop.id, () => drawGroundDrop(ctx, drop, now)),
+    });
   });
   game.treasures.forEach((treasure) => {
     if (treasure.realm === game.realm && onScreen(treasure.x, treasure.y)) {
-      drawables.push({ y: treasure.y, draw: () => drawTreasure(ctx, treasure, now) });
+      drawables.push({
+        y: treasure.y,
+        draw: () => drawHallucinatingObject(ctx, game, now, 200_000 + treasure.id, () => drawTreasure(ctx, treasure, now)),
+      });
     }
   });
   visibleBuildings
     .filter((building) => building.kind !== "floor" && building.kind !== "roof")
-    .forEach((building) => drawables.push({ y: buildingWorldCenter(building).y, draw: () => drawBuilding(ctx, building, 1, now) }));
+    .forEach((building) => drawables.push({
+      y: buildingWorldCenter(building).y,
+      draw: () => drawHallucinatingObject(
+        ctx,
+        game,
+        now,
+        300_000 + building.id,
+        () => drawBuilding(ctx, building, 1, now),
+      ),
+    }));
   game.creatures.forEach((creature) => {
     if (creature.realm === game.realm && creature.hp > 0 && onScreen(creature.x, creature.y)) {
-      drawables.push({ y: creature.y, draw: () => drawCreature(ctx, creature, now) });
+      drawables.push({
+        y: creature.y,
+        draw: () => drawHallucinatingObject(ctx, game, now, 400_000 + creature.id, () => drawCreature(ctx, creature, now)),
+      });
+    }
+  });
+  phantoms.forEach((phantom) => {
+    if (onScreen(phantom.creature.x, phantom.creature.y)) {
+      drawables.push({
+        y: phantom.creature.y,
+        draw: () => drawHallucinationPhantom(ctx, phantom, now),
+      });
     }
   });
   game.projectiles.forEach((projectile) => {
@@ -7713,7 +7899,9 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   if (game.attackFlash?.realm === game.realm) {
     drawAttackFlash(ctx, game.attackFlash, now);
   }
-  visibleBuildings.filter((building) => building.kind === "roof").forEach((building) => drawBuilding(ctx, building, 0.78, now));
+  visibleBuildings.filter((building) => building.kind === "roof").forEach((building) =>
+    drawHallucinatingObject(ctx, game, now, 300_000 + building.id, () => drawBuilding(ctx, building, 0.78, now)),
+  );
 
   if (game.buildMode) {
     const cell = previewCell(game);
@@ -7754,6 +7942,11 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
     drawMonsterEyeGlints(ctx, game, now, onScreen);
+    phantoms.forEach((phantom) => {
+      if (onScreen(phantom.creature.x, phantom.creature.y)) {
+        drawHallucinationPhantom(ctx, phantom, now, 0.58);
+      }
+    });
     ctx.restore();
   } else if (game.clock > 0.4) {
     ctx.fillStyle = "rgba(210,126,68," + ((game.clock - 0.4) * 0.9) + ")";
@@ -7762,6 +7955,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   ctx.strokeStyle = "rgba(255,255,255,.07)";
   ctx.lineWidth = 1;
   ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+  if (game.hallucinatingUntil > now) applyHallucinationWave(ctx, canvas, now);
 }
 
 function nearbyPrompt(game: GameState) {
@@ -8722,7 +8916,7 @@ export default function Game() {
           <div className="hallucination-overlay" aria-hidden="true" />
           <div className="hallucination-status" role="status">
             <strong>HALLUCINATING</strong>
-            <span>The raw mushrooms warped your senses. This will pass.</span>
+            <span>Reality is unreliable. Shapes may vanish, and enemies may not be real.</span>
           </div>
         </>
       )}
