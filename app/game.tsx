@@ -1445,7 +1445,7 @@ function spawnMonstersInRealm(game: GameState, realm: Realm, count: number) {
       hp,
       maxHp: hp,
       speed: stats.speed + game.day * 2,
-      damage: stats.damage + game.day * 1.4,
+      damage: stats.damage,
       fed: 0,
       maturesAt: 0,
       breedReadyAt: 0,

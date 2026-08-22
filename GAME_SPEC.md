@@ -580,8 +580,9 @@ waves use only shades, crawlers, and brutes. Cave-system populations use only
 wraiths and maws; surface horrors never spawn underground and cave horrors
 never spawn outside. The game checks throughout the night whether the current
 day's reinforcements have spawned, so a missed transition frame cannot suppress
-them. Each day advances after dawn, and each newly spawned monster gains 2 speed
-and 1.4 contact damage per day.
+them. Each day advances after dawn. Newly spawned monsters gain the listed
+health increase and 2 speed per day, but their ordinary contact damage never
+scales and remains fixed at the table value on every day.
 
 Each monster's position is sampled independently from valid points across its
 realm, at least 360 units from the player's corresponding world coordinates.
@@ -594,7 +595,7 @@ rejected. A 30-unit safety margin keeps the monster's body fully outside the
 visible light pool. Darkness behind a light blocker is not protected. Destroyed
 lights and unfinished blueprints provide no spawn protection.
 
-| Monster | Realm | Earliest night | Base health | Health per day | Base speed | Base damage | Attack reach | Sense radius |
+| Monster | Realm | Earliest night | Base health | Health per day | Base speed | Fixed contact damage | Attack reach | Sense radius |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Shade | Meadow | 1 | 28 | 8 | 84 | 7 | 76 | 320 |
 | Crawler | Meadow | 2 | 23 | 6 | 116 | 6 | 142 | 390 |
