@@ -623,6 +623,39 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .pause-button.paused > span { color: var(--cream); background: #25372f; }
 .pause-button.paused kbd { color: #26372f; }
 
+.custom-day-control {
+  display: grid;
+  grid-template-columns: 1fr 44px 35px;
+  align-items: center;
+  gap: 5px;
+  width: 180px;
+  padding: 7px;
+  color: var(--cream);
+  border: 1px solid rgba(106,220,225,.34);
+  border-radius: 11px;
+  background: rgba(18,42,39,.94);
+  box-shadow: 0 5px 0 rgba(10,22,18,.31), 0 0 20px rgba(84,207,213,.12);
+}
+
+.custom-day-control div { min-width: 0; }
+.custom-day-control small { display: block; color: #72dce0; font-size: 6px; font-weight: 950; letter-spacing: .12em; }
+.custom-day-control b { display: block; margin-top: 2px; font-size: 9px; }
+.custom-day-control input {
+  width: 44px;
+  padding: 7px 4px;
+  color: #efffff;
+  border: 1px solid rgba(112,220,223,.34);
+  border-radius: 7px;
+  outline: 0;
+  background: #193630;
+  font-size: 9px;
+  font-weight: 900;
+  text-align: center;
+}
+.custom-day-control input:focus { border-color: #a8f5f2; box-shadow: 0 0 0 2px rgba(110,224,225,.18); }
+.custom-day-control button { height: 29px; padding: 0; color: #173b38; border: 0; border-radius: 7px; background: #72dce0; font-size: 8px; font-weight: 950; cursor: pointer; }
+.custom-day-control button:hover { background: #a4efee; }
+
 .pause-scrim {
   position: absolute;
   z-index: 25;
@@ -1646,9 +1679,18 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .start-card > small { color: var(--sun); font-size: 8px; font-weight: 900; letter-spacing: .21em; }
 .start-card h1 { margin: 6px 0 8px; color: var(--cream); font-size: 40px; line-height: 1; letter-spacing: .09em; }
 .start-card p { max-width: 330px; margin: 0 auto 20px; color: #a8bbb2; font-size: 11px; line-height: 1.55; }
-.start-card > button { width: 100%; padding: 13px 17px; color: #26372f; border: 0; border-radius: 11px; background: var(--sun); box-shadow: 0 5px 0 #956827; font-size: 11px; font-weight: 950; cursor: pointer; }
-.start-card > button:hover { background: #f7c759; transform: translateY(-1px); }
-.start-card > button span { float: right; font-size: 15px; }
+.mode-actions { display: grid; gap: 10px; }
+.mode-actions button,
+.death-card > button { position: relative; width: 100%; padding: 11px 40px 11px 14px; color: #26372f; border: 0; border-radius: 11px; background: var(--sun); box-shadow: 0 5px 0 #956827; font-size: 11px; font-weight: 950; text-align: left; cursor: pointer; }
+.mode-actions button:hover,
+.death-card > button:hover { background: #f7c759; transform: translateY(-1px); }
+.mode-actions button b { display: block; font-size: 11px; font-weight: 950; }
+.mode-actions button small { display: block; margin-top: 2px; color: #5d5132; font-size: 8px; font-weight: 800; }
+.mode-actions button span,
+.death-card > button span { position: absolute; right: 16px; top: 50%; font-size: 15px; transform: translateY(-50%); }
+.mode-actions .custom-mode-button { color: #dfffff; border: 1px solid rgba(119,226,228,.32); background: #285957; box-shadow: 0 5px 0 #173b39; }
+.mode-actions .custom-mode-button:hover { background: #34716e; }
+.mode-actions .custom-mode-button small { color: #a8d8d5; }
 .start-card > div:last-child { display: flex; justify-content: center; gap: 16px; margin-top: 20px; color: #89a095; font-size: 8px; }
 .start-card > div:last-child kbd { color: #efc368; font-weight: 900; }
 .death-card h1 { letter-spacing: -.03em; }

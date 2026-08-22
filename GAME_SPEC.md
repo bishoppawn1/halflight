@@ -41,6 +41,30 @@ complete run.
 | Placed structures | One completed campfire beside the spawn point |
 | Armor | None |
 
+### Run modes
+
+**Survival** is the main, balanced mode and uses every material, station,
+research, prerequisite, and ready-piece rule in this specification.
+
+**Custom Mode** uses the same generated world, survival simulation, enemies,
+combat, placement rules, and construction times, but adds testing and creative
+freedoms that never affect Survival:
+
+- The player can set the current day to any whole number from 1 through 999.
+  Changing the day during daylight makes that selected day's wave arrive at
+  night. Changing it at night replaces the current Meadow wave with the
+  selected day's wave. Persistent cave creatures remain in place.
+- Every recipe in the Crafting menu costs nothing and can be made anywhere.
+  Crafting Bench, Chemical Lab, Laboratory research, and prior-item
+  prerequisites are ignored. Normal one-time ownership rules for permanent
+  items still apply.
+- Every building piece is infinitely available directly from the Ready Pieces
+  menu. Placement range, blocked cells, the grid, blueprints, and construction
+  time remain unchanged.
+
+The title screen offers separate **Begin survival** and **Custom mode**
+buttons. Starting Custom Mode does not alter the default Survival rules.
+
 The player is a plain, top-down painted circle. The equipped item appears beside
 the circle. Equipping copper, iron, blacksteel, or symbiote armor adds a small
 cartoony helmet whose color and construction match that tier; symbiote armor is

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type CaveRealm = "caveSystem";
 type CaveZone = "stone" | "iron" | "sulfur";
 type Realm = "meadow" | CaveRealm;
+type GameMode = "survival" | "custom";
 type ResourceSize = "small" | "medium" | "huge";
 type ResourceKind =
   | "oak"
@@ -252,6 +253,7 @@ interface Player {
 }
 
 interface GameState {
+  mode: GameMode;
   started: boolean;
   dead: boolean;
   paused: boolean;
@@ -337,6 +339,7 @@ const WORLD_W = 7200;
 const WORLD_H = 5200;
 const GRID = 48;
 const DAY_SECONDS = 480;
+const MAX_CUSTOM_DAY = 999;
 const PLAYER_BASE_SPEED = 190;
 const HELD_ITEM_SPEED_FACTOR = 0.82;
 const BOW_DRAW_SPEED_FACTOR = 0.35;
@@ -1562,6 +1565,7 @@ function makeGame(): GameState {
     restedDay: 0,
   };
   return {
+    mode: "survival",
     started: false,
     dead: false,
     paused: false,
@@ -2681,16 +2685,17 @@ function validPlacement(game: GameState, kind: BuildKind, gx: number, gy: number
 function placeBuild(game: GameState, quiet = false, keepPlacing = false) {
   const kind = game.buildMode;
   if (!kind) return false;
+  const infiniteBuildPieces = game.mode === "custom";
   const cell = previewCell(game);
   if (!validPlacement(game, kind, cell.gx, cell.gy)) {
     if (!quiet) notify(game, "That grid space is blocked or too far away.");
     return false;
   }
-  if (game.kits[kind] <= 0) {
+  if (!infiniteBuildPieces && game.kits[kind] <= 0) {
     if (!quiet) notify(game, "Craft another " + BUILD_DATA[kind].name + " first.");
     return false;
   }
-  game.kits[kind] -= 1;
+  if (!infiniteBuildPieces) game.kits[kind] -= 1;
   const instantPlacement = kind === "torch";
   const building: Building = {
     id: game.lastId++,
@@ -2718,7 +2723,7 @@ function placeBuild(game: GameState, quiet = false, keepPlacing = false) {
         : BUILD_DATA[kind].name + " blueprint placed. Press B to auto-build nearby.",
     );
   }
-  if (!keepPlacing || game.kits[kind] <= 0) cancelBuildMode(game);
+  if (!keepPlacing || (!infiniteBuildPieces && game.kits[kind] <= 0)) cancelBuildMode(game);
   return true;
 }
 
@@ -8341,7 +8346,8 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
 
   if (game.buildMode) {
     const cell = previewCell(game);
-    const valid = validPlacement(game, game.buildMode, cell.gx, cell.gy) && game.kits[game.buildMode] > 0;
+    const valid = validPlacement(game, game.buildMode, cell.gx, cell.gy) &&
+      (game.mode === "custom" || game.kits[game.buildMode] > 0);
     const previewCenter = buildingCenter(game.buildMode, cell.gx, cell.gy);
     const previewHalfSize = buildingHalfSize(game.buildMode);
     ctx.fillStyle = valid ? "rgba(87,210,113,.24)" : "rgba(230,83,73,.26)";
@@ -8954,6 +8960,7 @@ export default function Game() {
   const [started, setStarted] = useState(false);
   const [revision, setRevision] = useState(0);
   const [moveSource, setMoveSource] = useState<SlotAddress | null>(null);
+  const [customDayInput, setCustomDayInput] = useState("");
   const game = gameRef.current;
   const openChest = game.buildings.find(
     (building) => building.id === game.openChestId && building.kind === "storageChest",
@@ -9121,14 +9128,21 @@ export default function Game() {
     };
   }, [game, refresh, togglePause]);
 
-  const start = () => {
+  const start = (mode: GameMode) => {
+    game.mode = mode;
     game.started = true;
     game.dead = false;
     game.paused = false;
     game.pausedAt = 0;
     setStarted(true);
     canvasRef.current?.focus();
-    notify(game, "Day 1 — your Wood Axe is ready in hotbar slot 2.", 3200);
+    notify(
+      game,
+      mode === "custom"
+        ? "CUSTOM MODE — crafting is free, every building is available, and you control the day."
+        : "Day 1 — your Wood Axe is ready in hotbar slot 2.",
+      4200,
+    );
     refresh();
   };
 
@@ -9157,22 +9171,23 @@ export default function Game() {
   };
 
   const craft = (recipe: Recipe) => {
-    if (recipe.requiresResearch && !game.research[recipe.requiresResearch]) {
+    const unrestricted = game.mode === "custom";
+    if (!unrestricted && recipe.requiresResearch && !game.research[recipe.requiresResearch]) {
       notify(game, "Research " + RESEARCH_DATA[recipe.requiresResearch].name + " at a Laboratory first.");
       refresh();
       return;
     }
-    if (recipe.requiresBench && !nearCraftingBench(game)) {
+    if (!unrestricted && recipe.requiresBench && !nearCraftingBench(game)) {
       notify(game, "Stand near a placed Crafting Bench to make " + recipe.name + ".");
       refresh();
       return;
     }
-    if (recipe.requiresLab && !nearChemicalLab(game)) {
+    if (!unrestricted && recipe.requiresLab && !nearChemicalLab(game)) {
       notify(game, "Stand near a completed Chemical Lab to make " + recipe.name + ".");
       refresh();
       return;
     }
-    if (recipe.prerequisite && !recipe.prerequisite(game)) {
+    if (!unrestricted && recipe.prerequisite && !recipe.prerequisite(game)) {
       notify(game, recipe.name + " is locked · " + (recipe.prerequisiteLabel ?? "another item is required") + ".");
       refresh();
       return;
@@ -9182,19 +9197,19 @@ export default function Game() {
       refresh();
       return;
     }
-    if (!canAfford(game, recipe.cost)) {
+    if (!unrestricted && !canAfford(game, recipe.cost)) {
       notify(game, "Not enough materials for " + recipe.name + ".");
       refresh();
       return;
     }
-    pay(game, recipe.cost);
+    if (!unrestricted) pay(game, recipe.cost);
     recipe.action(game);
-    notify(game, "Crafted " + recipe.name + ".");
+    notify(game, "Crafted " + recipe.name + (unrestricted ? " for free." : "."));
     refresh();
   };
 
   const chooseBuild = (kind: BuildKind) => {
-    if (game.kits[kind] <= 0) {
+    if (game.mode !== "custom" && game.kits[kind] <= 0) {
       notify(game, "Craft " + BUILD_DATA[kind].name + " in the Craft menu first.");
       refresh();
       return;
@@ -9206,6 +9221,29 @@ export default function Game() {
     game.selected = "build";
     setPanel(null);
     notify(game, BUILD_DATA[kind].name + " selected — click once, or hold Shift while placing several. Right-click cancels.");
+    refresh();
+    canvasRef.current?.focus();
+  };
+
+  const setCustomDay = () => {
+    if (game.mode !== "custom") return;
+    const requestedDay = Number(customDayInput);
+    if (!Number.isInteger(requestedDay) || requestedDay < 1 || requestedDay > MAX_CUSTOM_DAY) {
+      notify(game, "Choose a whole-number day from 1 to " + MAX_CUSTOM_DAY + ".");
+      refresh();
+      return;
+    }
+    game.day = requestedDay;
+    game.wave = requestedDay - 1;
+    game.creatures = game.creatures.filter(
+      (creature) => !isMonster(creature.kind) || creature.realm === "caveSystem" || creature.boss,
+    );
+    setCustomDayInput("");
+    if (isNight(game)) {
+      spawnNightWave(game);
+    } else {
+      notify(game, "CUSTOM MODE — set to Day " + requestedDay + ". Night " + requestedDay + " will use that day's wave.", 3600);
+    }
     refresh();
     canvasRef.current?.focus();
   };
@@ -9503,6 +9541,26 @@ export default function Game() {
           <span>{Math.round(game.zoom * 100)}%</span>
           <button onClick={() => zoom(-0.12)} aria-label="Zoom out">−</button>
         </section>
+        {started && !game.dead && game.mode === "custom" && (
+          <section className="custom-day-control" aria-label="Custom mode day control">
+            <div><small>CUSTOM MODE</small><b>Set day</b></div>
+            <input
+              type="number"
+              min="1"
+              max={MAX_CUSTOM_DAY}
+              inputMode="numeric"
+              value={customDayInput}
+              placeholder={String(game.day)}
+              onChange={(event) => setCustomDayInput(event.target.value)}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Enter") setCustomDay();
+              }}
+              aria-label={"Day number, 1 to " + MAX_CUSTOM_DAY}
+            />
+            <button type="button" onClick={setCustomDay}>Set</button>
+          </section>
+        )}
         {started && !game.dead && (
           <button
             className="feed-button"
@@ -9550,7 +9608,7 @@ export default function Game() {
 
       {messageVisible && <div className="game-toast">{game.message}</div>}
       {prompt && <div className="interact-prompt"><kbd>{promptKey}</kbd><span>{promptText}</span></div>}
-      {game.buildMode && <div className="build-mode-banner"><b>GRID BUILD</b><span>{BUILD_DATA[game.buildMode].name} · {game.kits[game.buildMode]} ready</span><button onClick={() => { cancelBuildMode(game); refresh(); }}>Cancel <kbd>RMB / Esc</kbd></button></div>}
+      {game.buildMode && <div className="build-mode-banner"><b>GRID BUILD</b><span>{BUILD_DATA[game.buildMode].name} · {game.mode === "custom" ? "∞ ready" : game.kits[game.buildMode] + " ready"}</span><button onClick={() => { cancelBuildMode(game); refresh(); }}>Cancel <kbd>RMB / Esc</kbd></button></div>}
 
       <nav className="hotbar" aria-label="Equipment hotbar">
         {game.hotbar.map((_, index) => inventorySlot("hotbar", index, false))}
@@ -9677,21 +9735,22 @@ export default function Game() {
               {panel === "craft" && (
                 <>
                   <div className="inventory-help bench-status">
-                    <b>{nearCraftingBench(game) && nearChemicalLab(game) ? "Workshop network ready" : nearChemicalLab(game) ? "Chemical Lab in range" : nearCraftingBench(game) ? "Crafting Bench in range" : "Hand crafting"}</b>
-                    <span>{nearCraftingBench(game) && nearChemicalLab(game) ? "Weapons, advanced structures, bullets, and the Mineral Grower are available." : nearChemicalLab(game) ? "Bullets and the Mineral Grower are available here. A bench is still required for weapons." : nearCraftingBench(game) ? "Advanced tools and weapons are unlocked. Build a Chemical Lab for bullets and a Mineral Grower." : "Craft starter tools and a bench. Advanced production requires placed workstations."}</span>
+                    <b>{game.mode === "custom" ? "Custom crafting unlocked" : nearCraftingBench(game) && nearChemicalLab(game) ? "Workshop network ready" : nearChemicalLab(game) ? "Chemical Lab in range" : nearCraftingBench(game) ? "Crafting Bench in range" : "Hand crafting"}</b>
+                    <span>{game.mode === "custom" ? "Every recipe is free and available anywhere. Stations, research, and item prerequisites are optional." : nearCraftingBench(game) && nearChemicalLab(game) ? "Weapons, advanced structures, bullets, and the Mineral Grower are available." : nearChemicalLab(game) ? "Bullets and the Mineral Grower are available here. A bench is still required for weapons." : nearCraftingBench(game) ? "Advanced tools and weapons are unlocked. Build a Chemical Lab for bullets and a Mineral Grower." : "Craft starter tools and a bench. Advanced production requires placed workstations."}</span>
                   </div>
                   <div className="recipe-list">
                     {CRAFT_RECIPES.map((recipe) => {
                       const owned = Boolean(recipe.owned?.(game));
-                      const needsBench = Boolean(recipe.requiresBench && !nearCraftingBench(game));
-                      const needsLab = Boolean(recipe.requiresLab && !nearChemicalLab(game));
-                      const missingPrerequisite = Boolean(recipe.prerequisite && !recipe.prerequisite(game));
-                      const needsResearch = Boolean(recipe.requiresResearch && !game.research[recipe.requiresResearch]);
+                      const unrestricted = game.mode === "custom";
+                      const needsBench = Boolean(!unrestricted && recipe.requiresBench && !nearCraftingBench(game));
+                      const needsLab = Boolean(!unrestricted && recipe.requiresLab && !nearChemicalLab(game));
+                      const missingPrerequisite = Boolean(!unrestricted && recipe.prerequisite && !recipe.prerequisite(game));
+                      const needsResearch = Boolean(!unrestricted && recipe.requiresResearch && !game.research[recipe.requiresResearch]);
                       return (
                         <article key={recipe.id}>
                           <div className="recipe-badge"><RecipeVisual recipe={recipe} /></div>
-                          <div><h3>{recipe.name}</h3><p>{recipe.detail}</p><small>{costLabel(recipe.cost)}{recipe.requiresResearch ? " · laboratory research" : ""}{recipe.requiresBench ? " · bench" : ""}{recipe.requiresLab ? " · Chemical Lab" : ""}</small></div>
-                          <button disabled={!canAfford(game, recipe.cost) || owned || needsBench || needsLab || needsResearch || missingPrerequisite} onClick={() => craft(recipe)}>{owned ? "Owned" : needsResearch ? "Research first" : missingPrerequisite ? recipe.prerequisiteLabel ?? "Locked" : needsBench ? "Need bench" : needsLab ? "Need Chemical Lab" : "Craft"}</button>
+                          <div><h3>{recipe.name}</h3><p>{recipe.detail}</p><small>{unrestricted ? "FREE · no station required" : costLabel(recipe.cost) + (recipe.requiresResearch ? " · laboratory research" : "") + (recipe.requiresBench ? " · bench" : "") + (recipe.requiresLab ? " · Chemical Lab" : "")}</small></div>
+                          <button disabled={(!unrestricted && !canAfford(game, recipe.cost)) || owned || needsBench || needsLab || needsResearch || missingPrerequisite} onClick={() => craft(recipe)}>{owned ? "Owned" : needsResearch ? "Research first" : missingPrerequisite ? recipe.prerequisiteLabel ?? "Locked" : needsBench ? "Need bench" : needsLab ? "Need Chemical Lab" : unrestricted ? "Craft free" : "Craft"}</button>
                         </article>
                       );
                     })}
@@ -9700,7 +9759,7 @@ export default function Game() {
               )}
               {panel === "build" && (
                 <>
-                  <p className="panel-intro">These are completed pieces from your inventory. Craft more in the Craft menu, then place them on the 48px grid.</p>
+                  <p className="panel-intro">{game.mode === "custom" ? "Every building piece is infinitely available. Choose one, then place it on the normal 48px grid." : "These are completed pieces from your inventory. Craft more in the Craft menu, then place them on the 48px grid."}</p>
                   <div className="build-grid">
                     {BUILD_ORDER.map((kind) => {
                       const data = BUILD_DATA[kind];
@@ -9708,7 +9767,7 @@ export default function Game() {
                         <article key={kind}>
                           <div className="build-badge"><BuildIcon kind={kind} /></div>
                           <div><h3>{data.name}</h3><p>{data.detail}</p><small>{data.hp} health · 1.5s build time</small></div>
-                          <footer><span>{game.kits[kind]} ready</span><button disabled={game.kits[kind] <= 0} onClick={() => chooseBuild(kind)}>{game.kits[kind] > 0 ? "Place" : "Not crafted"}</button></footer>
+                          <footer><span>{game.mode === "custom" ? "∞ ready" : game.kits[kind] + " ready"}</span><button disabled={game.mode !== "custom" && game.kits[kind] <= 0} onClick={() => chooseBuild(kind)}>{game.mode === "custom" || game.kits[kind] > 0 ? "Place" : "Not crafted"}</button></footer>
                         </article>
                       );
                     })}
@@ -9868,7 +9927,10 @@ export default function Game() {
           <small>DAYLIGHT IS BORROWED</small>
           <h1>HALFLIGHT</h1>
           <p>Gather by day. Build on the grid. Survive larger waves and whatever the dark evolves next.</p>
-          <button onClick={start}>Begin survival <span>→</span></button>
+          <div className="mode-actions">
+            <button onClick={() => start("survival")}><b>Begin survival</b><small>The main balanced game</small><span>→</span></button>
+            <button className="custom-mode-button" onClick={() => start("custom")}><b>Custom mode</b><small>Free crafting, infinite building, day control</small><span>∞</span></button>
+          </div>
           <div><span><kbd>WASD</kbd> Move</span><span><kbd>F</kbd> Feed</span><span><kbd>HOLD LMB</kbd> Use tool</span></div>
         </section>
       )}
