@@ -149,9 +149,9 @@ The caves and their chambers are deliberately unnamed; entrances, exits,
 prompts, and the location display identify them only as caves.
 
 - **The Meadow** contains open grassland, sparse clumps of harvestable wild
-  grass, eight scattered iron and copper deposits, scattered ordinary rock with
-  occasional huge outcrops, three cave entrances, three forests, and three
-  bodies of water.
+  grass, thirteen scattered metal deposits—eight copper and five iron—scattered
+  ordinary rock with occasional huge outcrops, three cave entrances, three
+  forests, and three bodies of water.
 - **The Blackwood** is a large, visibly darker forest biome filled with closely
   spaced oak, pine, and birch trees, forage, bears, and other wildlife.
 - **Pine Reach** is a separate northeastern woodland dominated by pines.
@@ -164,7 +164,7 @@ prompts, and the location display identify them only as caves.
 - One chamber is rich in stone, with some coal and
   mushrooms.
 - One chamber concentrates iron and copper, with some coal and stone.
-- One chamber concentrates sulfur and coal, with mushrooms and some copper.
+- One chamber concentrates sulfur and coal, with mushrooms and frequent copper.
 - Four secondary caverns contain sparse pockets of ordinary rock, coal, and
   mushrooms between the three main resource chambers.
 

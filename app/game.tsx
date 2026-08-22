@@ -1312,9 +1312,10 @@ function makeGame(): GameState {
       (Math.hypot(x - treasurePoint.x, y - treasurePoint.y) > radius + 75 &&
         Math.hypot(x - broodMotherPoint.x, y - broodMotherPoint.y) > radius + 95 &&
         AETHER_SITES.every((site) => Math.hypot(x - site.guard.x, y - site.guard.y) > radius + 70));
-    if (!clearSpawn || !clearExit || !clearCave || !clearWater || !insideCave || !clearCaveNode || !clearEncounter) return;
+    if (!clearSpawn || !clearExit || !clearCave || !clearWater || !insideCave || !clearCaveNode || !clearEncounter) return false;
     const hp = nodeHp(kind, size);
     nodes.push({ id: id++, kind, size, realm, x, y, hp, maxHp: hp, respawnAt: 0 });
+    return true;
   };
 
   for (let i = 0; i < 340; i++) {
@@ -1341,16 +1342,24 @@ function makeGame(): GameState {
     const distance = 115 + seeded(i, 127) * 235;
     addNode("grass", "meadow", SPAWN_X + Math.cos(angle) * distance, SPAWN_Y + Math.sin(angle) * distance);
   }
-  for (let i = 0; i < 8; i++) {
-    const size: ResourceSize = i % 3 === 0 ? "small" : i % 3 === 1 ? "medium" : "huge";
-    addNode(
-      i % 3 === 0 ? "copperOre" : "ironOre",
-      "meadow",
-      180 + seeded(i, 131) * (WORLD_W - 360),
-      180 + seeded(i, 132) * (WORLD_H - 360),
-      size,
-    );
-  }
+  const meadowOreKinds: ResourceKind[] = [
+    "copperOre", "ironOre", "copperOre", "ironOre", "copperOre", "ironOre", "copperOre",
+    "ironOre", "copperOre", "ironOre", "copperOre", "copperOre", "copperOre",
+  ];
+  meadowOreKinds.forEach((kind, oreIndex) => {
+    for (let attempt = 0; attempt < 32; attempt++) {
+      const sample = oreIndex * 32 + attempt;
+      const size = depositSize(sample, 135);
+      const placed = addNode(
+        kind,
+        "meadow",
+        180 + seeded(sample, 131) * (WORLD_W - 360),
+        180 + seeded(sample, 132) * (WORLD_H - 360),
+        size,
+      );
+      if (placed) break;
+    }
+  });
   for (const [forestIndex, forest] of FOREST_REGIONS.entries()) {
     for (let i = 0; i < forest.treeCount; i++) {
       const angle = seeded(i, 41 + forestIndex * 31) * Math.PI * 2;
@@ -1384,9 +1393,9 @@ function makeGame(): GameState {
       if (cave.id === "stone") {
         kind = roll === 1 ? "coal" : roll === 5 || roll === 17 ? "mushroom" : "rock";
       } else if (cave.id === "iron") {
-        kind = roll === 0 || roll === 12 ? "ironOre" : roll === 7 ? "copperOre" : roll === 3 ? "coal" : "rock";
+        kind = roll === 0 || roll === 12 ? "ironOre" : roll === 7 || roll === 19 ? "copperOre" : roll === 3 ? "coal" : "rock";
       } else {
-        kind = roll === 0 || roll === 8 || roll === 16 ? "sulfur" : roll === 5 || roll === 15 ? "coal" : roll === 3 || roll === 19 ? "mushroom" : roll === 11 ? "copperOre" : "rock";
+        kind = roll === 0 || roll === 8 || roll === 16 ? "sulfur" : roll === 5 || roll === 15 ? "coal" : roll === 3 || roll === 19 ? "mushroom" : roll === 7 || roll === 11 ? "copperOre" : "rock";
       }
       const angle = seeded(i, 90 + caveIndex * 11) * Math.PI * 2;
       const distance = 150 + Math.sqrt(seeded(i, 91 + caveIndex * 11)) * (cave.chamberRadius - 235);
