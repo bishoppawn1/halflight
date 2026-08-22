@@ -131,8 +131,8 @@ individual foods, resource stacks, and ready building pieces can be moved by dra
 selecting a source and destination. The hotbar is the only equipment source.
 Every newly acquired item or material uses the first open hotbar slot when
 possible, then the first open backpack slot.
-Multiple copies of the same durable axe or pickaxe share one inventory slot and
-display their copy count on that slot.
+Multiple copies of the same durable axe, pickaxe, or weapon share one inventory
+slot and display their copy count on that slot.
 Every material stack displays its exact quantity, including a quantity of one.
 When a material reaches zero, its hotbar or backpack slot becomes empty
 immediately. If that material was selected food, the player switches to hands
@@ -386,12 +386,11 @@ can be made anywhere. Place a Crafting Bench and stand within 150 units to make
 advanced weapons, armor, metal tools, the Chemical Lab, and defenses. Bullets
 and Catalyst can only be made while the player is within 150 units of a
 completed Chemical Lab. The Mineral Grower ready piece is also fabricated near
-that lab. Durable axes and pickaxes can always be crafted again when the
+that lab. Durable tools and weapons can always be crafted again when the
 material and station requirements are met; their recipes never change to
-**Owned**. Crafting a higher tool tier
-adds a new tool stack instead of replacing a lower-tier tool. Permanent weapons
-and armor cannot be crafted twice or downgraded; ammunition, bandages, and
-building pieces are repeatable. Opening crafting enters a large
+**Owned**. Each crafted copy joins that item's existing stack at full
+durability. Permanent armor cannot be crafted twice or downgraded; ammunition,
+bandages, and building pieces are repeatable. Opening crafting enters a large
 screen-wide menu. Every recipe occupies its own square card with a prominent
 illustration, name, description, material cost, bench requirement, and craft
 button.
@@ -416,16 +415,16 @@ its full recipe cost. Locked organic recipes remain visible in Crafting with a
 | Stone Axe | 3 wood, 4 stone | 2 node damage per swing; 72 durability |
 | Stone Pickaxe | 3 wood, 4 stone | 2 node damage per swing; common ores; 72 durability |
 | Deconstruction Hammer | 4 wood, 2 stone | Removes an aimed structure and recovers part of its materials |
-| Stone Spear | 5 wood, 3 stone | 17-damage melee weapon |
-| Iron Sword | 4 wood, 7 iron | Fast 25-damage melee weapon |
-| Hunting Bow | 6 wood, 4 fiber, 2 copper | 18-damage bow; up to 32 damage at full draw |
-| Iron Bow | 6 wood, 4 fiber, 5 iron | Tier-two 28-damage bow; up to 49 damage at full draw |
+| Stone Spear | 5 wood, 3 stone | 17-damage melee weapon; 72 durability |
+| Iron Sword | 4 wood, 7 iron | Fast 25-damage melee weapon; 120 durability |
+| Hunting Bow | 6 wood, 4 fiber, 2 copper | 18-damage bow; up to 32 damage at full draw; 360 durability |
+| Iron Bow | 6 wood, 4 fiber, 5 iron | Tier-two 28-damage bow; up to 49 damage at full draw; 540 durability |
 | Arrow Bundle | 2 wood, 1 stone | 12 arrows |
-| Scrap Pistol | 8 iron, 6 copper, 3 coal, 2 sulfur | 54-damage firearm; stronger per shot than a fully drawn Iron Bow |
-| Compact SMG | 10 iron, 9 copper, 2 sulfur | Requires the Scrap Pistol; 30-damage automatic firearm with a 120 ms cooldown |
-| Scattergun | 6 wood, 12 iron, 4 copper, 4 sulfur | Requires the Scrap Pistol; fires five 24-damage pellets in a spread |
-| Assault Rifle | 1 Guardian Core, 6 Aetherium, 12 iron, 8 copper | Requires the Scrap Pistol; 62-damage rapid-fire guardian-tier weapon |
-| Sniper Rifle | 18 iron, 10 copper, 4 Aetherium | Requires the Assault Rifle; 145-damage precision firearm |
+| Scrap Pistol | 8 iron, 6 copper, 3 coal, 2 sulfur | 54-damage firearm; stronger per shot than a fully drawn Iron Bow; 720 durability |
+| Compact SMG | 10 iron, 9 copper, 2 sulfur | Requires the Scrap Pistol; 30-damage automatic firearm with a 120 ms cooldown; 2,400 durability |
+| Scattergun | 6 wood, 12 iron, 4 copper, 4 sulfur | Requires the Scrap Pistol; fires five 24-damage pellets in a spread; 900 durability |
+| Assault Rifle | 1 Guardian Core, 6 Aetherium, 12 iron, 8 copper | Requires the Scrap Pistol; 62-damage rapid-fire guardian-tier weapon; 1,200 durability |
+| Sniper Rifle | 18 iron, 10 copper, 4 Aetherium | Requires the Assault Rifle; 145-damage precision firearm; 900 durability |
 | Bullet Bundle | 2 iron, 1 coal, 2 sulfur | Chemical Lab only; 12 shared firearm bullets |
 | Catalyst Batch | 2 coal, 2 sulfur, 1 Aetherium | Chemical Lab only; 2 Catalyst for Mineral Grower batches |
 | Copper Armor | 12 copper, 5 hide | Copper helmet; 18% damage reduction |
@@ -436,7 +435,7 @@ its full recipe cost. Locked organic recipes remain visible in Crafting with a
 | Aetherium Axe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 22 combat damage, and 180 durability |
 | Aetherium Pickaxe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 18 combat damage, and 180 durability |
 | Carapace Axe | 4 wood, 4 iron, 3 Alien Biomass | 6 node damage per swing, 30 combat damage, and 240 durability; requires Carapace Tooling |
-| Tendril Blade | 6 iron, 3 hide, 5 Alien Biomass | 36 damage and 112 reach; requires Tendril Weaponry |
+| Tendril Blade | 6 iron, 3 hide, 5 Alien Biomass | 36 damage, 112 reach, and 240 durability; requires Tendril Weaponry |
 | Symbiote Armor | 8 iron, 8 hide, 7 Alien Biomass | Living helmet; 68% damage reduction; requires Symbiote Weave |
 | Field Bandage | 5 fiber, 1 berry | Immediately restores up to 35 health |
 
@@ -555,29 +554,39 @@ one arrow. Damage scales continuously from the listed base damage at a quick
 release to 175% at full draw; arrow speed also rises slightly. The `Space`
 alternate attack remains an immediate base-damage shot.
 
-| Item | Damage | Range | Cooldown |
-| --- | ---: | ---: | ---: |
-| Wood axe | 7 | 78 | 700 ms |
-| Stone axe | 9 | 78 | 760 ms |
-| Iron axe | 14 | 78 | 700 ms |
-| Aetherium axe | 22 | 78 | 620 ms |
-| Carapace axe | 30 | 82 | 620 ms |
-| Wood pickaxe | 5 | 78 | 820 ms |
-| Stone pickaxe | 7 | 78 | 860 ms |
-| Iron pickaxe | 11 | 78 | 800 ms |
-| Aetherium pickaxe | 18 | 78 | 700 ms |
-| Stone spear | 17 | 102 | 620 ms |
-| Iron sword | 25 | 102 | 480 ms |
-| Tendril Blade | 36 | 112 | 520 ms |
-| Hunting bow | 18 | 520 | 780 ms |
-| Iron bow | 28 | 600 | 780 ms |
-| Scrap pistol | 54 | 660 | 520 ms |
-| Compact SMG | 30 | 540 | 120 ms |
-| Scattergun pellet ×5 | 24 each | 430 | 900 ms |
-| Assault rifle | 62 | 760 | 230 ms |
-| Sniper rifle | 145 | 1,250 | 1,550 ms |
-| Deconstruction hammer | 3 | 78 | 750 ms |
-| Hands, food, or build tool | 3 | 78 | 600 ms |
+Every melee weapon loses one durability after a swing that hits at least one
+creature, even if that swing hits several creatures. A ranged weapon loses one
+durability whenever it performs an attack that spends ammunition and fires one
+or more projectiles, whether they hit or miss; the Scattergun therefore loses
+one point per five-pellet blast. Drawing and canceling a bow costs nothing.
+Ranged weapons have much larger durability reserves because their ammunition
+and fire rates lead to many more uses. When an active weapon breaks, its next
+spare copy equips automatically. With no spare, its inventory entry disappears
+and the player switches away from it.
+
+| Item | Damage | Range | Cooldown | Durability |
+| --- | ---: | ---: | ---: | ---: |
+| Wood axe | 7 | 78 | 700 ms | 36 |
+| Stone axe | 9 | 78 | 760 ms | 72 |
+| Iron axe | 14 | 78 | 700 ms | 120 |
+| Aetherium axe | 22 | 78 | 620 ms | 180 |
+| Carapace axe | 30 | 82 | 620 ms | 240 |
+| Wood pickaxe | 5 | 78 | 820 ms | 36 |
+| Stone pickaxe | 7 | 78 | 860 ms | 72 |
+| Iron pickaxe | 11 | 78 | 800 ms | 120 |
+| Aetherium pickaxe | 18 | 78 | 700 ms | 180 |
+| Stone spear | 17 | 102 | 620 ms | 72 |
+| Iron sword | 25 | 102 | 480 ms | 120 |
+| Tendril Blade | 36 | 112 | 520 ms | 240 |
+| Hunting bow | 18 | 520 | 780 ms | 360 |
+| Iron bow | 28 | 600 | 780 ms | 540 |
+| Scrap pistol | 54 | 660 | 520 ms | 720 |
+| Compact SMG | 30 | 540 | 120 ms | 2,400 |
+| Scattergun pellet ×5 | 24 each | 430 | 900 ms | 900 |
+| Assault rifle | 62 | 760 | 230 ms | 1,200 |
+| Sniper rifle | 145 | 1,250 | 1,550 ms | 900 |
+| Deconstruction hammer | 3 | 78 | 750 ms | — |
+| Hands, food, or build tool | 3 | 78 | 600 ms | — |
 
 Night monsters and the Brood Mother can land attacks from their listed reach
 only with an unobstructed line to the player. Their attacks, along with contact

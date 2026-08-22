@@ -22,6 +22,7 @@ type ResourceKind =
 type FoodMaterial = "berries" | "mushrooms" | "meat" | "cookedMushrooms" | "cookedMeat";
 type RawCookableFood = "mushrooms" | "meat";
 type ToolTier = "none" | "wood" | "stone" | "iron" | "aetherium" | "biomass";
+type Firearm = "pistol" | "smg" | "shotgun" | "rifle" | "sniper";
 type DurableTool =
   | "woodAxe"
   | "stoneAxe"
@@ -31,9 +32,14 @@ type DurableTool =
   | "woodPickaxe"
   | "stonePickaxe"
   | "ironPickaxe"
-  | "aetheriumPickaxe";
-type Firearm = "pistol" | "smg" | "shotgun" | "rifle" | "sniper";
-type Tool = DurableTool | "hammer" | "spear" | "sword" | "tendrilBlade" | "bow" | "ironBow" | Firearm | FoodMaterial | "build" | "hands";
+  | "aetheriumPickaxe"
+  | "spear"
+  | "sword"
+  | "tendrilBlade"
+  | "bow"
+  | "ironBow"
+  | Firearm;
+type Tool = DurableTool | "hammer" | FoodMaterial | "build" | "hands";
 type ToolGlyphKind = "axe" | "pickaxe" | "hammer" | "spear" | "sword" | "bow" | Firearm | "pack";
 type BuildKind =
   | "craftingBench"
@@ -828,7 +834,7 @@ const TOOL_TIER_NAMES: Record<ToolTier, string> = {
 
 const DURABLE_TOOL_DATA: Record<
   DurableTool,
-  { family: "axe" | "pickaxe"; tier: Exclude<ToolTier, "none">; maxDurability: number; damage: number }
+  { family: ToolGlyphKind; tier: Exclude<ToolTier, "none">; maxDurability: number; damage: number }
 > = {
   woodAxe: { family: "axe", tier: "wood", maxDurability: 36, damage: 7 },
   stoneAxe: { family: "axe", tier: "stone", maxDurability: 72, damage: 9 },
@@ -839,6 +845,16 @@ const DURABLE_TOOL_DATA: Record<
   stonePickaxe: { family: "pickaxe", tier: "stone", maxDurability: 72, damage: 7 },
   ironPickaxe: { family: "pickaxe", tier: "iron", maxDurability: 120, damage: 11 },
   aetheriumPickaxe: { family: "pickaxe", tier: "aetherium", maxDurability: 180, damage: 18 },
+  spear: { family: "spear", tier: "stone", maxDurability: 72, damage: 17 },
+  sword: { family: "sword", tier: "iron", maxDurability: 120, damage: 25 },
+  tendrilBlade: { family: "sword", tier: "biomass", maxDurability: 240, damage: 36 },
+  bow: { family: "bow", tier: "wood", maxDurability: 360, damage: 18 },
+  ironBow: { family: "bow", tier: "iron", maxDurability: 540, damage: 28 },
+  pistol: { family: "pistol", tier: "iron", maxDurability: 720, damage: 54 },
+  smg: { family: "smg", tier: "iron", maxDurability: 2400, damage: 30 },
+  shotgun: { family: "shotgun", tier: "iron", maxDurability: 900, damage: 24 },
+  rifle: { family: "rifle", tier: "aetherium", maxDurability: 1200, damage: 62 },
+  sniper: { family: "sniper", tier: "aetherium", maxDurability: 900, damage: 145 },
 };
 
 interface AttackProfile {
@@ -942,16 +958,6 @@ function itemCount(game: GameState, item: InventoryItem | null) {
   if (isMaterial(item)) return game.resources[item];
   if (isDurableTool(item)) return durableToolCount(game, item);
   if (item === "hammer") return game.gear.hammer ? 1 : 0;
-  if (item === "spear") return game.gear.spear ? 1 : 0;
-  if (item === "sword") return game.gear.sword ? 1 : 0;
-  if (item === "tendrilBlade") return game.gear.tendrilBlade ? 1 : 0;
-  if (item === "bow") return game.gear.bow ? 1 : 0;
-  if (item === "ironBow") return game.gear.ironBow ? 1 : 0;
-  if (item === "pistol") return game.gear.pistol ? 1 : 0;
-  if (item === "smg") return game.gear.smg ? 1 : 0;
-  if (item === "shotgun") return game.gear.shotgun ? 1 : 0;
-  if (item === "rifle") return game.gear.rifle ? 1 : 0;
-  if (item === "sniper") return game.gear.sniper ? 1 : 0;
   return 0;
 }
 
@@ -1583,6 +1589,16 @@ function makeGame(): GameState {
         stonePickaxe: [],
         ironPickaxe: [],
         aetheriumPickaxe: [],
+        spear: [],
+        sword: [],
+        tendrilBlade: [],
+        bow: [],
+        ironBow: [],
+        pistol: [],
+        smg: [],
+        shotgun: [],
+        rifle: [],
+        sniper: [],
       },
       armor: "none",
     },
@@ -3214,6 +3230,10 @@ function attack(game: GameState, bowCharge = 0) {
         bulletStyle: tool === "shotgun" ? "pellet" : tool === "sniper" ? "sniper" : "standard",
       });
     });
+    if (isDurableTool(tool)) {
+      const wear = wearTool(game, tool);
+      if (wear.broke) notify(game, toolWearMessage(tool, wear), 2400);
+    }
     return;
   }
   game.player.attackReady = now + profile.cooldown;
@@ -8358,52 +8378,48 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "spear",
     name: "Stone Spear",
-    detail: "Long reach · 17 damage",
+    detail: "Long reach · 17 damage · 72 durability",
     cost: { wood: 5, stone: 3 },
-    owned: (game) => game.gear.spear,
     action: (game) => {
       game.gear.spear = true;
       game.weapon = "spear";
-      equipNewItem(game, "spear");
+      addDurableTool(game, "spear");
     },
   },
   {
     id: "sword",
     name: "Iron Sword",
-    detail: "Fast swing · 25 damage",
+    detail: "Fast swing · 25 damage · 120 durability",
     cost: { wood: 4, iron: 7 },
     requiresBench: true,
-    owned: (game) => game.gear.sword,
     action: (game) => {
       game.gear.sword = true;
       game.weapon = "sword";
-      equipNewItem(game, "sword");
+      addDurableTool(game, "sword");
     },
   },
   {
     id: "bow",
     name: "Hunting Bow",
-    detail: "520 range · 18–32 charged damage",
+    detail: "520 range · 18–32 charged damage · 360 durability",
     cost: { wood: 6, fiber: 4, copper: 2 },
     requiresBench: true,
-    owned: (game) => game.gear.bow,
     action: (game) => {
       game.gear.bow = true;
       game.weapon = "bow";
-      equipNewItem(game, "bow");
+      addDurableTool(game, "bow");
     },
   },
   {
     id: "ironBow",
     name: "Iron Bow",
-    detail: "Tier 2 · 600 range · 28–49 charged damage",
+    detail: "Tier 2 · 600 range · 28–49 charged damage · 540 durability",
     cost: { wood: 6, fiber: 4, iron: 5 },
     requiresBench: true,
-    owned: (game) => game.gear.ironBow,
     action: (game) => {
       game.gear.ironBow = true;
       game.weapon = "ironBow";
-      equipNewItem(game, "ironBow");
+      addDurableTool(game, "ironBow");
     },
   },
   {
@@ -8418,74 +8434,69 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "pistol",
     name: "Scrap Pistol",
-    detail: "660 range · 54 damage · stronger per shot than a fully drawn Iron Bow",
+    detail: "660 range · 54 damage · 720 durability · stronger per shot than a fully drawn Iron Bow",
     cost: { iron: 8, copper: 6, coal: 3, sulfur: 2 },
     requiresBench: true,
-    owned: (game) => game.gear.pistol,
     action: (game) => {
       game.gear.pistol = true;
       game.weapon = "pistol";
-      equipNewItem(game, "pistol");
+      addDurableTool(game, "pistol");
     },
   },
   {
     id: "smg",
     name: "Compact SMG",
-    detail: "540 range · 30 damage · extremely fast automatic fire",
+    detail: "540 range · 30 damage · 2400 durability · extremely fast automatic fire",
     cost: { iron: 10, copper: 9, sulfur: 2 },
     requiresBench: true,
     prerequisite: (game) => game.gear.pistol,
     prerequisiteLabel: "Need pistol",
-    owned: (game) => game.gear.smg,
     action: (game) => {
       game.gear.smg = true;
       game.weapon = "smg";
-      equipNewItem(game, "smg");
+      addDurableTool(game, "smg");
     },
   },
   {
     id: "shotgun",
     name: "Scattergun",
-    detail: "430 range · five 24-damage pellets · heavy close-range spread",
+    detail: "430 range · five 24-damage pellets · 900 durability · heavy close-range spread",
     cost: { wood: 6, iron: 12, copper: 4, sulfur: 4 },
     requiresBench: true,
     prerequisite: (game) => game.gear.pistol,
     prerequisiteLabel: "Need pistol",
-    owned: (game) => game.gear.shotgun,
     action: (game) => {
       game.gear.shotgun = true;
       game.weapon = "shotgun";
-      equipNewItem(game, "shotgun");
+      addDurableTool(game, "shotgun");
     },
   },
   {
     id: "rifle",
     name: "Assault Rifle",
-    detail: "Guardian tier · 760 range · 62 damage · rapid automatic fire",
+    detail: "Guardian tier · 760 range · 62 damage · 1200 durability · rapid automatic fire",
     cost: { guardianCore: 1, aetherium: 6, iron: 12, copper: 8 },
     requiresBench: true,
     prerequisite: (game) => game.gear.pistol,
     prerequisiteLabel: "Need pistol",
-    owned: (game) => game.gear.rifle,
     action: (game) => {
       game.gear.rifle = true;
       game.weapon = "rifle";
-      equipNewItem(game, "rifle");
+      addDurableTool(game, "rifle");
     },
   },
   {
     id: "sniper",
     name: "Sniper Rifle",
-    detail: "1250 range · 145 damage · slow precision shot with a cyan tracer",
+    detail: "1250 range · 145 damage · 900 durability · slow precision shot with a cyan tracer",
     cost: { iron: 18, copper: 10, aetherium: 4 },
     requiresBench: true,
     prerequisite: (game) => game.gear.rifle,
     prerequisiteLabel: "Need Assault Rifle",
-    owned: (game) => game.gear.sniper,
     action: (game) => {
       game.gear.sniper = true;
       game.weapon = "sniper";
-      equipNewItem(game, "sniper");
+      addDurableTool(game, "sniper");
     },
   },
   {
@@ -8595,15 +8606,14 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "tendrilBlade",
     name: "Tendril Blade",
-    detail: "Living weapon · 36 damage · 112 reach",
+    detail: "Living weapon · 36 damage · 112 reach · 240 durability",
     cost: { iron: 6, hide: 3, biomass: 5 },
     requiresBench: true,
     requiresResearch: "tendrilBlade",
-    owned: (game) => game.gear.tendrilBlade,
     action: (game) => {
       game.gear.tendrilBlade = true;
       game.weapon = "tendrilBlade";
-      equipNewItem(game, "tendrilBlade");
+      addDurableTool(game, "tendrilBlade");
     },
   },
   {
@@ -9200,28 +9210,20 @@ export default function Game() {
   const bowChargeLabel = game.bowChargeStartedAt !== null
     ? " · draw " + Math.round(bowChargeRatio(game) * 100) + "%"
     : "";
-  const toolName =
-    game.selected === "tendrilBlade"
-      ? "Tendril Blade"
-      : game.selected === "sword"
-      ? "Iron Sword"
-      : game.selected === "spear"
-        ? "Stone Spear"
-        : game.selected === "bow"
-          ? "Hunting Bow · " + game.resources.arrows + " arrows" + bowChargeLabel
-        : game.selected === "ironBow"
-          ? "Iron Bow · " + game.resources.arrows + " arrows" + bowChargeLabel
-      : isFirearm(game.selected)
-        ? itemLabel(game.selected, game) + " · " + game.resources.bullets + " bullets"
-      : isDurableTool(game.selected)
-        ? itemLabel(game.selected, game) + " · " + activeToolDurability(game, game.selected) + "/" +
-          DURABLE_TOOL_DATA[game.selected].maxDurability + " durability · " + durableToolCount(game, game.selected) +
-          (durableToolCount(game, game.selected) === 1 ? " copy" : " copies")
-          : isFoodItem(game.selected)
-            ? itemLabel(game.selected, game) + " · " + game.resources[game.selected]
-            : game.buildMode
-              ? BUILD_DATA[game.buildMode].name
-              : itemLabel(game.hotbar[game.selectedSlot], game);
+  const ammunitionLabel = isBowTool(game.selected)
+    ? " · " + game.resources.arrows + " arrows" + bowChargeLabel
+    : isFirearm(game.selected)
+      ? " · " + game.resources.bullets + " bullets"
+      : "";
+  const toolName = isDurableTool(game.selected)
+    ? itemLabel(game.selected, game) + ammunitionLabel + " · " + activeToolDurability(game, game.selected) + "/" +
+      DURABLE_TOOL_DATA[game.selected].maxDurability + " durability · " + durableToolCount(game, game.selected) +
+      (durableToolCount(game, game.selected) === 1 ? " copy" : " copies")
+    : isFoodItem(game.selected)
+      ? itemLabel(game.selected, game) + " · " + game.resources[game.selected]
+      : game.buildMode
+        ? BUILD_DATA[game.buildMode].name
+        : itemLabel(game.hotbar[game.selectedSlot], game);
   const feedCandidate = nearestFeedableAnimal(game);
   const feedLabel = feedCandidate && isAnimal(feedCandidate.kind)
     ? "Feed " + animalName(feedCandidate.kind)
