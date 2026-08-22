@@ -203,13 +203,13 @@ visibly different at a glance and remain individually scattered; world
 generation never chains separate deposits into a line.
 
 At night, the Meadow is almost completely opaque beyond light. The player has
-96 units of close night vision plus a 51-degree forward cone that reaches 215
-units in the current aim direction; Standing Torches, Campfires, and Fire Traps
-reveal 225, 410, and 115 units respectively. Caves remain dark at every time of
-day, give the player 112 units of close vision plus a 230-unit forward cone
-before placed lights extend visibility, and remain hostile during both halves
-of the day/night cycle. The cone fades toward its sides and far edge. Every
-light follows line of sight. Living tree crowns, completed wood,
+144 units of close night vision plus a 51-degree forward cone that reaches
+376.25 units in the current aim direction; Standing Torches, Campfires, and
+Fire Traps reveal 225, 410, and 115 units respectively. Caves remain dark at
+every time of day, give the player 168 units of close vision plus a 402.5-unit
+forward cone before placed lights extend visibility, and remain hostile during
+both halves of the day/night cycle. The cone fades toward its sides and far
+edge. Every light follows line of sight. Living tree crowns, completed wood,
 stone, and metal walls, closed gates and doors, and cave-rock boundaries stop
 light and leave darkness behind them. The first tree or completed structure hit
 by a light remains visibly illuminated so the source of each cast shadow is
