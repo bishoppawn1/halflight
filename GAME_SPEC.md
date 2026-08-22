@@ -346,10 +346,11 @@ exception: it occupies and reserves a two-by-two-cell footprint, with four
 joined soil beds shown inside it. The target must be within 260 units of the
 player. A cell can contain one floor, one roof, and one solid-layer piece.
 Solid pieces cannot be placed over a live tree, rock, deposit, player, or
-creature. A click places one blueprint and exits single-placement mode. Holding
-`Shift` while dragging places one blueprint in each new valid cell crossed,
-without repeatedly attempting the same cell. Touch tool-hold provides the same
-continuous placement behavior.
+creature. Standing Torches are completed and lit immediately when placed. Every
+other piece is placed as a blueprint. A click places one ready piece and exits
+single-placement mode. Holding `Shift` while dragging places one ready piece in
+each new valid cell crossed, without repeatedly attempting the same cell. Touch
+tool-hold provides the same continuous placement behavior.
 
 Blueprints remain unfinished until the player presses `B` (or the touch
 **Build** button). Auto-build constructs the nearest unfinished blueprint whose
@@ -375,8 +376,8 @@ their respawn until that footprint is clear.
 | Crafting Bench | 4 wood, 2 stone | 1 | 85 | Enables advanced recipes within 150 units |
 | Storage Chest | 5 wood, 2 fiber | 1 | 110 | Opens with `E` and stores resource stacks separately |
 | Bedroll | 2 wood, 4 fiber | 1 | 50 | Rest once per day for up to 25 health at a cost of 8 hunger |
-| Standing Torch | 2 wood, 1 fiber, 1 coal | 2 | 35 | Permanent 225-unit light radius |
-| Campfire | 4 wood, 4 stone, 1 coal | 1 | 80 | Permanent 410-unit light radius |
+| Standing Torch | 2 wood, 1 fiber, 1 coal | 2 | 35 | Placed fully built; permanent 225-unit light radius |
+| Campfire | 8 wood | 1 | 80 | Permanent 410-unit light radius |
 | Wood Fence | 3 wood | 2 | 55 | Light barrier |
 | Stone Fence | 4 stone | 2 | 105 | Durable barrier |
 | Wood Gate | 5 wood | 1 | 70 | Opens and closes with `E` |

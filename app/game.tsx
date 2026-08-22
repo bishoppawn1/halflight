@@ -486,8 +486,8 @@ const BUILD_DATA: Record<
   craftingBench: { name: "Crafting Bench", detail: "Unlocks advanced crafting nearby", icon: "CB", cost: { wood: 4, stone: 2 }, makes: 1, hp: 85 },
   storageChest: { name: "Storage Chest", detail: "Holds separate resource stacks", icon: "CH", cost: { wood: 5, fiber: 2 }, makes: 1, hp: 110 },
   bedroll: { name: "Bedroll", detail: "Rest once each day to recover health", icon: "BR", cost: { wood: 2, fiber: 4 }, makes: 1, hp: 50 },
-  torch: { name: "Standing Torch", detail: "A small permanent light", icon: "TO", cost: { wood: 2, fiber: 1, coal: 1 }, makes: 2, hp: 35 },
-  campfire: { name: "Campfire", detail: "A broad pool of warmth and light", icon: "CF", cost: { wood: 4, stone: 4, coal: 1 }, makes: 1, hp: 80 },
+  torch: { name: "Standing Torch", detail: "Places instantly as a permanent light", icon: "TO", cost: { wood: 2, fiber: 1, coal: 1 }, makes: 2, hp: 35 },
+  campfire: { name: "Campfire", detail: "A broad pool of warmth and light", icon: "CF", cost: { wood: 8 }, makes: 1, hp: 80 },
   woodFence: { name: "Wood Fence", detail: "A quick timber barrier", icon: "WF", cost: { wood: 3 }, makes: 2, hp: 55 },
   stoneFence: { name: "Stone Fence", detail: "Slow, sturdy protection", icon: "SF", cost: { stone: 4 }, makes: 2, hp: 105 },
   woodGate: { name: "Wood Gate", detail: "Opens with E", icon: "WG", cost: { wood: 5 }, makes: 1, hp: 70 },
@@ -2167,28 +2167,31 @@ function placeBuild(game: GameState, quiet = false, keepPlacing = false) {
     return false;
   }
   game.kits[kind] -= 1;
+  const instantPlacement = kind === "torch";
   const building: Building = {
     id: game.lastId++,
     kind,
     realm: game.realm,
     gx: cell.gx,
     gy: cell.gy,
-    hp: Math.max(1, Math.ceil(BUILD_DATA[kind].hp * 0.15)),
+    hp: instantPlacement ? BUILD_DATA[kind].hp : Math.max(1, Math.ceil(BUILD_DATA[kind].hp * 0.15)),
     maxHp: BUILD_DATA[kind].hp,
     open: false,
     growth: 0,
     triggerAt: 0,
-    construction: 0,
+    construction: instantPlacement ? 1 : 0,
     deconstruction: 0,
     restedDay: 0,
     storage: kind === "storageChest" ? {} : undefined,
   };
   game.buildings.push(building);
-  game.workOrders.push({ buildingId: building.id, action: "construct", progress: 0 });
+  if (!instantPlacement) game.workOrders.push({ buildingId: building.id, action: "construct", progress: 0 });
   if (!quiet) {
     notify(
       game,
-      BUILD_DATA[kind].name + " blueprint placed. Press B to auto-build nearby.",
+      instantPlacement
+        ? BUILD_DATA[kind].name + " placed and lit."
+        : BUILD_DATA[kind].name + " blueprint placed. Press B to auto-build nearby.",
     );
   }
   if (!keepPlacing || game.kits[kind] <= 0) cancelBuildMode(game);
