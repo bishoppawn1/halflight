@@ -181,12 +181,13 @@ At the start of each run, one random main chamber contains a one-use treasure
 cache. Opening it with `E` awards 4 stone, 5 iron, 4 copper, 3 coal, 3 sulfur,
 and 2 Aetherium. Its opened chest remains visible.
 
-The cave guardian never appears in an ordinary resource chamber. A narrow,
+The Brood Mother never appears in an ordinary resource chamber. A narrow,
 unmarked passage leaves the eastern secondary cavern, bends through two dark
-pockets, and opens into a dedicated 650-unit-radius guardian arena. Eight fixed
-wraiths and maws occupy the secret route, and twelve more surround the guardian
-inside the arena. The route and arena stay part of the connected cave realm but
-have no cave entrance, exit, treasure cache, or ordinary resource clutter.
+pockets, and opens into her dedicated 650-unit-radius webbed arena. Eight fixed
+wraiths and maws occupy the secret route, while twelve sentries and four
+long-legged crawler brood surround the Brood Mother inside the arena. The route
+and arena stay part of the connected cave realm but have no cave entrance, exit,
+treasure cache, or ordinary resource clutter.
 
 The three tree species and every rock are drawn from directly overhead. Pines
 use overlapping jagged needle whorls at different angles, giving the full crown
@@ -222,7 +223,7 @@ clear line of sight, even when the rest of the creature is still hidden.
 A full cycle lasts 480 seconds: 240 seconds of day and 240 seconds of night. The
 first run begins partway through daylight, leaving about 163 seconds before
 night 1. At dawn, the day counter increases and up to 12 health is restored.
-Ordinary Meadow horrors disappear at dawn. Cave horrors and the cave guardian
+Ordinary Meadow horrors disappear at dawn. Cave horrors and the Brood Mother
 survive the day transition and remain underground until defeated.
 
 ## 6. Hunger, food, and death
@@ -507,12 +508,12 @@ alternate attack remains an immediate base-damage shot.
 | Deconstruction hammer | 3 | 78 | 750 ms |
 | Hands, food, or build tool | 3 | 78 | 600 ms |
 
-Night monsters and the cave guardian can land attacks from their listed reach
+Night monsters and the Brood Mother can land attacks from their listed reach
 only with an unobstructed line to the player. Their attacks, along with contact
 attacks from aggressive wildlife, can deal damage at most once every 1.25
-seconds. A wraith, maw, or cave guardian close attack draws a bright directional
-swipe across its actual melee reach when the hit lands; the guardian's separate
-orb volley retains its charge warning and visible projectiles. Monsters can
+seconds. A wraith, maw, or Brood Mother close attack draws a bright directional
+swipe across its actual melee reach when the hit lands; the Brood Mother's web
+volley retains its charge warning and visible projectiles. Monsters can
 damage a blocking structure at most once every 1.2 seconds.
 
 The fast Meadow crawler rests its two exceptionally long striking arms folded
@@ -539,23 +540,28 @@ Wildlife leaves visible, illustrated piles of its species-specific meat and hide
 at the death position; birds provide meat but no hide. The piles become
 collectible after 650 ms, then enter the inventory when the player comes within
 36 units. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2
-sulfur. The cave guardian is the exception to normal maw loot. Every creature
+sulfur. The Brood Mother is the exception to normal maw loot. Every creature
 defeated by the player or a trap increases the threat count.
 
-The cave guardian is an oversized maw with 240 health, 78 speed, 22 melee
-damage, a 114-unit melee reach, and a 540-unit sense radius. From 220 to 520
-units away with a clear line to the player, it holds its ground, locks its aim,
-and visibly charges for 650 ms before firing a three-orb spread. Each orb moves
-at 315 units per second, deals 14 damage before armor, and can be dodged or
-blocked by cave rock and completed solid structures; an orb that hits a
-structure deals the same 14 damage to it. The charge and moving orbs cast their
-own warning light in the cave darkness. The ranged attack begins a new charge at
-most once every 2.6 seconds. Closing inside 220 units makes the guardian resume
-its faster melee pursuit. Defeating it awards no ordinary iron, sulfur, or
-Aetherium bundle. It instead gives exactly one Guardian Core, removes all
-remaining guardian orbs, and unlocks the Assault Rifle recipe. Crafting that
-rifle at a bench consumes the core and requires an already-crafted Scrap
-Pistol.
+The **Brood Mother** is a giant spider-like cave boss with twelve long jointed
+legs, five separate mouths, many visible teeth, 320 health, 118 speed, 22 melee
+damage, a 114-unit melee reach, and a 620-unit sense radius. Four long-legged
+crawler brood begin clustered around her nest. The permanent nest contains nine
+visible web pools.
+
+From 170 to 600 units away with a clear line to the player, the Brood Mother
+locks her aim and visibly gathers webbing for 600 ms before spitting a
+three-clot spread at 360 units per second. She continues advancing at reduced
+speed while charging and closes to about 210 units instead of holding far away.
+Each clot deals 3 damage before armor and bursts into a 60-unit web pool when it
+hits the player, cave rock, a completed solid structure, or its range limit.
+Fired pools last 14 seconds. Standing on any nest or fired web reduces movement
+to 42% and deals 2 damage before armor once every 1.6 seconds. A new volley can
+begin at most once every 3.2 seconds. Defeating the Brood Mother awards no
+ordinary iron, sulfur, or Aetherium bundle. It instead gives exactly one
+Guardian Core, removes any web projectiles still in flight, and unlocks the
+Assault Rifle recipe. Crafting that rifle at a bench consumes the core and
+requires an already-crafted Scrap Pistol.
 
 ## 11. Wildlife feeding and breeding
 
@@ -634,9 +640,10 @@ feeding progress, and no remembered wariness.
 
 ## 12. Endless night progression
 
-The cave system begins with 23 non-boss encounter monsters in addition to its
-guardian: three Aether Wardens, eight secret-route guards, and twelve guardian
-arena sentries. These fixed encounter monsters do not respawn individually.
+The cave system begins with 27 non-boss encounter monsters in addition to the
+Brood Mother: three Aether Wardens, eight secret-route guards, twelve arena
+sentries, and four long-legged crawler brood around her nest. These fixed
+encounter monsters do not respawn individually.
 Once the surviving non-boss cave population falls below six, ordinary wraith or
 maw replacements restore that population floor. If none remain, one replacement
 appears immediately at a valid distant point; otherwise at most one appears
@@ -649,8 +656,10 @@ reinforcements to the persistent cave population, with no wave-size cap. Night
 and adds 24 respectively. Monsters in the inactive realm remain there while the
 player travels, so leaving a cave never makes the outside night empty. Meadow
 waves use shades, crawlers, brutes, and night-4 stalkers. Cave-system
-populations use only wraiths and maws; surface horrors never spawn underground,
-and cave horrors never spawn outside. The game checks throughout the night whether the current
+reinforcements and replacement spawns use only wraiths and maws; the four fixed
+crawler brood are the exception and remain underground. Other surface horrors
+never spawn underground, and cave horrors never spawn outside. The game checks
+throughout the night whether the current
 day's reinforcements have spawned, so a missed transition frame cannot suppress
 them. Each day advances after dawn. Enemy health, speed, contact damage, attack
 reach, and sense radius never scale with the day. Progression comes only from
@@ -684,8 +693,10 @@ Crawlers have narrow carapaces, six jointed limbs, and two much longer striking
 arms. Brutes have broad plated bodies, massive forelimbs, and claws that flare
 during their leap wind-up. Stalkers are much smaller, with narrow torsos and six
 needle-like legs. Wraiths are tapered spectral bodies trailing six flowing
-ribbons. Maws have a circular toothed mouth and eight short, heavy limbs; the
-cave guardian is an oversized maw. Every organic family has pulsing red eye
+ribbons. Maws have a circular toothed mouth and eight short, heavy limbs. The
+Brood Mother has her own much larger spider silhouette with twelve long legs, a
+segmented body, five toothed mouths, many eyes, and web markings. Every organic
+family has pulsing red eye
 glints that remain aligned with its own overhead face and movement direction.
 Aether Wardens are faceted teal constructs ringed with seven luminous crystal
 spikes, carry a visible label, and cast a small cyan warning glow; their central

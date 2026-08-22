@@ -177,7 +177,7 @@ interface WorkOrder {
 
 interface Projectile {
   id: number;
-  kind: "arrow" | "bullet" | "guardianOrb";
+  kind: "arrow" | "bullet" | "broodWeb";
   realm: Realm;
   x: number;
   y: number;
@@ -185,6 +185,15 @@ interface Projectile {
   vy: number;
   life: number;
   damage: number;
+}
+
+interface BroodWeb {
+  id: number;
+  realm: CaveRealm;
+  x: number;
+  y: number;
+  radius: number;
+  expiresAt: number;
 }
 
 interface AttackFlash {
@@ -260,6 +269,8 @@ interface GameState {
   creatures: Creature[];
   buildings: Building[];
   projectiles: Projectile[];
+  broodWebs: BroodWeb[];
+  broodWebDamageAt: number;
   attackFlash: AttackFlash | null;
   keys: Set<string>;
   mouseHeld: boolean;
@@ -623,14 +634,20 @@ const MONSTER_WAVE_ROSTERS: Record<Realm, MonsterKind[]> = {
   caveSystem: ["wraith", "wraith", "maw"],
 };
 const BOSS_ATTACK_REACH_BONUS = 18;
-const BOSS_SPEED = 78;
-const BOSS_SENSE_DISTANCE = 540;
-const BOSS_RANGED_MIN_DISTANCE = 220;
-const BOSS_RANGED_RANGE = 520;
-const BOSS_RANGED_DAMAGE = 14;
-const BOSS_RANGED_COOLDOWN_MS = 2600;
-const BOSS_RANGED_WINDUP_MS = 650;
-const BOSS_PROJECTILE_SPEED = 315;
+const BOSS_SPEED = 118;
+const BOSS_SENSE_DISTANCE = 620;
+const BOSS_RANGED_MIN_DISTANCE = 170;
+const BOSS_RANGED_RANGE = 600;
+const BOSS_RANGED_DAMAGE = 3;
+const BOSS_RANGED_COOLDOWN_MS = 3200;
+const BOSS_RANGED_WINDUP_MS = 600;
+const BOSS_PROJECTILE_SPEED = 360;
+const BROOD_WEB_RADIUS = 60;
+const BROOD_WEB_DURATION_MS = 14000;
+const BROOD_WEB_SPEED_FACTOR = 0.42;
+const BROOD_WEB_TICK_DAMAGE = 2;
+const BROOD_WEB_DAMAGE_INTERVAL_MS = 1600;
+const BROOD_GUARD_COUNT = 4;
 const ANIMAL_LURE_DISTANCE = 360;
 const ANIMAL_LURE_STANDOFF_DISTANCE = 135;
 const ANIMAL_FEED_DISTANCE = 162;
@@ -1297,10 +1314,23 @@ function makeGame(): GameState {
       loot: { stone: 4, iron: 5, copper: 4, coal: 3, sulfur: 3, aetherium: 2 },
     },
   ];
+  const broodWebs: BroodWeb[] = Array.from({ length: 9 }, (_, index) => {
+    const centered = index === 0;
+    const angle = ((index - 1) / 8) * Math.PI * 2 + seeded(index, 701) * 0.24;
+    const distance = centered ? 0 : 118 + (index % 2) * 54;
+    return {
+      id: id++,
+      realm: "caveSystem",
+      x: guardianPoint.x + Math.cos(angle) * distance,
+      y: guardianPoint.y + Math.sin(angle) * distance,
+      radius: centered ? 76 : 50 + (index % 3) * 7,
+      expiresAt: 0,
+    };
+  });
   const creatures: Creature[] = [];
   const addMonster = (kind: MonsterKind, x: number, y: number, phase: number, boss = false) => {
     const stats = MONSTER_DATA[kind];
-    const hp = boss ? 240 : stats.hp;
+    const hp = boss ? 320 : stats.hp;
     const direction = Math.atan2(CAVE_HUB.y - y, CAVE_HUB.x - x);
     creatures.push({
       id: id++,
@@ -1398,6 +1428,15 @@ function makeGame(): GameState {
   AETHER_SITES.forEach((site, index) => {
     addMonster("aetherWarden", site.guard.x, site.guard.y, 31 + index * 1.7);
   });
+  for (let broodIndex = 0; broodIndex < BROOD_GUARD_COUNT; broodIndex++) {
+    const angle = (broodIndex / BROOD_GUARD_COUNT) * Math.PI * 2 + 0.35;
+    addMonster(
+      "crawler",
+      guardianPoint.x + Math.cos(angle) * 150,
+      guardianPoint.y + Math.sin(angle) * 150,
+      24 + broodIndex * 1.7,
+    );
+  }
   GUARDIAN_PATH_GUARDS.forEach((guard, index) => {
     addMonster(guard.kind, guard.x, guard.y, 41 + index * 0.83);
   });
@@ -1496,6 +1535,8 @@ function makeGame(): GameState {
     creatures,
     buildings: [startingCampfire],
     projectiles: [],
+    broodWebs,
+    broodWebDamageAt: 0,
     attackFlash: null,
     keys: new Set(),
     mouseHeld: false,
@@ -1719,13 +1760,25 @@ function activeTool(game: GameState): Tool {
   return game.selected;
 }
 
+function activeBroodWebAt(game: GameState, x: number, y: number, now = performance.now()) {
+  if (game.realm !== "caveSystem") return null;
+  return game.broodWebs.find(
+    (web) =>
+      (web.expiresAt === 0 || web.expiresAt > now) &&
+      Math.hypot(web.x - x, web.y - y) < web.radius,
+  ) ?? null;
+}
+
 function playerMovementSpeed(game: GameState) {
   const heldItemFactor = game.bowChargeStartedAt !== null
     ? BOW_DRAW_SPEED_FACTOR
     : activeTool(game) === "hands"
       ? 1
       : HELD_ITEM_SPEED_FACTOR;
-  return PLAYER_BASE_SPEED * heldItemFactor * groundSpeedFactor(game.realm, game.player.x, game.player.y);
+  const webFactor = activeBroodWebAt(game, game.player.x, game.player.y)
+    ? BROOD_WEB_SPEED_FACTOR
+    : 1;
+  return PLAYER_BASE_SPEED * heldItemFactor * webFactor * groundSpeedFactor(game.realm, game.player.x, game.player.y);
 }
 
 function nearCraftingBench(game: GameState) {
@@ -2366,6 +2419,7 @@ function setGamePaused(game: GameState, paused: boolean, now = performance.now()
   game.messageUntil = shiftDeadline(game.messageUntil);
   game.hallucinatingUntil = shiftDeadline(game.hallucinatingUntil);
   game.nextCaveSpawnAt = shiftDeadline(game.nextCaveSpawnAt);
+  game.broodWebDamageAt = shiftDeadline(game.broodWebDamageAt);
   game.nodes.forEach((node) => {
     node.respawnAt = shiftDeadline(node.respawnAt);
   });
@@ -2388,6 +2442,9 @@ function setGamePaused(game: GameState, paused: boolean, now = performance.now()
   });
   game.buildings.forEach((building) => {
     building.triggerAt = shiftDeadline(building.triggerAt);
+  });
+  game.broodWebs.forEach((web) => {
+    web.expiresAt = shiftDeadline(web.expiresAt);
   });
   if (game.attackFlash) game.attackFlash.startedAt = shiftTimestamp(game.attackFlash.startedAt);
   game.paused = false;
@@ -3060,8 +3117,8 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
   }
   if (creature.boss) {
     addMaterial(game, "guardianCore", 1);
-    game.projectiles = game.projectiles.filter((projectile) => projectile.kind !== "guardianOrb");
-    notify(game, "Cave guardian defeated · Guardian Core recovered · Assault Rifle recipe unlocked", 4500);
+    game.projectiles = game.projectiles.filter((projectile) => projectile.kind !== "broodWeb");
+    notify(game, "Brood Mother defeated · Guardian Core recovered · Assault Rifle recipe unlocked", 4500);
     return;
   }
   if (creature.kind === "brute") addMaterial(game, "iron", 1);
@@ -3079,19 +3136,34 @@ function damagePlayer(game: GameState, damage: number, source = "") {
   notify(game, source ? source + " · " + Math.round(received) + " damage!" : "You took " + Math.round(received) + " damage!", 1100);
 }
 
+function createBroodWeb(game: GameState, x: number, y: number) {
+  if (!isCaveFloor(x, y, 8)) return;
+  game.broodWebs.push({
+    id: game.lastId++,
+    realm: "caveSystem",
+    x,
+    y,
+    radius: BROOD_WEB_RADIUS,
+    expiresAt: performance.now() + BROOD_WEB_DURATION_MS,
+  });
+}
+
 function updateProjectiles(game: GameState, dt: number) {
   for (const projectile of game.projectiles) {
+    const previousX = projectile.x;
+    const previousY = projectile.y;
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
     projectile.life -= dt;
     if (projectile.realm === "caveSystem" && !isCaveFloor(projectile.x, projectile.y, 5)) {
+      if (projectile.kind === "broodWeb") createBroodWeb(game, previousX, previousY);
       projectile.life = 0;
       continue;
     }
-    if (projectile.kind === "guardianOrb") {
+    if (projectile.kind === "broodWeb") {
       const blocker = blockingBuildingAt(game, projectile.realm, projectile.x, projectile.y, 10);
       if (blocker) {
-        blocker.hp -= projectile.damage;
+        createBroodWeb(game, previousX, previousY);
         projectile.life = 0;
         continue;
       }
@@ -3100,10 +3172,21 @@ function updateProjectiles(game: GameState, dt: number) {
         game.player.hp > 0 &&
         Math.hypot(game.player.x - projectile.x, game.player.y - projectile.y) < 32
       ) {
-        damagePlayer(game, projectile.damage, "Guardian orb hit");
+        damagePlayer(game, projectile.damage, "Brood web hit");
+        createBroodWeb(game, projectile.x, projectile.y);
+        projectile.life = 0;
+        continue;
+      }
+      if (
+        projectile.life <= 0 ||
+        projectile.x < 0 ||
+        projectile.y < 0 ||
+        projectile.x > WORLD_W ||
+        projectile.y > WORLD_H
+      ) {
+        createBroodWeb(game, projectile.x, projectile.y);
         projectile.life = 0;
       }
-      if (projectile.x < 0 || projectile.y < 0 || projectile.x > WORLD_W || projectile.y > WORLD_H) projectile.life = 0;
       continue;
     }
     const target = game.creatures.find(
@@ -3124,6 +3207,15 @@ function updateProjectiles(game: GameState, dt: number) {
     if (projectile.x < 0 || projectile.y < 0 || projectile.x > WORLD_W || projectile.y > WORLD_H) projectile.life = 0;
   }
   game.projectiles = game.projectiles.filter((projectile) => projectile.life > 0);
+}
+
+function updateBroodWebs(game: GameState) {
+  const now = performance.now();
+  game.broodWebs = game.broodWebs.filter((web) => web.expiresAt === 0 || web.expiresAt > now);
+  if (!activeBroodWebAt(game, game.player.x, game.player.y, now)) return;
+  if (now < game.broodWebDamageAt) return;
+  damagePlayer(game, BROOD_WEB_TICK_DAMAGE, "Brood web burns");
+  game.broodWebDamageAt = now + BROOD_WEB_DAMAGE_INTERVAL_MS;
 }
 
 function primaryAction(game: GameState, repeated = false) {
@@ -3238,24 +3330,24 @@ function steerCreatureFacing(current: number, target: number, maxTurn: number) {
   return Math.atan2(Math.sin(current + turn), Math.cos(current + turn));
 }
 
-function launchGuardianVolley(game: GameState, guardian: Creature) {
-  const muzzleDistance = creatureRadius(guardian) + 20;
-  for (const spread of [-0.22, 0, 0.22]) {
-    const direction = guardian.rangedAim + spread;
+function launchBroodWebVolley(game: GameState, mother: Creature) {
+  const muzzleDistance = creatureRadius(mother) + 20;
+  for (const spread of [-0.18, 0, 0.18]) {
+    const direction = mother.rangedAim + spread;
     game.projectiles.push({
       id: game.lastId++,
-      kind: "guardianOrb",
-      realm: guardian.realm,
-      x: guardian.x + Math.cos(direction) * muzzleDistance,
-      y: guardian.y + Math.sin(direction) * muzzleDistance,
+      kind: "broodWeb",
+      realm: mother.realm,
+      x: mother.x + Math.cos(direction) * muzzleDistance,
+      y: mother.y + Math.sin(direction) * muzzleDistance,
       vx: Math.cos(direction) * BOSS_PROJECTILE_SPEED,
       vy: Math.sin(direction) * BOSS_PROJECTILE_SPEED,
       life: BOSS_RANGED_RANGE / BOSS_PROJECTILE_SPEED + 0.2,
       damage: BOSS_RANGED_DAMAGE,
     });
   }
-  guardian.rangedChargeUntil = 0;
-  notify(game, "The cave guardian launches a void volley!", 900);
+  mother.rangedChargeUntil = 0;
+  notify(game, "The Brood Mother spits a web volley!", 900);
 }
 
 function updateBruteLeap(game: GameState, creature: Creature, dt: number, now: number) {
@@ -3459,12 +3551,12 @@ function updateCreatures(game: GameState, dt: number) {
       playerDistance <= BOSS_RANGED_RANGE;
     if (bossCanShoot) {
       if (creature.rangedChargeUntil > 0 && now >= creature.rangedChargeUntil) {
-        launchGuardianVolley(game, creature);
+        launchBroodWebVolley(game, creature);
       } else if (creature.rangedChargeUntil <= 0 && now - creature.rangedAt >= BOSS_RANGED_COOLDOWN_MS) {
         creature.rangedAt = now;
         creature.rangedChargeUntil = now + BOSS_RANGED_WINDUP_MS;
         creature.rangedAim = Math.atan2(game.player.y - creature.y, game.player.x - creature.x);
-        notify(game, "The cave guardian is charging a ranged attack!", BOSS_RANGED_WINDUP_MS);
+        notify(game, "The Brood Mother gathers webbing in her mouths!", BOSS_RANGED_WINDUP_MS);
       }
     } else if (creature.rangedChargeUntil > 0) {
       creature.rangedChargeUntil = 0;
@@ -3474,12 +3566,12 @@ function updateCreatures(game: GameState, dt: number) {
       creature.dir = steerCreatureFacing(creature.dir, creature.rangedAim, 9 * dt);
     }
     const chaseStopDistance = creature.boss && bossCanShoot
-      ? 280
+      ? 210
       : isMonster(creature.kind) && attackPathClear
         ? Math.max(30, attackReach - 12)
         : 30;
     const stopDistance = movement === "lure" ? 5 : movement === "chase" ? chaseStopDistance : 2;
-    const shouldMove = distance > stopDistance && !chargingRangedAttack;
+    const shouldMove = distance > stopDistance && (!chargingRangedAttack || creature.boss);
     if (shouldMove) {
       const slowFactor = now < creature.slowUntil ? 0.42 : 1;
       const paceMultiplier =
@@ -3497,9 +3589,10 @@ function updateCreatures(game: GameState, dt: number) {
                 ? 0.65
                 : 0.22;
       const babyPace = isBabyAnimal(creature, now) ? 0.72 : 1;
-      const basePace = creature.speed * paceMultiplier * slowFactor * babyPace;
+      const chargingPace = creature.boss && chargingRangedAttack ? 0.58 : 1;
+      const basePace = creature.speed * paceMultiplier * slowFactor * babyPace * chargingPace;
       const pace = movement === "idle" ? Math.min(basePace, distance * 1.6) : basePace;
-      const desiredDirection = Math.atan2(dy, dx);
+      const desiredDirection = chargingRangedAttack ? creature.rangedAim : Math.atan2(dy, dx);
       const turnRate = movement === "idle" ? 3.2 : 7;
       creature.dir = steerCreatureFacing(creature.dir, desiredDirection, turnRate * dt);
       const step = Math.min(pace * dt, Math.max(0, distance - stopDistance));
@@ -3513,7 +3606,7 @@ function updateCreatures(game: GameState, dt: number) {
       }
     }
     if (attackingPlayer && attackPathClear && playerDistance < attackReach && now - creature.hitAt > CREATURE_ATTACK_COOLDOWN_MS) {
-      damagePlayer(game, creature.damage, creature.boss ? "Cave guardian hit" : "");
+      damagePlayer(game, creature.damage, creature.boss ? "Brood Mother hit" : "");
       creature.hitAt = now;
       creature.attackAt = now;
     }
@@ -3798,6 +3891,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
     if (building.kind === "crop" && building.construction >= 1) building.growth = Math.min(1, building.growth + dt / 300);
   }
   updateProjectiles(game, dt);
+  updateBroodWebs(game);
   updateCreatures(game, dt);
   reviveNodes(game);
 }
@@ -5593,8 +5687,109 @@ function drawMonsterLimb(
   ctx.stroke();
 }
 
+function drawBroodMouth(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radiusX: number,
+  radiusY: number,
+  rotation: number,
+  teeth: number,
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.fillStyle = "#080609";
+  ctx.strokeStyle = "#321822";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#eee0bd";
+  for (let tooth = 0; tooth < teeth; tooth++) {
+    const angle = (tooth / teeth) * Math.PI * 2;
+    ctx.save();
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(radiusX * 0.86, -2.1);
+    ctx.lineTo(radiusX * 0.42, 0);
+    ctx.lineTo(radiusX * 0.86, 2.1);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawBroodMother(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
+  const stride = now / 150 + creature.phase;
+  for (const side of [-1, 1] as const) {
+    for (let leg = 0; leg < 6; leg++) {
+      const anchorX = -25 + leg * 10;
+      const splay = (leg - 2.5) * 10;
+      const lift = Math.sin(stride + leg * 1.17 + (side > 0 ? 0.9 : 0)) * 5;
+      drawMonsterLimb(
+        ctx,
+        [
+          [anchorX, side * 17],
+          [anchorX + 10, side * (42 + Math.abs(splay) * 0.22 + lift)],
+          [anchorX + splay, side * (70 + Math.abs(splay) * 0.28)],
+        ],
+        leg === 0 || leg === 5 ? 5.5 : 7,
+        leg % 2 ? "#573047" : "#6b3a50",
+      );
+    }
+  }
+
+  ctx.fillStyle = "#472437";
+  ctx.strokeStyle = "#170d15";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.ellipse(-18, 0, 39, 31, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#5d3045";
+  ctx.beginPath();
+  ctx.ellipse(20, 0, 29, 24, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(218,208,193,.52)";
+  ctx.lineWidth = 2;
+  for (const y of [-18, -7, 7, 18]) {
+    ctx.beginPath();
+    ctx.moveTo(-48, y * 0.55);
+    ctx.quadraticCurveTo(-20, y * 1.25, 7, y * 0.72);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.moveTo(-50, 0);
+  ctx.lineTo(8, 0);
+  ctx.stroke();
+
+  drawBroodMouth(ctx, 26, 0, 18, 14, 0, 14);
+  drawBroodMouth(ctx, -28, -14, 10, 7, -0.35, 8);
+  drawBroodMouth(ctx, -29, 14, 10, 7, 0.35, 8);
+  drawBroodMouth(ctx, -4, -17, 9, 6, -0.15, 7);
+  drawBroodMouth(ctx, -4, 17, 9, 6, 0.15, 7);
+
+  ctx.fillStyle = "#f36b63";
+  for (const [x, y, radius] of [
+    [9, -17, 3.5], [18, -19, 3], [28, -17, 2.6], [9, 17, 3.5], [18, 19, 3], [28, 17, 2.6],
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function drawMonsterCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
   const pulse = Math.sin(now / 150 + creature.phase) * 1.5;
+
+  if (creature.boss) {
+    drawBroodMother(ctx, creature, now);
+    return;
+  }
 
   if (creature.kind === "shade") {
     for (let i = 0; i < 5; i++) {
@@ -6109,20 +6304,20 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     if (creature.boss && creature.rangedChargeUntil > now) {
       const chargeProgress = Math.max(0, Math.min(1, 1 - (creature.rangedChargeUntil - now) / BOSS_RANGED_WINDUP_MS));
       const chargePulse = 0.75 + Math.sin(now / 42) * 0.25;
-      ctx.strokeStyle = "rgba(244,103,94,.9)";
+      ctx.strokeStyle = "rgba(229,222,205,.92)";
       ctx.lineWidth = 3 + chargeProgress * 2;
       ctx.beginPath();
       ctx.arc(0, 0, 40 + chargeProgress * 7, -Math.PI * 0.78, Math.PI * 0.78);
       ctx.stroke();
       const chargeGlow = ctx.createRadialGradient(42, 0, 1, 42, 0, 15);
-      chargeGlow.addColorStop(0, "#fff0c4");
-      chargeGlow.addColorStop(0.28, "#ff7967");
-      chargeGlow.addColorStop(1, "rgba(91,24,78,0)");
+      chargeGlow.addColorStop(0, "#fffdf0");
+      chargeGlow.addColorStop(0.28, "#d8d0c5");
+      chargeGlow.addColorStop(1, "rgba(114,79,112,0)");
       ctx.fillStyle = chargeGlow;
       ctx.beginPath();
       ctx.arc(42, 0, (7 + chargeProgress * 7) * chargePulse, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,189,104,.68)";
+      ctx.strokeStyle = "rgba(239,233,220,.72)";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(48, 0);
@@ -6132,10 +6327,10 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
   }
   ctx.rotate(-creature.dir);
   if (creature.boss) {
-    ctx.fillStyle = "#f0bd59";
-    ctx.font = "900 10px Arial";
+    ctx.fillStyle = "#f0d9b0";
+    ctx.font = "900 11px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("CAVE GUARDIAN", 0, -51);
+    ctx.fillText("BROOD MOTHER", 0, -57);
   } else if (creature.kind === "aetherWarden") {
     ctx.fillStyle = "#bffcff";
     ctx.font = "900 9px Arial";
@@ -6156,11 +6351,13 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     }
   }
   if (creature.hp < creature.maxHp) {
+    const healthWidth = creature.boss ? 72 : 44;
+    const healthY = creature.boss ? -49 : -39;
     ctx.fillStyle = "#1d2a27";
-    roundedRect(ctx, -22, -39, 44, 5, 3);
+    roundedRect(ctx, -healthWidth / 2, healthY, healthWidth, 5, 3);
     ctx.fill();
     ctx.fillStyle = "#e45e55";
-    roundedRect(ctx, -22, -39, 44 * Math.max(0, creature.hp / creature.maxHp), 5, 3);
+    roundedRect(ctx, -healthWidth / 2, healthY, healthWidth * Math.max(0, creature.hp / creature.maxHp), 5, 3);
     ctx.fill();
   }
   ctx.restore();
@@ -6913,6 +7110,53 @@ function drawMeadowTerrain(ctx: CanvasRenderingContext2D) {
   }
 }
 
+function drawBroodWeb(ctx: CanvasRenderingContext2D, web: BroodWeb, now: number) {
+  const remaining = web.expiresAt === 0
+    ? 1
+    : Math.max(0, Math.min(1, (web.expiresAt - now) / BROOD_WEB_DURATION_MS));
+  const alpha = web.expiresAt === 0 ? 0.62 : 0.24 + remaining * 0.52;
+  const rotation = seeded(web.id, 883) * Math.PI * 2;
+  ctx.save();
+  ctx.translate(web.x, web.y);
+  ctx.rotate(rotation);
+  ctx.fillStyle = `rgba(111,76,105,${0.1 * alpha})`;
+  ctx.beginPath();
+  ctx.arc(0, 0, web.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = `rgba(229,225,211,${alpha})`;
+  ctx.lineCap = "round";
+  for (let strand = 0; strand < 12; strand++) {
+    const angle = (strand / 12) * Math.PI * 2;
+    const length = web.radius * (0.84 + seeded(strand + web.id, 887) * 0.16);
+    ctx.lineWidth = strand % 3 === 0 ? 2.3 : 1.4;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(angle) * length, Math.sin(angle) * length);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 1.5;
+  for (const ring of [0.26, 0.48, 0.7, 0.91]) {
+    ctx.beginPath();
+    for (let strand = 0; strand <= 12; strand++) {
+      const angle = (strand / 12) * Math.PI * 2;
+      const wobble = 1 + Math.sin(strand * 2.7 + web.id) * 0.045;
+      const x = Math.cos(angle) * web.radius * ring * wobble;
+      const y = Math.sin(angle) * web.radius * ring * wobble;
+      if (strand === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.fillStyle = `rgba(242,236,220,${Math.min(0.9, alpha + 0.18)})`;
+  for (const [x, y, radius] of [[0, 0, 4], [-12, 7, 2.8], [10, -9, 2.4]] as const) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, now: number) {
   ctx.save();
   ctx.translate(projectile.x, projectile.y);
@@ -6938,33 +7182,40 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, n
     ctx.lineTo(-11, 5);
     ctx.closePath();
     ctx.fill();
-  } else if (projectile.kind === "guardianOrb") {
+  } else if (projectile.kind === "broodWeb") {
     const pulse = 0.84 + Math.sin(now / 45 + projectile.id) * 0.16;
-    const trail = ctx.createLinearGradient(-36, 0, 9, 0);
-    trail.addColorStop(0, "rgba(91,24,78,0)");
-    trail.addColorStop(0.6, "rgba(205,64,104,.48)");
-    trail.addColorStop(1, "rgba(255,137,91,.9)");
+    const trail = ctx.createLinearGradient(-42, 0, 9, 0);
+    trail.addColorStop(0, "rgba(215,209,196,0)");
+    trail.addColorStop(0.55, "rgba(215,209,196,.45)");
+    trail.addColorStop(1, "rgba(248,243,224,.92)");
     ctx.strokeStyle = trail;
-    ctx.lineWidth = 10;
-    ctx.beginPath();
-    ctx.moveTo(-38, 0);
-    ctx.lineTo(3, 0);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(244,78,92,.25)";
-    ctx.beginPath();
-    ctx.arc(7, 0, 17 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#6b205b";
-    ctx.strokeStyle = "#ff9b64";
     ctx.lineWidth = 3;
+    for (const offset of [-5, 0, 5]) {
+      ctx.beginPath();
+      ctx.moveTo(-42, offset * 0.25);
+      ctx.quadraticCurveTo(-16, offset * 1.4, 3, offset * 0.4);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(235,229,214,.4)";
     ctx.beginPath();
-    ctx.arc(7, 0, 10 * pulse, 0, Math.PI * 2);
+    ctx.arc(7, 0, 16 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#d7d0c3";
+    ctx.strokeStyle = "#fff9e8";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(7, 0, 9 * pulse, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#fff0bd";
-    ctx.beginPath();
-    ctx.arc(10, -3, 3.5, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.strokeStyle = "rgba(99,73,92,.65)";
+    ctx.lineWidth = 1.5;
+    for (let strand = 0; strand < 5; strand++) {
+      const angle = (strand / 5) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(7, 0);
+      ctx.lineTo(7 + Math.cos(angle) * 9, Math.sin(angle) * 9);
+      ctx.stroke();
+    }
   } else {
     const trail = ctx.createLinearGradient(-28, 0, 10, 0);
     trail.addColorStop(0, "rgba(255,211,91,0)");
@@ -7152,8 +7403,8 @@ function drawDarkness(
     ) reveal(creature.x, creature.y, 145, 36);
   });
   game.projectiles.forEach((projectile) => {
-    if (projectile.realm === game.realm && projectile.kind === "guardianOrb") {
-      reveal(projectile.x, projectile.y, 86, 18);
+    if (projectile.realm === game.realm && projectile.kind === "broodWeb") {
+      reveal(projectile.x, projectile.y, 72, 16);
     }
   });
 
@@ -7184,6 +7435,11 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   } else {
     drawMeadowTerrain(ctx);
   }
+  game.broodWebs.forEach((web) => {
+    if (web.realm === game.realm && (web.expiresAt === 0 || web.expiresAt > now)) {
+      drawBroodWeb(ctx, web, now);
+    }
+  });
   if (game.buildMode) {
     ctx.strokeStyle = cave ? "rgba(192,210,201,.13)" : "rgba(47,89,60,.15)";
     ctx.lineWidth = 1;
