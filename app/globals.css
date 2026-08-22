@@ -327,6 +327,9 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .mark-guardianCore { color: #dffeff; background: #265d68; box-shadow: 0 0 9px rgba(105,230,239,.62); }
 .mark-mineralRock { color: #fff1c7; background: #625b4d; box-shadow: 0 0 7px rgba(224,183,83,.32); }
 .mark-catalyst { color: #e9ffff; background: #3d8185; box-shadow: 0 0 8px rgba(93,225,226,.45); }
+.mark-carapacePlate { color: #f8dcff; background: #704183; box-shadow: 0 0 8px rgba(202,100,223,.5); }
+.mark-neuralGel { color: #dcffff; background: #3c898b; box-shadow: 0 0 8px rgba(102,231,222,.52); }
+.mark-livingWeave { color: #f8e1ff; background: #87536f; box-shadow: 0 0 8px rgba(217,112,184,.45); }
 .mark-fiber { background: #69a754; }
 .mark-food { background: #d85d53; }
 .mark-berries { background: #c94f58; }
@@ -426,6 +429,12 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .material-mineralRock b { width: 5px; height: 5px; background: #e5c35a; box-shadow: 7px 4px 0 #67d5d6, 2px 9px 0 #c78358; }
 .material-catalyst i { left: 6px; top: 4px; width: 9px; height: 15px; border: 2px solid #24585b; border-radius: 3px 3px 6px 6px; background: linear-gradient(transparent 0 35%, #72e4e2 36% 100%); box-shadow: inset 2px 0 rgba(255,255,255,.45); }
 .material-catalyst b { left: 8px; top: 1px; width: 5px; height: 5px; border: 2px solid #24585b; border-bottom: 0; border-radius: 2px 2px 0 0; background: #b8dbd7; }
+.material-carapacePlate i { left: 3px; top: 2px; width: 17px; height: 18px; border: 2px solid #3e2449; background: linear-gradient(135deg, #df8ded, #704183); clip-path: polygon(50% 0, 95% 22%, 84% 82%, 50% 100%, 16% 82%, 5% 22%); }
+.material-carapacePlate b { left: 9px; top: 5px; width: 5px; height: 12px; border-radius: 50%; background: #f5caff; box-shadow: 0 0 5px #eeb5fa; transform: rotate(-18deg); }
+.material-neuralGel i { left: 5px; top: 2px; width: 12px; height: 19px; border: 2px solid #24575b; border-radius: 4px 4px 7px 7px; background: linear-gradient(transparent 0 30%, #72e8df 31% 100%); box-shadow: inset 3px 0 rgba(255,255,255,.4), 0 0 5px rgba(109,235,227,.55); }
+.material-neuralGel b { left: 8px; top: 8px; width: 3px; height: 3px; border-radius: 50%; background: #e5ffff; box-shadow: 4px 5px 0 #b7ffff, 1px 8px 0 #418b91; }
+.material-livingWeave i { left: 3px; top: 3px; width: 17px; height: 17px; border: 2px solid #4a2b43; border-radius: 50%; background: repeating-linear-gradient(45deg, #d87eb6 0 3px, #754264 3px 6px); }
+.material-livingWeave b { left: 7px; top: 7px; width: 9px; height: 9px; border: 2px solid #f2b9dc; border-radius: 50%; background: #6a3a5a; }
 
 .material-fiber i {
   left: 8px;
@@ -977,6 +986,10 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .tool-sniper i { left: 0; top: 10px; width: 40px; height: 8px; border: 3px solid #17272a; border-radius: 2px; background: linear-gradient(#a7b8b9, #56686a); transform: none; }
 .tool-sniper i:after { content: ""; position: absolute; left: 12px; top: -9px; width: 20px; height: 6px; border: 2px solid #18515a; border-radius: 4px; background: #62dbe3; box-shadow: inset 7px 0 rgba(224,255,255,.65); }
 .tool-sniper b { left: 0; top: 17px; width: 24px; height: 13px; border: 3px solid #3b3027; border-radius: 7px 2px 7px 4px; background: #684c38; transform: skew(-16deg); }
+.tool-chimera i { left: 0; top: 7px; width: 40px; height: 18px; border: 3px solid #3d2348; border-radius: 55% 45% 50% 48%; background: linear-gradient(135deg, #d47be3, #754090 52%, #39274e); box-shadow: 0 0 9px rgba(209,101,231,.58); transform: none; }
+.tool-chimera i:before { content: ""; position: absolute; left: 6px; top: 4px; width: 6px; height: 8px; border-radius: 50%; background: #9af5ed; box-shadow: 10px 1px 0 #dda0eb, 20px -1px 0 #8de9e4; }
+.tool-chimera i:after { content: ""; position: absolute; right: -10px; top: 3px; width: 13px; height: 10px; border: 3px solid #452553; border-radius: 50%; background: #c6fff9; box-shadow: 0 0 8px #83eee7; }
+.tool-chimera b { left: 5px; top: 23px; width: 24px; height: 12px; border: 3px solid #3d2348; border-top: 0; border-radius: 0 0 50% 50%; background: repeating-linear-gradient(90deg, #78418e 0 5px, #c36fd5 5px 8px); transform: skew(-12deg); }
 .tool-build i { left: 16px; top: 8px; height: 28px; transform: rotate(40deg); }
 .tool-build b { left: 7px; top: 3px; width: 26px; height: 13px; border: 2px solid #3b413f; border-radius: 4px; background: #d1a04d; transform: rotate(10deg); }
 .tool-pack i { left: 5px; top: 10px; width: 28px; height: 23px; border: 3px solid #3c302b; border-radius: 8px; background: #a66b42; transform: none; }
@@ -1526,14 +1539,14 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   text-align: center;
 }
 
-.laboratory-scrim { z-index: 24; background: rgba(12,7,16,.68); }
+.laboratory-scrim { z-index: 27; background: rgba(12,7,16,.68); }
 .laboratory-panel {
   left: 50%;
   right: auto;
   top: 50%;
   bottom: auto;
   width: min(820px, calc(100vw - 32px));
-  max-height: min(700px, calc(100vh - 32px));
+  max-height: min(760px, calc(100vh - 32px));
   transform: translate(-50%, -50%);
   border-color: rgba(214,120,234,.28);
   background: linear-gradient(145deg, #1f302b, #211a28);
@@ -1546,8 +1559,23 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .laboratory-biomass .material-icon { width: 27px; height: 27px; transform: scale(1.25); }
 .laboratory-biomass span small { display: block; color: #ba86c5; font-size: 7px; font-weight: 900; letter-spacing: .14em; }
 .laboratory-biomass span b { display: block; margin-top: 3px; color: #f0d8f5; font-size: 13px; }
-.research-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.research-list article { display: flex; min-height: 224px; flex-direction: column; align-items: center; padding: 17px; border: 1px solid rgba(214,120,234,.18); border-radius: 15px; background: linear-gradient(145deg, #2a3e36, #282132); text-align: center; }
+.laboratory-section-title { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin: 0 0 11px; }
+.laboratory-section-title small { color: #be7dcc; font-size: 7px; font-weight: 950; letter-spacing: .13em; }
+.laboratory-section-title h3 { margin: 3px 0 0; color: #f1e2f4; font-size: 17px; }
+.laboratory-section-title > span { color: #819b8f; font-size: 8px; font-weight: 800; }
+.biomass-processing { padding: 16px; border: 1px solid rgba(214,120,234,.17); border-radius: 16px; background: rgba(14,27,23,.42); }
+.biomass-process-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.biomass-process-list article { display: grid; grid-template-columns: 38px 1fr; gap: 5px 9px; padding: 12px; border: 1px solid rgba(255,255,255,.09); border-radius: 12px; background: linear-gradient(145deg, #2a3e36, #2b2433); }
+.biomass-process-list .material-icon { width: 31px; height: 31px; margin-top: 2px; transform: scale(1.18); }
+.biomass-process-list div > small { color: #c07bcf; font-size: 6px; font-weight: 900; letter-spacing: .08em; }
+.biomass-process-list h3 { margin: 3px 0 0; color: #f3e7f5; font-size: 12px; }
+.biomass-process-list p { min-height: 39px; margin: 6px 0; color: #98aea3; font-size: 8px; line-height: 1.4; }
+.biomass-process-list em { color: #dfb862; font-size: 7px; font-style: normal; font-weight: 850; line-height: 1.35; }
+.biomass-process-list button { grid-column: 1 / -1; width: 100%; margin-top: 5px; padding: 9px; color: #2e2731; border: 0; border-radius: 8px; background: #d583e7; font-size: 8px; font-weight: 950; cursor: pointer; }
+.biomass-process-list button:disabled { color: #788c83; background: #344a41; cursor: not-allowed; }
+.research-title { margin-top: 21px; }
+.research-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.research-list article { display: flex; min-height: 205px; flex-direction: column; align-items: center; padding: 17px; border: 1px solid rgba(214,120,234,.18); border-radius: 15px; background: linear-gradient(145deg, #2a3e36, #282132); text-align: center; }
 .research-list article.researched { border-color: rgba(117,198,120,.4); background: linear-gradient(145deg, #294336, #20352c); }
 .research-list > article > small { margin-top: 10px; color: #c77bd7; font-size: 7px; font-weight: 900; letter-spacing: .11em; }
 .research-list article.researched > small { color: #82c986; }
@@ -1646,6 +1674,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   .survival-game { min-height: 520px; }
   .top-hud { inset: 9px 9px auto; }
   .cycle-panel { transform: scale(.82); transform-origin: top left; }
+  .biomass-process-list { grid-template-columns: 1fr; }
+  .biomass-process-list p { min-height: 0; }
   .research-list { grid-template-columns: 1fr; }
   .research-list article { min-height: 190px; }
   .resource-strip { transform: scale(.82); transform-origin: top right; }

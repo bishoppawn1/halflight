@@ -22,7 +22,7 @@ type ResourceKind =
 type FoodMaterial = "berries" | "mushrooms" | "meat" | "cookedMushrooms" | "cookedMeat";
 type RawCookableFood = "mushrooms" | "meat";
 type ToolTier = "none" | "wood" | "stone" | "iron" | "aetherium" | "biomass";
-type Firearm = "pistol" | "smg" | "shotgun" | "rifle" | "sniper";
+type Firearm = "pistol" | "smg" | "shotgun" | "rifle" | "sniper" | "chimera";
 type DurableTool =
   | "woodAxe"
   | "stoneAxe"
@@ -77,6 +77,9 @@ type Material =
   | "guardianCore"
   | "mineralRock"
   | "catalyst"
+  | "carapacePlate"
+  | "neuralGel"
+  | "livingWeave"
   | "fiber"
   | "berries"
   | "meat"
@@ -89,13 +92,14 @@ type Material =
   | "arrows"
   | "bullets";
 type GrowableMineral = "iron" | "copper" | "coal" | "sulfur" | "aetherium";
+type BiomassCompound = "carapacePlate" | "neuralGel" | "livingWeave";
 type GroundAnimalKind = "bear" | "boar" | "deer" | "rabbit" | "fox" | "wolf" | "raccoon";
 type BirdKind = "crow" | "owl" | "turkey";
 type AnimalKind = GroundAnimalKind | BirdKind;
 type MonsterKind = "shade" | "crawler" | "brute" | "stalker" | "wraith" | "maw" | "aetherWarden";
 type CreatureKind = MonsterKind | AnimalKind;
 type ArmorKind = "none" | "copper" | "iron" | "blacksteel" | "symbiote";
-type ResearchKind = "carapaceAxe" | "tendrilBlade" | "symbioteArmor";
+type ResearchKind = "carapaceAxe" | "tendrilBlade" | "symbioteArmor" | "xenoBallistics";
 type InventoryItem = Tool | BuildKind | Material;
 type Panel = "inventory" | "craft" | "build" | null;
 type AttackStyle = "slash" | "thrust" | "shot";
@@ -202,7 +206,7 @@ interface Projectile {
   vy: number;
   life: number;
   damage: number;
-  bulletStyle?: "standard" | "pellet" | "sniper";
+  bulletStyle?: "standard" | "pellet" | "sniper" | "chimera";
 }
 
 interface BroodWeb {
@@ -271,6 +275,7 @@ interface GameState {
     shotgun: boolean;
     rifle: boolean;
     sniper: boolean;
+    chimera: boolean;
     hammer: boolean;
     toolDurability: Record<DurableTool, number[]>;
     armor: ArmorKind;
@@ -557,6 +562,9 @@ const MATERIALS: { id: Material; name: string }[] = [
   { id: "guardianCore", name: "Guardian Core" },
   { id: "mineralRock", name: "Mineral-Rich Rock" },
   { id: "catalyst", name: "Catalyst" },
+  { id: "carapacePlate", name: "Carapace Plate" },
+  { id: "neuralGel", name: "Neural Gel" },
+  { id: "livingWeave", name: "Living Weave" },
   { id: "fiber", name: "Fiber" },
   { id: "berries", name: "Berries" },
   { id: "meat", name: "Raw Meat" },
@@ -575,7 +583,7 @@ const BUILD_DATA: Record<
   { name: string; detail: string; icon: string; cost: Partial<Record<Material, number>>; makes: number; hp: number }
 > = {
   craftingBench: { name: "Crafting Bench", detail: "Unlocks advanced crafting nearby", icon: "CB", cost: { wood: 4, stone: 2 }, makes: 1, hp: 85 },
-  laboratory: { name: "Laboratory", detail: "Researches alien equipment with biomass", icon: "LB", cost: { wood: 10, iron: 8, copper: 6 }, makes: 1, hp: 145 },
+  laboratory: { name: "Laboratory", detail: "Researches blueprints and processes Alien Biomass", icon: "LB", cost: { wood: 10, iron: 8, copper: 6 }, makes: 1, hp: 145 },
   chemicalLab: { name: "Chemical Lab", detail: "Makes bullets and Catalyst within 150 units", icon: "CL", cost: { iron: 8, copper: 6, stone: 4 }, makes: 1, hp: 135 },
   mineralGrower: { name: "Mineral Grower", detail: "Replicates a seeded mineral with rich rock and Catalyst", icon: "MG", cost: { iron: 10, copper: 7, aetherium: 3 }, makes: 1, hp: 155 },
   storageChest: { name: "Storage Chest", detail: "Holds separate resource stacks", icon: "CH", cost: { wood: 5, fiber: 2 }, makes: 1, hp: 110 },
@@ -625,11 +633,37 @@ const BUILD_ORDER: BuildKind[] = [
   "crop",
 ];
 
-const RESEARCH_ORDER: ResearchKind[] = ["carapaceAxe", "tendrilBlade", "symbioteArmor"];
+const RESEARCH_ORDER: ResearchKind[] = ["carapaceAxe", "tendrilBlade", "symbioteArmor", "xenoBallistics"];
 const RESEARCH_DATA: Record<ResearchKind, { name: string; detail: string; biomassCost: number }> = {
   carapaceAxe: { name: "Carapace Tooling", detail: "Unlocks the durable Carapace Axe recipe.", biomassCost: 2 },
   tendrilBlade: { name: "Tendril Weaponry", detail: "Unlocks the long-reaching Tendril Blade recipe.", biomassCost: 3 },
   symbioteArmor: { name: "Symbiote Weave", detail: "Unlocks protective living armor.", biomassCost: 4 },
+  xenoBallistics: { name: "Xenotech Ballistics", detail: "Unlocks the explosive Chimera Cannon super weapon.", biomassCost: 6 },
+};
+
+const BIOMASS_PROCESS_ORDER: BiomassCompound[] = ["carapacePlate", "neuralGel", "livingWeave"];
+const BIOMASS_PROCESS_DATA: Record<
+  BiomassCompound,
+  { name: string; detail: string; cost: Partial<Record<Material, number>>; output: number }
+> = {
+  carapacePlate: {
+    name: "Carapace Plate",
+    detail: "Iron and coal harden alien tissue into a dense structural shell.",
+    cost: { biomass: 2, iron: 2, coal: 1 },
+    output: 2,
+  },
+  neuralGel: {
+    name: "Neural Gel",
+    detail: "Copper and sulfur make a conductive gel for living weapons.",
+    cost: { biomass: 2, copper: 2, sulfur: 1 },
+    output: 2,
+  },
+  livingWeave: {
+    name: "Living Weave",
+    detail: "Hide and fiber stabilize flexible strands of alien muscle.",
+    cost: { biomass: 2, hide: 2, fiber: 2 },
+    output: 2,
+  },
 };
 
 const MINERAL_GROWTH_RECIPES: Record<
@@ -706,6 +740,8 @@ const ANIMAL_BABY_DURATION_MS = 240_000;
 const ANIMAL_BREED_COOLDOWN_MS = 480_000;
 const BOW_MAX_CHARGE_MS = 1200;
 const BOW_MAX_DAMAGE_BONUS = 0.75;
+const CHIMERA_BURST_RADIUS = 90;
+const CHIMERA_BURST_DAMAGE = 52;
 const WARY_ESCAPE_DISTANCE = 520;
 const WARY_NOTICE_BONUS = 120;
 const MEAT_EATING_ANIMALS: AnimalKind[] = ["bear", "fox", "wolf"];
@@ -759,6 +795,7 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   shotgun: "Scattergun",
   rifle: "Assault Rifle",
   sniper: "Sniper Rifle",
+  chimera: "Chimera Cannon",
   wood: "Wood",
   stone: "Stone",
   iron: "Iron",
@@ -769,6 +806,9 @@ const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
   guardianCore: "Guardian Core",
   mineralRock: "Mineral-Rich Rock",
   catalyst: "Catalyst",
+  carapacePlate: "Carapace Plate",
+  neuralGel: "Neural Gel",
+  livingWeave: "Living Weave",
   fiber: "Fiber",
   berries: "Berries",
   meat: "Raw Meat",
@@ -834,6 +874,7 @@ const DURABLE_TOOL_DATA: Record<
   shotgun: { family: "shotgun", tier: "iron", maxDurability: 900, damage: 24 },
   rifle: { family: "rifle", tier: "aetherium", maxDurability: 1200, damage: 62 },
   sniper: { family: "sniper", tier: "aetherium", maxDurability: 900, damage: 145 },
+  chimera: { family: "chimera", tier: "biomass", maxDurability: 1200, damage: 120 },
 };
 
 interface AttackProfile {
@@ -875,6 +916,7 @@ const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
   shotgun: { damage: 24, range: 430, cooldown: 900, animationSeconds: 0.3, arc: 0, style: "shot" },
   rifle: { damage: 62, range: 760, cooldown: 230, animationSeconds: 0.16, arc: 0, style: "shot" },
   sniper: { damage: 145, range: 1250, cooldown: 1550, animationSeconds: 0.34, arc: 0, style: "shot" },
+  chimera: { damage: 120, range: 900, cooldown: 700, animationSeconds: 0.3, arc: 0, style: "shot" },
 };
 
 function attackProfile(tool: Tool) {
@@ -886,7 +928,7 @@ function isBowTool(tool: Tool): tool is "bow" | "ironBow" {
 }
 
 function isFirearm(tool: Tool): tool is Firearm {
-  return tool === "pistol" || tool === "smg" || tool === "shotgun" || tool === "rifle" || tool === "sniper";
+  return tool === "pistol" || tool === "smg" || tool === "shotgun" || tool === "rifle" || tool === "sniper" || tool === "chimera";
 }
 
 function isDurableTool(item: InventoryItem | null): item is DurableTool {
@@ -1524,7 +1566,7 @@ function makeGame(): GameState {
     realm: "meadow",
     zoom: 1,
     player: { x: SPAWN_X, y: SPAWN_Y, hp: 100, maxHp: 100, hunger: 100, dir: 0, swing: 0, attackReady: 0, useReady: 0 },
-    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, mineralRock: 0, catalyst: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, cookedMeat: 0, cookedMushrooms: 0, seeds: 0, hide: 0, biomass: 0, arrows: 0, bullets: 0 },
+    resources: { wood: 0, stone: 0, iron: 0, copper: 0, coal: 0, sulfur: 0, aetherium: 0, guardianCore: 0, mineralRock: 0, catalyst: 0, carapacePlate: 0, neuralGel: 0, livingWeave: 0, fiber: 0, berries: 3, meat: 0, mushrooms: 0, cookedMeat: 0, cookedMushrooms: 0, seeds: 0, hide: 0, biomass: 0, arrows: 0, bullets: 0 },
     gear: {
       spear: false,
       sword: false,
@@ -1536,6 +1578,7 @@ function makeGame(): GameState {
       shotgun: false,
       rifle: false,
       sniper: false,
+      chimera: false,
       hammer: false,
       toolDurability: {
         woodAxe: [DURABLE_TOOL_DATA.woodAxe.maxDurability],
@@ -1557,6 +1600,7 @@ function makeGame(): GameState {
         shotgun: [],
         rifle: [],
         sniper: [],
+        chimera: [],
       },
       armor: "none",
     },
@@ -1593,7 +1637,7 @@ function makeGame(): GameState {
     buildMode: null,
     openChestId: null,
     openLaboratoryId: null,
-    research: { carapaceAxe: false, tendrilBlade: false, symbioteArmor: false },
+    research: { carapaceAxe: false, tendrilBlade: false, symbioteArmor: false, xenoBallistics: false },
     openGrowerId: null,
     workOrders: [],
     autoBuildActive: false,
@@ -3158,6 +3202,8 @@ function attack(game: GameState, bowCharge = 0) {
       ? 720
       : tool === "bow"
         ? 620
+        : tool === "chimera"
+          ? 980
         : tool === "sniper"
           ? 1900
           : tool === "rifle"
@@ -3171,7 +3217,7 @@ function attack(game: GameState, bowCharge = 0) {
     const damage = isBow
       ? Math.round(profile.damage * (1 + charge * BOW_MAX_DAMAGE_BONUS))
       : profile.damage;
-    const muzzleDistance = tool === "sniper" ? 79 : tool === "rifle" ? 68 : tool === "smg" || tool === "shotgun" ? 55 : 34;
+    const muzzleDistance = tool === "sniper" ? 79 : tool === "chimera" ? 74 : tool === "rifle" ? 68 : tool === "smg" || tool === "shotgun" ? 55 : 34;
     const shotAngles = tool === "shotgun" ? [-0.18, -0.09, 0, 0.09, 0.18] : [0];
     shotAngles.forEach((spread) => {
       const direction = game.player.dir + spread;
@@ -3185,7 +3231,7 @@ function attack(game: GameState, bowCharge = 0) {
         vy: Math.sin(direction) * speed,
         life: isBow ? (tool === "ironBow" ? 0.84 : 0.9) : profile.range / speed,
         damage,
-        bulletStyle: tool === "shotgun" ? "pellet" : tool === "sniper" ? "sniper" : "standard",
+        bulletStyle: tool === "shotgun" ? "pellet" : tool === "sniper" ? "sniper" : tool === "chimera" ? "chimera" : "standard",
       });
     });
     if (isDurableTool(tool)) {
@@ -3325,6 +3371,21 @@ function createBroodWeb(game: GameState, x: number, y: number) {
   });
 }
 
+function detonateChimeraShot(game: GameState, projectile: Projectile) {
+  for (const creature of game.creatures) {
+    if (
+      creature.realm !== projectile.realm ||
+      creature.hp <= 0 ||
+      Math.hypot(creature.x - projectile.x, creature.y - projectile.y) > CHIMERA_BURST_RADIUS + creatureRadius(creature)
+    ) continue;
+    creature.hp -= CHIMERA_BURST_DAMAGE;
+    creature.angry = true;
+    creature.provokedUntil = performance.now() + 5000;
+    makePreyPermanentlyWary(creature);
+    if (creature.hp <= 0) awardCreatureDrop(game, creature);
+  }
+}
+
 function updateProjectiles(game: GameState, dt: number) {
   for (const projectile of game.projectiles) {
     const previousX = projectile.x;
@@ -3334,6 +3395,11 @@ function updateProjectiles(game: GameState, dt: number) {
     projectile.life -= dt;
     if (projectile.realm === "caveSystem" && !isCaveFloor(projectile.x, projectile.y, 5)) {
       if (projectile.kind === "broodWeb") createBroodWeb(game, previousX, previousY);
+      if (projectile.bulletStyle === "chimera") {
+        projectile.x = previousX;
+        projectile.y = previousY;
+        detonateChimeraShot(game, projectile);
+      }
       projectile.life = 0;
       continue;
     }
@@ -3366,6 +3432,10 @@ function updateProjectiles(game: GameState, dt: number) {
       }
       continue;
     }
+    if (projectile.life <= 0) {
+      if (projectile.bulletStyle === "chimera") detonateChimeraShot(game, projectile);
+      continue;
+    }
     const target = game.creatures.find(
       (creature) =>
         creature.realm === projectile.realm &&
@@ -3377,9 +3447,13 @@ function updateProjectiles(game: GameState, dt: number) {
       target.angry = true;
       target.provokedUntil = performance.now() + 5000;
       makePreyPermanentlyWary(target);
+      const killedByImpact = target.hp <= 0;
+      if (projectile.bulletStyle === "chimera") detonateChimeraShot(game, projectile);
       projectile.life = 0;
-      notify(game, (projectile.kind === "arrow" ? "Arrow" : "Bullet") + " hit · " + projectile.damage + " damage", 650);
-      if (target.hp <= 0) awardCreatureDrop(game, target);
+      const hitLabel = projectile.kind === "arrow" ? "Arrow" : projectile.bulletStyle === "chimera" ? "Chimera pulse" : "Bullet";
+      const shownDamage = projectile.damage + (projectile.bulletStyle === "chimera" && !killedByImpact ? CHIMERA_BURST_DAMAGE : 0);
+      notify(game, hitLabel + " hit · " + shownDamage + " damage", 650);
+      if (killedByImpact) awardCreatureDrop(game, target);
     }
     if (projectile.x < 0 || projectile.y < 0 || projectile.x > WORLD_W || projectile.y > WORLD_H) projectile.life = 0;
   }
@@ -4666,7 +4740,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     : 0;
   const motion = swing > 0 ? Math.sin(progress * Math.PI) : 0;
   const angle = profile.style === "slash" ? -motion * 0.68 : 0;
-  const firearmRecoil = tool === "shotgun" ? 14 : tool === "sniper" ? 12 : tool === "rifle" ? 10 : tool === "smg" ? 6 : 7;
+  const firearmRecoil = tool === "chimera" ? 16 : tool === "shotgun" ? 14 : tool === "sniper" ? 12 : tool === "rifle" ? 10 : tool === "smg" ? 6 : 7;
   const forwardMotion = tool === "spear" ? motion * 30 : isFirearm(tool) ? -motion * firearmRecoil : 0;
   ctx.save();
   ctx.translate(19 + forwardMotion, 6);
@@ -5003,6 +5077,61 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.beginPath();
     ctx.arc(49, -12.5, 2.3, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (tool === "chimera") {
+    ctx.strokeStyle = "#321d3c";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    for (const offset of [-8, 0, 8]) {
+      ctx.beginPath();
+      ctx.moveTo(-19, offset * 0.45);
+      ctx.quadraticCurveTo(-6, offset * 1.45, 8, offset * 0.55);
+      ctx.stroke();
+    }
+    ctx.shadowColor = "#d878ef";
+    ctx.shadowBlur = 15;
+    const bodyGradient = ctx.createLinearGradient(4, -18, 68, 15);
+    bodyGradient.addColorStop(0, "#c66ad9");
+    bodyGradient.addColorStop(0.48, "#713b91");
+    bodyGradient.addColorStop(1, "#3d2857");
+    ctx.fillStyle = bodyGradient;
+    ctx.beginPath();
+    ctx.moveTo(-4, -8);
+    ctx.bezierCurveTo(8, -23, 46, -22, 68, -10);
+    ctx.lineTo(78, 0);
+    ctx.lineTo(67, 11);
+    ctx.bezierCurveTo(42, 19, 9, 16, -5, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#efb8fb";
+    ctx.lineWidth = 2;
+    for (const x of [14, 31, 48]) {
+      ctx.beginPath();
+      ctx.moveTo(x, -15 + Math.abs(31 - x) * 0.08);
+      ctx.quadraticCurveTo(x - 6, 0, x, 14 - Math.abs(31 - x) * 0.05);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#8ff1e9";
+    ctx.shadowColor = "#89f8ef";
+    ctx.shadowBlur = 13;
+    ctx.beginPath();
+    ctx.ellipse(42, 0, 10, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#dffffb";
+    ctx.beginPath();
+    ctx.arc(76, 0, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#452754";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(15, 10);
+    ctx.quadraticCurveTo(8, 23, 19, 29);
+    ctx.stroke();
     ctx.restore();
     return;
   }
@@ -7702,22 +7831,56 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, n
       ctx.stroke();
     }
   } else {
+    const chimera = projectile.bulletStyle === "chimera";
     const sniper = projectile.bulletStyle === "sniper";
     const pellet = projectile.bulletStyle === "pellet";
-    const trailLength = sniper ? 48 : pellet ? 18 : 28;
-    const trail = ctx.createLinearGradient(-trailLength, 0, 10, 0);
-    trail.addColorStop(0, sniper ? "rgba(99,222,235,0)" : "rgba(255,211,91,0)");
-    trail.addColorStop(1, sniper ? "rgba(172,251,255,.98)" : "rgba(255,239,169,.95)");
-    ctx.strokeStyle = trail;
-    ctx.lineWidth = sniper ? 7 : pellet ? 3 : 5;
-    ctx.beginPath();
-    ctx.moveTo(-trailLength - 2, 0);
-    ctx.lineTo(6, 0);
-    ctx.stroke();
-    ctx.fillStyle = sniper ? "#d8fdff" : "#fff4bd";
-    ctx.beginPath();
-    ctx.arc(8, 0, sniper ? 5 : pellet ? 2.5 : 4, 0, Math.PI * 2);
-    ctx.fill();
+    if (chimera) {
+      const pulse = 0.88 + Math.sin(now / 55 + projectile.id) * 0.12;
+      const trail = ctx.createLinearGradient(-54, 0, 8, 0);
+      trail.addColorStop(0, "rgba(196,80,221,0)");
+      trail.addColorStop(0.65, "rgba(196,80,221,.62)");
+      trail.addColorStop(1, "rgba(139,245,235,.94)");
+      ctx.strokeStyle = trail;
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(-56, 0);
+      ctx.quadraticCurveTo(-18, Math.sin(now / 65) * 5, 7, 0);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(202,91,228,.34)";
+      ctx.beginPath();
+      ctx.arc(9, 0, 18 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#91f3eb";
+      ctx.strokeStyle = "#f0b6fa";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(9, 0, 9 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(225,132,241,.75)";
+      ctx.lineWidth = 2;
+      for (let tendril = -1; tendril <= 1; tendril++) {
+        ctx.beginPath();
+        ctx.moveTo(-3, tendril * 4);
+        ctx.quadraticCurveTo(-13, tendril * 9, -24, tendril * 5);
+        ctx.stroke();
+      }
+    } else {
+      const trailLength = sniper ? 48 : pellet ? 18 : 28;
+      const trail = ctx.createLinearGradient(-trailLength, 0, 10, 0);
+      trail.addColorStop(0, sniper ? "rgba(99,222,235,0)" : "rgba(255,211,91,0)");
+      trail.addColorStop(1, sniper ? "rgba(172,251,255,.98)" : "rgba(255,239,169,.95)");
+      ctx.strokeStyle = trail;
+      ctx.lineWidth = sniper ? 7 : pellet ? 3 : 5;
+      ctx.beginPath();
+      ctx.moveTo(-trailLength - 2, 0);
+      ctx.lineTo(6, 0);
+      ctx.stroke();
+      ctx.fillStyle = sniper ? "#d8fdff" : "#fff4bd";
+      ctx.beginPath();
+      ctx.arc(8, 0, sniper ? 5 : pellet ? 2.5 : 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.restore();
 }
@@ -8458,6 +8621,19 @@ const CRAFT_RECIPES: Recipe[] = [
     },
   },
   {
+    id: "chimera",
+    name: "Chimera Cannon",
+    detail: "Alien super weapon · 120 impact damage · 52-damage pulse · 1200 durability",
+    cost: { aetherium: 6, carapacePlate: 4, neuralGel: 4, livingWeave: 2 },
+    requiresBench: true,
+    requiresResearch: "xenoBallistics",
+    action: (game) => {
+      game.gear.chimera = true;
+      game.weapon = "chimera";
+      addDurableTool(game, "chimera");
+    },
+  },
+  {
     id: "bullets",
     name: "Bullet Bundle ×12",
     detail: "Shared ammunition for every firearm",
@@ -8554,7 +8730,7 @@ const CRAFT_RECIPES: Recipe[] = [
     id: "carapaceAxe",
     name: "Carapace Axe",
     detail: "6 chopping damage · 30 combat damage · 240 durability",
-    cost: { wood: 4, iron: 4, biomass: 3 },
+    cost: { wood: 4, iron: 2, carapacePlate: 3 },
     requiresBench: true,
     requiresResearch: "carapaceAxe",
     action: (game) => {
@@ -8565,7 +8741,7 @@ const CRAFT_RECIPES: Recipe[] = [
     id: "tendrilBlade",
     name: "Tendril Blade",
     detail: "Living weapon · 36 damage · 112 reach · 240 durability",
-    cost: { iron: 6, hide: 3, biomass: 5 },
+    cost: { iron: 4, neuralGel: 3, livingWeave: 2 },
     requiresBench: true,
     requiresResearch: "tendrilBlade",
     action: (game) => {
@@ -8578,7 +8754,7 @@ const CRAFT_RECIPES: Recipe[] = [
     id: "symbioteArmor",
     name: "Symbiote Armor",
     detail: "Living armor · reduces incoming damage by 68%",
-    cost: { iron: 8, hide: 8, biomass: 7 },
+    cost: { iron: 4, hide: 4, carapacePlate: 2, livingWeave: 4 },
     requiresBench: true,
     requiresResearch: "symbioteArmor",
     owned: (game) => game.gear.armor === "symbiote",
@@ -8738,7 +8914,7 @@ function RecipeVisual({ recipe }: { recipe: Recipe }) {
   if (recipe.id === "spear") return <ToolGlyph type="spear" />;
   if (recipe.id === "sword" || recipe.id === "tendrilBlade") return <ToolGlyph type="sword" tier={tier} />;
   if (recipe.id === "bow" || recipe.id === "ironBow") return <ToolGlyph type="bow" tier={tier} />;
-  if (["pistol", "smg", "shotgun", "rifle", "sniper"].includes(recipe.id)) return <ToolGlyph type={recipe.id as Firearm} />;
+  if (["pistol", "smg", "shotgun", "rifle", "sniper", "chimera"].includes(recipe.id)) return <ToolGlyph type={recipe.id as Firearm} />;
   if (recipe.id === "arrows") return <MaterialIcon material="arrows" />;
   if (recipe.id === "bullets") return <MaterialIcon material="bullets" />;
   if (recipe.id === "catalyst") return <MaterialIcon material="catalyst" />;
@@ -8757,7 +8933,7 @@ function ItemVisual({ item }: { item: InventoryItem; game: GameState }) {
   if (item === "tendrilBlade") {
     return <ToolGlyph type="sword" tier="biomass" />;
   }
-  if (["hammer", "spear", "sword", "bow", "pistol", "smg", "shotgun", "rifle", "sniper"].includes(item)) {
+  if (["hammer", "spear", "sword", "bow", "pistol", "smg", "shotgun", "rifle", "sniper", "chimera"].includes(item)) {
     return <ToolGlyph type={item as ToolGlyphKind} />;
   }
   if (isBuildKind(item)) {
@@ -9087,6 +9263,24 @@ export default function Game() {
     pay(game, { biomass: project.biomassCost });
     game.research[kind] = true;
     notify(game, project.name + " researched. Its recipe is now available in Crafting.", 3600);
+    refresh();
+  };
+
+  const processBiomassCompound = (compound: BiomassCompound) => {
+    if (!openLaboratory) {
+      notify(game, "Open a completed Laboratory to process Alien Biomass.");
+      refresh();
+      return;
+    }
+    const process = BIOMASS_PROCESS_DATA[compound];
+    if (!canAfford(game, process.cost)) {
+      notify(game, "Not enough materials to process " + process.name + ".");
+      refresh();
+      return;
+    }
+    pay(game, process.cost);
+    addMaterial(game, compound, process.output);
+    notify(game, "Processed " + process.output + " " + process.name + ".", 2800);
     refresh();
   };
 
@@ -9577,9 +9771,38 @@ export default function Game() {
             <div className="laboratory-content">
               <div className="laboratory-biomass" aria-label={game.resources.biomass + " Alien Biomass available"}>
                 <MaterialIcon material="biomass" />
-                <span><small>RESEARCH CURRENCY</small><b>{game.resources.biomass} Alien Biomass</b></span>
+                <span><small>RAW ALIEN MATERIAL</small><b>{game.resources.biomass} Alien Biomass</b></span>
               </div>
-              <p>Monster tissue can be stabilized into new blueprints. Research unlocks a recipe; craft the finished equipment from the normal Crafting menu.</p>
+              <p>Analyze raw tissue for blueprints, then combine it with ordinary resources to process specialized compounds. Organic equipment is assembled from those compounds in the normal Crafting menu.</p>
+              <section className="biomass-processing" aria-labelledby="biomass-processing-title">
+                <div className="laboratory-section-title">
+                  <div><small>REPEATABLE PROCESSING</small><h3 id="biomass-processing-title">Stabilize compounds</h3></div>
+                  <span>Each batch produces 2</span>
+                </div>
+                <div className="biomass-process-list">
+                  {BIOMASS_PROCESS_ORDER.map((compound) => {
+                    const process = BIOMASS_PROCESS_DATA[compound];
+                    return (
+                      <article key={compound}>
+                        <MaterialIcon material={compound} />
+                        <div>
+                          <small>{game.resources[compound]} IN BACKPACK</small>
+                          <h3>{process.name}</h3>
+                          <p>{process.detail}</p>
+                          <em>{costLabel(process.cost)}</em>
+                        </div>
+                        <button disabled={!canAfford(game, process.cost)} onClick={() => processBiomassCompound(compound)}>
+                          Process ×{process.output}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+              <div className="laboratory-section-title research-title">
+                <div><small>ONE-TIME ANALYSIS</small><h3>Stabilize blueprints</h3></div>
+                <span>Spend raw biomass</span>
+              </div>
               <div className="research-list">
                 {RESEARCH_ORDER.map((kind) => {
                   const project = RESEARCH_DATA[kind];

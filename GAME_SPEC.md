@@ -17,7 +17,7 @@ complete run.
 2. Gather wood, stone, fiber, food, seeds, hide, Alien Biomass, and specialized materials.
 3. Explore three distinct caves for stone, iron, copper, coal, sulfur,
    mushrooms, and rare Aetherium.
-4. Build a Laboratory and spend Alien Biomass to research advanced organic equipment.
+4. Build a Laboratory to research blueprints and process Alien Biomass into specialized compounds.
 5. Craft tools, armor, melee weapons, bows, several firearm classes,
    ammunition, chemical feedstock, and healing.
 6. Build a shelter, crops, barriers, automated defenses, and multiple traps.
@@ -393,9 +393,10 @@ screen-wide menu. Every recipe occupies its own square card with a prominent
 illustration, name, description, material cost, bench requirement, and craft
 button.
 
-A completed Laboratory opens with `E`. It presents three independent research
-projects and shows the player's current Alien Biomass. Research permanently
-spends the listed biomass and unlocks the matching recipe; it never grants the
+A completed Laboratory opens with `E`. It presents four independent research
+projects, three repeatable processing batches, and the player's current Alien
+Biomass. Research permanently spends the listed biomass and unlocks the
+matching recipe; it never grants the
 finished item. The unlocked item must still be crafted at a Crafting Bench with
 its full recipe cost. Locked organic recipes remain visible in Crafting with a
 **Research first** state.
@@ -405,6 +406,18 @@ its full recipe cost. Locked organic recipes remain visible in Crafting with a
 | Carapace Tooling | 2 | Carapace Axe |
 | Tendril Weaponry | 3 | Tendril Blade |
 | Symbiote Weave | 4 | Symbiote Armor |
+| Xenotech Ballistics | 6 | Chimera Cannon |
+
+Laboratory processing is immediate and repeatable. Each batch consumes two raw
+Alien Biomass plus ordinary resources and places two units of the finished
+compound in the backpack. These compounds are normal inventory materials: they
+can be stored in chests and are consumed by the organic equipment recipes.
+
+| Processed compound | Batch input | Batch output |
+| --- | --- | ---: |
+| Carapace Plate | 2 Alien Biomass, 2 iron, 1 coal | 2 Carapace Plate |
+| Neural Gel | 2 Alien Biomass, 2 copper, 1 sulfur | 2 Neural Gel |
+| Living Weave | 2 Alien Biomass, 2 hide, 2 fiber | 2 Living Weave |
 
 | Recipe | Cost | Result |
 | --- | --- | --- |
@@ -423,6 +436,7 @@ its full recipe cost. Locked organic recipes remain visible in Crafting with a
 | Scattergun | 6 wood, 12 iron, 4 copper, 4 sulfur | Requires the Scrap Pistol; fires five 24-damage pellets in a spread; 900 durability |
 | Assault Rifle | 1 Guardian Core, 6 Aetherium, 12 iron, 8 copper | Requires the Scrap Pistol; 62-damage rapid-fire guardian-tier weapon; 1,200 durability |
 | Sniper Rifle | 18 iron, 10 copper, 4 Aetherium | Requires the Assault Rifle; 145-damage precision firearm; 900 durability |
+| Chimera Cannon | 6 Aetherium, 4 Carapace Plate, 4 Neural Gel, 2 Living Weave | Alien super weapon; 120 impact damage plus a 52-damage pulse in a 90-unit radius; 1,200 durability; requires Xenotech Ballistics |
 | Bullet Bundle | 2 iron, 1 coal, 2 sulfur | Chemical Lab only; 12 shared firearm bullets |
 | Catalyst Batch | 2 coal, 2 sulfur, 1 Aetherium | Chemical Lab only; 2 Catalyst for Mineral Grower batches |
 | Copper Armor | 12 copper, 5 hide | Copper helmet; 18% damage reduction |
@@ -432,9 +446,9 @@ its full recipe cost. Locked organic recipes remain visible in Crafting with a
 | Iron Pickaxe | 4 wood, 5 iron | 3 node damage per swing; mines Aetherium; 120 durability |
 | Aetherium Axe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 22 combat damage, and 180 durability |
 | Aetherium Pickaxe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 18 combat damage, and 180 durability |
-| Carapace Axe | 4 wood, 4 iron, 3 Alien Biomass | 6 node damage per swing, 30 combat damage, and 240 durability; requires Carapace Tooling |
-| Tendril Blade | 6 iron, 3 hide, 5 Alien Biomass | 36 damage, 112 reach, and 240 durability; requires Tendril Weaponry |
-| Symbiote Armor | 8 iron, 8 hide, 7 Alien Biomass | Living helmet; 68% damage reduction; requires Symbiote Weave |
+| Carapace Axe | 4 wood, 2 iron, 3 Carapace Plate | 6 node damage per swing, 30 combat damage, and 240 durability; requires Carapace Tooling |
+| Tendril Blade | 4 iron, 3 Neural Gel, 2 Living Weave | 36 damage, 112 reach, and 240 durability; requires Tendril Weaponry |
+| Symbiote Armor | 4 iron, 4 hide, 2 Carapace Plate, 4 Living Weave | Living helmet; 68% damage reduction; requires Symbiote Weave |
 | Field Bandage | 5 fiber, 1 berry | Immediately restores up to 35 health |
 
 Crafting a higher armor tier replaces the visible helmet and protection tier.
@@ -477,7 +491,7 @@ their respawn until that footprint is clear.
 | Piece | Cost | Made | Health | Function |
 | --- | --- | ---: | ---: | --- |
 | Crafting Bench | 4 wood, 2 stone | 1 | 85 | Enables advanced recipes within 150 units |
-| Laboratory | 10 wood, 8 iron, 6 copper | 1 | 145 | Opens with `E` and spends Alien Biomass to unlock organic equipment recipes |
+| Laboratory | 10 wood, 8 iron, 6 copper | 1 | 145 | Opens with `E` to research organic recipes and process Alien Biomass compounds |
 | Chemical Lab | 8 iron, 6 copper, 4 stone | 1 | 135 | Enables bullets, Catalyst, and Mineral Grower fabrication within 150 units |
 | Mineral Grower | 10 iron, 7 copper, 3 Aetherium | 1 | 155 | Opens a compact mineral-growth menu with `E`; its ready piece requires a nearby Chemical Lab |
 | Storage Chest | 5 wood, 2 fiber | 1 | 110 | Opens with `E` and stores resource stacks separately |
@@ -583,6 +597,7 @@ and the player switches away from it.
 | Scattergun pellet ×5 | 24 each | 430 | 900 ms | 900 |
 | Assault rifle | 62 | 760 | 230 ms | 1,200 |
 | Sniper rifle | 145 | 1,250 | 1,550 ms | 900 |
+| Chimera Cannon | 120 impact + 52 pulse | 900 | 700 ms | 1,200 |
 | Deconstruction hammer | 3 | 78 | 750 ms | — |
 | Hands, food, or build tool | 3 | 78 | 600 ms | — |
 
@@ -617,7 +632,11 @@ separately visible pellets across a short spread, so its full damage requires a
 close target. The guardian-tier Assault Rifle combines strong damage with fast
 automatic fire. The Sniper Rifle is its precision successor, using a long cyan
 tracer, the greatest range, and 145 damage in exchange for the slowest firearm
-cooldown. Each class has a distinct held silhouette and inventory illustration.
+cooldown. The laboratory-built Chimera Cannon fires a large cyan-and-purple
+alien pulse. Its impact deals 120 damage and then deals 52 more damage to every
+living creature within 90 units, including the impact target if it survives the
+initial hit; a missed shot still detonates at maximum range. Each class has a
+distinct held silhouette and inventory illustration.
 
 Wildlife leaves visible, illustrated piles of its species-specific meat and hide
 at the death position; birds provide meat but no hide. Monsters always leave
