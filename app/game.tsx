@@ -317,7 +317,6 @@ interface GameState {
   messageUntil: number;
   hallucinatingUntil: number;
   wave: number;
-  dreadTitanSpawned: boolean;
   cavePopulationInitialized: boolean;
   nextCaveSpawnAt: number;
   kills: number;
@@ -705,7 +704,7 @@ const MONSTER_DATA: Record<
   wraith: { realm: "caveSystem", earliestNight: 1, hp: 42, speed: 96, damage: 10, attackReach: 108, senseRadius: 440 },
   maw: { realm: "caveSystem", earliestNight: 3, hp: 92, speed: 56, damage: 17, attackReach: 96, senseRadius: 260 },
   aetherWarden: { realm: "caveSystem", earliestNight: 1, hp: 118, speed: 70, damage: 14, attackReach: 104, senseRadius: 380 },
-  dreadTitan: { realm: "meadow", earliestNight: 10, hp: 1200, speed: 45, damage: 30, attackReach: 162, senseRadius: 1000 },
+  dreadTitan: { realm: "caveSystem", earliestNight: 1, hp: 1200, speed: 45, damage: 30, attackReach: 162, senseRadius: 1000 },
 };
 const MONSTER_LOOT: Record<
   MonsterKind,
@@ -733,7 +732,6 @@ const BOSS_RANGED_DAMAGE = 3;
 const BOSS_RANGED_COOLDOWN_MS = 3200;
 const BOSS_RANGED_WINDUP_MS = 600;
 const BOSS_PROJECTILE_SPEED = 360;
-const DREAD_TITAN_NIGHT = 10;
 const DREAD_TITAN_RADIUS = 104;
 const DREAD_TITAN_STOMP_RADIUS = 235;
 const DREAD_TITAN_STOMP_DAMAGE = 34;
@@ -745,6 +743,7 @@ const DREAD_TITAN_BARRAGE_DAMAGE = 12;
 const DREAD_TITAN_BARRAGE_COOLDOWN_MS = 4800;
 const DREAD_TITAN_BARRAGE_WINDUP_MS = 780;
 const DREAD_TITAN_SHARD_SPEED = 520;
+const DREAD_TITAN_MOUTH_DISTANCE = 138;
 const DREAD_TITAN_SUMMON_COOLDOWN_MS = 9000;
 const DREAD_TITAN_SWARM_SIZE = 6;
 const BROOD_WEB_RADIUS = 60;
@@ -1306,8 +1305,10 @@ function makeGame(): GameState {
   let id = 1;
   const treasureCave = CAVES[Math.floor(Math.random() * CAVES.length)];
   const treasurePoint = caveEncounterPoint(treasureCave, treasureCave.chamberRadius * 0.48, -95);
-  const broodMotherRoom = CAVE_ROOMS[Math.floor(Math.random() * CAVE_ROOMS.length)];
+  const broodMotherRooms = CAVE_ROOMS.slice(1);
+  const broodMotherRoom = broodMotherRooms[Math.floor(Math.random() * broodMotherRooms.length)];
   const broodMotherPoint = { x: broodMotherRoom.x, y: broodMotherRoom.y };
+  const dreadTitanPoint = { x: CAVE_HUB.x, y: CAVE_HUB.y };
   const addNode = (
     kind: ResourceKind,
     realm: Realm,
@@ -1339,6 +1340,7 @@ function makeGame(): GameState {
       realm !== "caveSystem" ||
       (Math.hypot(x - treasurePoint.x, y - treasurePoint.y) > radius + 75 &&
         Math.hypot(x - broodMotherPoint.x, y - broodMotherPoint.y) > radius + 95 &&
+        Math.hypot(x - dreadTitanPoint.x, y - dreadTitanPoint.y) > radius + DREAD_TITAN_RADIUS + 70 &&
         AETHER_SITES.every((site) => Math.hypot(x - site.guard.x, y - site.guard.y) > radius + 70));
     if (!clearSpawn || !clearExit || !clearCave || !clearWater || !insideCave || !clearCaveNode || !clearEncounter) return false;
     const hp = nodeHp(kind, size);
@@ -1478,7 +1480,9 @@ function makeGame(): GameState {
   const creatures: Creature[] = [];
   const addMonster = (kind: MonsterKind, x: number, y: number, phase: number, boss = false) => {
     const stats = MONSTER_DATA[kind];
-    const hp = boss ? 320 : stats.hp;
+    const broodMother = boss && kind === "maw";
+    const dreadTitan = boss && kind === "dreadTitan";
+    const hp = broodMother ? 320 : stats.hp;
     const direction = Math.atan2(CAVE_HUB.y - y, CAVE_HUB.x - x);
     creatures.push({
       id: id++,
@@ -1488,8 +1492,8 @@ function makeGame(): GameState {
       y,
       hp,
       maxHp: hp,
-      speed: boss ? BOSS_SPEED : stats.speed,
-      damage: boss ? 22 : stats.damage,
+      speed: broodMother ? BOSS_SPEED : stats.speed,
+      damage: broodMother ? 22 : stats.damage,
       fed: 0,
       maturesAt: 0,
       breedReadyAt: 0,
@@ -1501,7 +1505,7 @@ function makeGame(): GameState {
       rewarded: false,
       dir: direction,
       structureHitAt: 0,
-      rangedAt: boss ? -BOSS_RANGED_COOLDOWN_MS : 0,
+      rangedAt: broodMother ? -BOSS_RANGED_COOLDOWN_MS : 0,
       rangedChargeUntil: 0,
       rangedAim: direction,
       boss,
@@ -1511,10 +1515,11 @@ function makeGame(): GameState {
       waryOfPlayer: false,
       respawnAt: 0,
       fleeing: false,
-      abilityReadyAt: 0,
+      abilityReadyAt: dreadTitan ? performance.now() + 3200 : 0,
       abilityStartedAt: 0,
       abilityTargetX: x,
       abilityTargetY: y,
+      summonReadyAt: dreadTitan ? performance.now() + 5200 : undefined,
     });
   };
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
@@ -1576,6 +1581,7 @@ function makeGame(): GameState {
   AETHER_SITES.forEach((site, index) => {
     addMonster("aetherWarden", site.guard.x, site.guard.y, 31 + index * 1.7);
   });
+  addMonster("dreadTitan", dreadTitanPoint.x, dreadTitanPoint.y, 42.3, true);
   addMonster("maw", broodMotherPoint.x, broodMotherPoint.y, 19.7, true);
   const startingCampfire: Building = {
     id: id++,
@@ -1701,7 +1707,6 @@ function makeGame(): GameState {
     messageUntil: performance.now() + 6000,
     hallucinatingUntil: 0,
     wave: 0,
-    dreadTitanSpawned: false,
     cavePopulationInitialized: false,
     nextCaveSpawnAt: 0,
     kills: 0,
@@ -1950,43 +1955,8 @@ function makeMonsterAt(
   return creature;
 }
 
-function spawnDreadTitan(game: GameState) {
-  if (game.dreadTitanSpawned || game.day < DREAD_TITAN_NIGHT) return false;
-  const anchorX = game.realm === "meadow" ? game.player.x : SPAWN_X;
-  const anchorY = game.realm === "meadow" ? game.player.y : SPAWN_Y;
-  const candidate = makeMonsterAt(game, "dreadTitan", "meadow", anchorX, anchorY, {
-    boss: true,
-    angry: true,
-    hp: MONSTER_DATA.dreadTitan.hp,
-  });
-  let placed = false;
-  for (let attempt = 0; attempt < 96; attempt++) {
-    const angle = seeded(game.lastId + attempt, 911) * Math.PI * 2;
-    const distance = 760 + seeded(game.lastId + attempt, 912) * 260;
-    const x = Math.max(DREAD_TITAN_RADIUS + 45, Math.min(WORLD_W - DREAD_TITAN_RADIUS - 45, anchorX + Math.cos(angle) * distance));
-    const y = Math.max(DREAD_TITAN_RADIUS + 45, Math.min(WORLD_H - DREAD_TITAN_RADIUS - 45, anchorY + Math.sin(angle) * distance));
-    if (!creaturePositionIsOpen(game, candidate, "meadow", x, y)) continue;
-    if (pointIsLit(game, "meadow", x, y, MONSTER_SPAWN_LIGHT_PADDING)) continue;
-    candidate.x = x;
-    candidate.y = y;
-    candidate.homeX = x;
-    candidate.homeY = y;
-    candidate.dir = Math.atan2(anchorY - y, anchorX - x);
-    placed = true;
-    break;
-  }
-  if (!placed) {
-    candidate.x = Math.max(160, Math.min(WORLD_W - 160, anchorX + 820));
-    candidate.y = Math.max(160, Math.min(WORLD_H - 160, anchorY));
-  }
-  game.creatures.push(candidate);
-  game.dreadTitanSpawned = true;
-  notify(game, "THE DREAD TITAN HAS RISEN — survive its stomps, shard storms, and summoned swarms!", 6200);
-  return true;
-}
-
 function summonDreadTitanSwarm(game: GameState, titan: Creature, now: number) {
-  const roster: MonsterKind[] = ["stalker", "crawler", "shade", "crawler", "stalker", "shade"];
+  const roster: MonsterKind[] = ["wraith", "wraith", "maw", "wraith", "wraith", "maw"];
   let summoned = 0;
   for (let index = 0; index < DREAD_TITAN_SWARM_SIZE; index++) {
     const kind = roster[index % roster.length];
@@ -2007,7 +1977,7 @@ function summonDreadTitanSwarm(game: GameState, titan: Creature, now: number) {
     }
   }
   titan.summonReadyAt = now + DREAD_TITAN_SUMMON_COOLDOWN_MS;
-  if (summoned > 0) notify(game, "The Dread Titan tears open the dark — " + summoned + " horrors join the hunt!", 1800);
+  if (summoned > 0) notify(game, "The Dread Titan calls through the cave — " + summoned + " horrors join the hunt!", 1800);
 }
 
 function spawnNightWave(game: GameState) {
@@ -2021,7 +1991,6 @@ function spawnNightWave(game: GameState) {
     "NIGHT " + game.day + " — " + meadowSpawned + " horrors prowl the meadow and " + caveSpawned + " stalk the caves.",
     4300,
   );
-  spawnDreadTitan(game);
 }
 
 function maintainCavePopulation(game: GameState, now: number) {
@@ -3815,14 +3784,15 @@ function launchBroodWebVolley(game: GameState, mother: Creature) {
 function launchDreadTitanShardBarrage(game: GameState, titan: Creature) {
   const directions = Array.from({ length: 12 }, (_, index) => (index / 12) * Math.PI * 2 + titan.phase);
   directions.push(titan.rangedAim - 0.14, titan.rangedAim, titan.rangedAim + 0.14);
-  const muzzleDistance = creatureRadius(titan) + 24;
+  const mouthX = titan.x + Math.cos(titan.dir) * DREAD_TITAN_MOUTH_DISTANCE;
+  const mouthY = titan.y + Math.sin(titan.dir) * DREAD_TITAN_MOUTH_DISTANCE;
   directions.forEach((direction) => {
     game.projectiles.push({
       id: game.lastId++,
       kind: "titanShard",
       realm: titan.realm,
-      x: titan.x + Math.cos(direction) * muzzleDistance,
-      y: titan.y + Math.sin(direction) * muzzleDistance,
+      x: mouthX,
+      y: mouthY,
       vx: Math.cos(direction) * DREAD_TITAN_SHARD_SPEED,
       vy: Math.sin(direction) * DREAD_TITAN_SHARD_SPEED,
       life: DREAD_TITAN_BARRAGE_RANGE / DREAD_TITAN_SHARD_SPEED,
@@ -3830,7 +3800,8 @@ function launchDreadTitanShardBarrage(game: GameState, titan: Creature) {
     });
   });
   titan.rangedChargeUntil = 0;
-  notify(game, "The Dread Titan unleashes a storm of void shards!", 1200);
+  titan.attackAt = performance.now();
+  notify(game, "Void shards erupt from the Dread Titan's open jaws!", 1200);
 }
 
 function updateDreadTitanStomp(game: GameState, titan: Creature, now: number) {
@@ -4105,7 +4076,7 @@ function updateCreatures(game: GameState, dt: number) {
         creature.rangedAt = now;
         creature.rangedChargeUntil = now + DREAD_TITAN_BARRAGE_WINDUP_MS;
         creature.rangedAim = Math.atan2(game.player.y - creature.y, game.player.x - creature.x);
-        notify(game, "Void shards orbit the Dread Titan — the barrage is coming!", DREAD_TITAN_BARRAGE_WINDUP_MS);
+        notify(game, "The Titan's antlered face splits open — void shards are gathering!", DREAD_TITAN_BARRAGE_WINDUP_MS);
       }
     } else if (isDreadTitan(creature) && creature.rangedChargeUntil > 0) {
       creature.rangedChargeUntil = 0;
@@ -6575,6 +6546,13 @@ function drawBroodMother(ctx: CanvasRenderingContext2D, creature: Creature, now:
 function drawDreadTitan(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
   const pulse = 1 + Math.sin(now / 230 + creature.phase) * 0.035;
   const stride = Math.sin(now / 330 + creature.phase) * 5;
+  const chargeProgress = creature.rangedChargeUntil > now
+    ? Math.max(0, Math.min(1, 1 - (creature.rangedChargeUntil - now) / DREAD_TITAN_BARRAGE_WINDUP_MS))
+    : 0;
+  const burstAge = now - creature.attackAt;
+  const burstOpen = burstAge >= 0 && burstAge < 320 ? 1 - burstAge / 320 : 0;
+  const mouthOpen = Math.max(0.14, chargeProgress, burstOpen * 0.9);
+  const mouthHalfHeight = 5 + mouthOpen * 16;
   ctx.lineJoin = "round";
 
   for (const side of [-1, 1] as const) {
@@ -6595,6 +6573,7 @@ function drawDreadTitan(ctx: CanvasRenderingContext2D, creature: Creature, now: 
 
   ctx.save();
   ctx.scale(pulse, pulse);
+
   ctx.fillStyle = "#32264b";
   ctx.strokeStyle = "#100c1c";
   ctx.lineWidth = 8;
@@ -6604,7 +6583,7 @@ function drawDreadTitan(ctx: CanvasRenderingContext2D, creature: Creature, now: 
   ctx.stroke();
   ctx.fillStyle = "#4a3766";
   ctx.beginPath();
-  ctx.ellipse(36, 0, 43, 39, 0, 0, Math.PI * 2);
+  ctx.ellipse(30, 0, 45, 40, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
@@ -6625,34 +6604,105 @@ function drawDreadTitan(ctx: CanvasRenderingContext2D, creature: Creature, now: 
   ctx.lineTo(24, 0);
   ctx.stroke();
 
-  ctx.fillStyle = "#171126";
-  ctx.beginPath();
-  ctx.ellipse(52, 0, 23, 27, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#f5cc67";
-  ctx.shadowColor = "#ef5b89";
-  ctx.shadowBlur = 12;
-  for (const y of [-12, 0, 12]) {
+  // A many-tined rack frames the long head like a corrupted deer skull.
+  for (const side of [-1, 1] as const) {
+    const antlerColor = "#c8b991";
+    drawMonsterLimb(ctx, [[23, side * 25], [17, side * 51], [3, side * 70], [-18, side * 84], [-49, side * 91]], 9, antlerColor);
+    drawMonsterLimb(ctx, [[16, side * 49], [41, side * 66]], 7, antlerColor);
+    drawMonsterLimb(ctx, [[4, side * 68], [21, side * 94]], 7, antlerColor);
+    drawMonsterLimb(ctx, [[-13, side * 81], [-1, side * 109]], 7, antlerColor);
+    drawMonsterLimb(ctx, [[-31, side * 88], [-39, side * 115]], 7, antlerColor);
+
+    ctx.fillStyle = "#756b5b";
+    ctx.strokeStyle = "#171521";
+    ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.ellipse(59, y, 7, 4.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = "#9d78c4";
-  for (const [x, y, rotation] of [[-38, -51, -0.4], [-5, -59, -0.05], [28, -42, 0.35], [-38, 51, 0.4], [-5, 59, 0.05], [28, 42, -0.35]] as const) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(rotation);
-    ctx.beginPath();
-    ctx.moveTo(-10, 0);
-    ctx.lineTo(2, -10);
-    ctx.lineTo(26, 0);
-    ctx.lineTo(2, 10);
+    ctx.moveTo(18, side * 23);
+    ctx.quadraticCurveTo(0, side * 45, -15, side * 48);
+    ctx.quadraticCurveTo(-3, side * 24, 18, side * 23);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    ctx.restore();
   }
+
+  // The pale, tapered face is seen from directly overhead.
+  ctx.fillStyle = "#afa58f";
+  ctx.strokeStyle = "#171521";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(-4, -31);
+  ctx.quadraticCurveTo(38, -31, 68, -20);
+  ctx.quadraticCurveTo(88, -16, 101, 0);
+  ctx.quadraticCurveTo(88, 16, 68, 20);
+  ctx.quadraticCurveTo(38, 31, -4, 31);
+  ctx.quadraticCurveTo(8, 0, -4, -31);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(66,54,55,.58)";
+  ctx.lineWidth = 3;
+  for (const side of [-1, 1] as const) {
+    ctx.beginPath();
+    ctx.moveTo(4, side * 19);
+    ctx.quadraticCurveTo(35, side * 27, 66, side * 14);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#100c18";
+  ctx.beginPath();
+  ctx.ellipse(45, -15, 8, 5, -0.16, 0, Math.PI * 2);
+  ctx.ellipse(45, 15, 8, 5, 0.16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#67eee0";
+  ctx.shadowColor = "#6ee7dd";
+  ctx.shadowBlur = 13;
+  ctx.beginPath();
+  ctx.arc(47, -15, 3.6, 0, Math.PI * 2);
+  ctx.arc(47, 15, 3.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  if (chargeProgress > 0) {
+    const mouthGlow = ctx.createRadialGradient(82, 0, 1, 82, 0, 35 + chargeProgress * 14);
+    mouthGlow.addColorStop(0, `rgba(125,255,238,${0.62 + chargeProgress * 0.3})`);
+    mouthGlow.addColorStop(0.32, "rgba(123,85,187,.48)");
+    mouthGlow.addColorStop(1, "rgba(64,28,95,0)");
+    ctx.fillStyle = mouthGlow;
+    ctx.beginPath();
+    ctx.arc(82, 0, 36 + chargeProgress * 14, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "#080711";
+  ctx.strokeStyle = "#2e173f";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(81, 0, 25, mouthHalfHeight, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#eee2ba";
+  ctx.strokeStyle = "#594e44";
+  ctx.lineWidth = 1.5;
+  for (let tooth = 0; tooth < 7; tooth++) {
+    const x = 59 + tooth * 7;
+    const toothHeight = 5 + (tooth % 2) * 3 + mouthOpen * 5;
+    for (const side of [-1, 1] as const) {
+      ctx.beginPath();
+      ctx.moveTo(x - 3, side * (mouthHalfHeight - 2));
+      ctx.lineTo(x + 3, side * (mouthHalfHeight - 2));
+      ctx.lineTo(x, side * Math.max(1, mouthHalfHeight - toothHeight));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  ctx.fillStyle = chargeProgress > 0 ? "#bdfdf5" : "#5d376c";
+  ctx.beginPath();
+  ctx.ellipse(82, 0, 8 + chargeProgress * 5, 2.4 + chargeProgress * 3, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -7067,7 +7117,7 @@ function creatureVisualScale(creature: Creature) {
 }
 
 function monsterEyePositions(creature: Creature): readonly (readonly [number, number, number])[] {
-  if (creature.kind === "dreadTitan") return [[59, -12, 4.5], [59, 0, 4.5], [59, 12, 4.5]];
+  if (creature.kind === "dreadTitan") return [[47, -15, 3.6], [47, 15, 3.6]];
   if (creature.kind === "shade") return [[13, -8, 3], [13, 0, 3], [13, 8, 3]];
   if (creature.kind === "crawler") return [[-9, -8, 2.6], [-2, -11, 2.6], [-9, 8, 2.6], [-2, 11, 2.6]];
   if (creature.kind === "brute") return [[25, -7, 3.2], [25, 7, 3.2]];
@@ -7116,18 +7166,18 @@ function drawMonsterEyeGlints(
     ctx.rotate(creature.dir);
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = alpha * pulse;
-    const warden = creature.kind === "aetherWarden";
+    const cyanEyes = creature.kind === "aetherWarden" || creature.kind === "dreadTitan";
     for (const [x, y, radius] of monsterEyePositions(creature)) {
       const glow = ctx.createRadialGradient(x, y, 0, x, y, radius * 4.5);
       glow.addColorStop(0, "rgba(255,241,190,1)");
-      glow.addColorStop(0.18, warden ? "rgba(97,232,241,.98)" : "rgba(255,74,88,.98)");
-      glow.addColorStop(0.55, warden ? "rgba(35,175,190,.48)" : "rgba(194,18,55,.48)");
-      glow.addColorStop(1, warden ? "rgba(20,112,125,0)" : "rgba(120,0,32,0)");
+      glow.addColorStop(0.18, cyanEyes ? "rgba(97,232,241,.98)" : "rgba(255,74,88,.98)");
+      glow.addColorStop(0.55, cyanEyes ? "rgba(35,175,190,.48)" : "rgba(194,18,55,.48)");
+      glow.addColorStop(1, cyanEyes ? "rgba(20,112,125,0)" : "rgba(120,0,32,0)");
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(x, y, radius * 4.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = warden ? "#e8ffff" : "#ffd8ae";
+      ctx.fillStyle = cyanEyes ? "#e8ffff" : "#ffd8ae";
       ctx.beginPath();
       ctx.arc(x, y, Math.max(1.1, radius * 0.42), 0, Math.PI * 2);
       ctx.fill();
@@ -7241,7 +7291,7 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     ctx.fillStyle = "#d8f9f3";
     ctx.font = "900 13px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("DREAD TITAN", 0, -82);
+    ctx.fillText("DREAD TITAN", 0, -132);
   } else if (isBroodMother(creature)) {
     ctx.fillStyle = "#f0d9b0";
     ctx.font = "900 11px Arial";
@@ -7268,7 +7318,7 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
   }
   if (creature.hp < creature.maxHp) {
     const healthWidth = isDreadTitan(creature) ? 126 : creature.boss ? 72 : 44;
-    const healthY = isDreadTitan(creature) ? -72 : creature.boss ? -49 : -39;
+    const healthY = isDreadTitan(creature) ? -120 : creature.boss ? -49 : -39;
     ctx.fillStyle = "#1d2a27";
     roundedRect(ctx, -healthWidth / 2, healthY, healthWidth, 5, 3);
     ctx.fill();

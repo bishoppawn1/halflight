@@ -219,11 +219,12 @@ At the start of each run, one random main chamber contains a one-use treasure
 cache. Opening it with `E` awards 4 stone, 5 iron, 4 copper, 3 coal, 3 sulfur,
 and 2 Aetherium. Its opened chest remains visible.
 
-At the start of each run, the central cavern or one of the four ordinary
-secondary caverns is selected at random for the Brood Mother. Her nine-pool web
-nest appears around the center of that room. She has no dedicated arena, secret
-route, fixed escort, or sentry gauntlet; ordinary cave monsters can still roam
-through the selected room as part of the shared cave population.
+At the start of each run, one of the four ordinary secondary caverns is selected
+at random for the Brood Mother. Her nine-pool web nest appears around the center
+of that room. She has no dedicated arena, secret route, fixed escort, or sentry
+gauntlet; ordinary cave monsters can still roam through the selected room as
+part of the shared cave population. The central cavern is kept clear for the
+permanent Dread Titan encounter.
 
 The three tree species and every rock are drawn from directly overhead. Pines
 use overlapping jagged needle whorls at different angles, giving the full crown
@@ -259,9 +260,10 @@ clear line of sight, even when the rest of the creature is still hidden.
 A full cycle lasts 480 seconds: 240 seconds of day and 240 seconds of night. The
 first run begins partway through daylight, leaving about 163 seconds before
 night 1. At dawn, the day counter increases and up to 12 health is restored.
-Ordinary Meadow horrors disappear at dawn. Cave horrors and the Brood Mother
-survive the day transition and remain underground until defeated. Relax mode
-advances the cycle at 5× speed while hunger also drains at 5× speed.
+Ordinary Meadow horrors disappear at dawn. Cave horrors, the Brood Mother, and
+the Dread Titan survive the day transition and remain underground until
+defeated. Relax mode advances the cycle at 5× speed while hunger also drains at
+5× speed.
 
 ## 6. Hunger, food, and death
 
@@ -716,23 +718,30 @@ inventory, removes any web projectiles still in flight, and unlocks the Assault
 Rifle recipe. Crafting that rifle at a bench consumes the core and requires an
 already-crafted Scrap Pistol.
 
-The **Dread Titan** is a massive, uniquely drawn top-down Meadow boss that
-appears once on night 10. It has 1,200 health, 45 speed, 30 contact damage, a
-162-unit melee reach, a 1,000-unit sense radius, and an approximately 104-unit
-collision radius. It persists through dawn until defeated and does not replace
-or remove the endless night system.
+The **Dread Titan** is a massive, uniquely drawn top-down cave boss that is
+always present at the center of the central cavern from the start of a run. It
+is not nocturnal, is not created by a night wave, and remains underground until
+defeated. It has 1,200 health, 45 speed, 30 contact damage, a 162-unit melee
+reach, a 1,000-unit sense radius, and an approximately 104-unit collision
+radius. Encountering or defeating it does not replace or remove the endless
+night system.
+
+Its overhead face resembles a corrupted deer: a long pale skull, two luminous
+eyes, a broad rack of many branching antlers, and a split black mouth lined with
+fourteen conspicuous teeth. The mouth visibly opens throughout the shard
+wind-up, glows from within, and remains open briefly as the projectiles erupt.
 
 The Titan has three signature attacks. At close range it telegraphs a
 235-unit stomp circle for 1.05 seconds, then deals 34 damage before armor and
 42 damage to structures inside it; it can begin a stomp at most once every 6.7
 seconds. From 155–840 units with clear line of sight, it charges for 780 ms and
-fires twelve radial void shards plus three aimed shards. Each shard travels at
-520 units per second, deals 12 damage before armor, and can strike completed
-structures; barrages begin at most once every 4.8 seconds. While actively
-hunting, the Titan also summons six real shades, crawlers, and stalkers around
-it every 9 seconds. Summoned creatures follow the ordinary sensing, combat,
-loot, and dawn-removal rules. Defeating the Titan removes its remaining shards
-and drops the rewards in the table above, but it does not end the game.
+fires twelve radial void shards plus three aimed shards from the open mouth.
+Each shard travels at 520 units per second, deals 12 damage before armor, and
+can strike completed structures; barrages begin at most once every 4.8 seconds.
+While actively hunting, the Titan also summons six real wraiths and maws around
+it every 9 seconds. Summoned creatures follow the ordinary cave sensing,
+combat, loot, and persistence rules. Defeating the Titan removes its remaining
+shards and drops the rewards in the table above, but it does not end the game.
 
 ## 11. Wildlife feeding and breeding
 
@@ -811,9 +820,10 @@ feeding progress, and no remembered wariness.
 
 ## 12. Endless night progression
 
-The cave system begins with three fixed Aether Wardens and three ordinary
-wraiths in addition to the Brood Mother. The Wardens do not respawn
-individually, and the Brood Mother has no fixed guards.
+The cave system begins with three fixed Aether Wardens, three ordinary wraiths,
+the Brood Mother, and the Dread Titan. The Titan is fixed in the central cavern,
+while the Brood Mother uses a random secondary cavern. The Wardens do not
+respawn individually, and the Brood Mother has no fixed guards.
 Once the surviving non-boss cave population falls below six, ordinary wraith or
 maw replacements restore that population floor. If none remain, one replacement
 appears immediately at a valid distant point; otherwise at most one appears
@@ -834,11 +844,10 @@ them. Each day advances after dawn. Enemy health, speed, contact damage, attack
 reach, and sense radius never scale with the day. Progression comes only from
 larger populations and fixed-stat species unlocking on later nights.
 
-Night 10 additionally spawns the single Dread Titan near the player's Meadow
-location, or near the starting camp if the player is underground. It remains
-in the Meadow through later dawns until defeated and never respawns during the
-same run. Its summoned swarms add to, rather than replace, the uncapped nightly
-population. Defeating it is an endgame milestone, not a victory condition.
+The Dread Titan is independent of this progression: it already exists in the
+central cavern on day 1 and never waits for a particular night. Its summoned
+cave swarms add to, rather than replace, the persistent underground population.
+Defeating it is an endgame milestone, not a victory condition.
 
 Each monster's position is sampled independently from valid points across its
 realm, at least 360 units from the player's corresponding world coordinates.
@@ -861,7 +870,7 @@ protection.
 | Wraith | Cave system | 1 | 42 | 96 | 10 | 108 | 440 |
 | Maw | Cave system | 3 | 92 | 56 | 17 | 96 | 260 |
 | Aether Warden | Guarded cave ore only | — | 118 | 70 | 14 | 104 | 380 |
-| Dread Titan | Meadow boss | 10 | 1,200 | 45 | 30 | 162 | 1,000 |
+| Dread Titan | Central cave boss | — | 1,200 | 45 | 30 | 162 | 1,000 |
 
 Each monster family has a separate overhead silhouette instead of sharing one
 round tentacled base. Shades are compact pulsing cores with five short wisps.
@@ -875,9 +884,11 @@ segmented body, five toothed mouths, many eyes, and web markings. Every organic
 family has pulsing red eye
 glints that remain aligned with its own overhead face and movement direction.
 A towering purple-and-teal Dread Titan has four huge paired arms, a broad
-plated body, luminous cracks, three forward eyes, a dedicated nameplate, and a
-wide boss health bar. Its stomp and shard-charge warnings remain visible around
-the full overhead silhouette.
+plated body, luminous cracks, and a long pale deer-like face seen from overhead.
+Many branching antlers surround its two cyan eyes, and fourteen teeth line a
+dark mouth that splits visibly open during a shard charge. It has a dedicated
+nameplate and wide boss health bar; its stomp and charge warnings remain visible
+around the full overhead silhouette.
 Aether Wardens are faceted teal constructs ringed with seven luminous crystal
 spikes, carry a visible label, and cast a small cyan warning glow; their central
 eye glows cyan. They never join random night waves and drop no bonus material;
