@@ -492,7 +492,7 @@ their respawn until that footprint is clear.
 | --- | --- | ---: | ---: | --- |
 | Crafting Bench | 4 wood, 2 stone | 1 | 85 | Enables advanced recipes within 150 units |
 | Laboratory | 10 wood, 8 iron, 6 copper | 1 | 145 | Opens with `E` to research organic recipes and process Alien Biomass compounds |
-| Chemical Lab | 8 iron, 6 copper, 4 stone | 1 | 135 | Enables bullets, Catalyst, and Mineral Grower fabrication within 150 units |
+| Chemical Lab | 8 iron, 6 copper, 4 stone | 1 | 135 | Opens Crafting with `E` and enables bullets, Catalyst, and Mineral Grower fabrication within 150 units |
 | Mineral Grower | 10 iron, 7 copper, 3 Aetherium | 1 | 155 | Opens a compact mineral-growth menu with `E`; its ready piece requires a nearby Chemical Lab |
 | Storage Chest | 5 wood, 2 fiber | 1 | 110 | Opens with `E` and stores resource stacks separately |
 | Bedroll | 2 wood, 4 fiber | 1 | 50 | Rest once per day for up to 25 health at a cost of 8 hunger |
@@ -529,9 +529,10 @@ consumed, or fired until retrieved. Deliberate hammer deconstruction returns
 the stored contents; if monsters destroy the chest, those contents are lost.
 
 The Chemical Lab is a solid, grid-built workstation with visible flasks and
-tubing. Its ammunition and Catalyst recipes remain disabled unless the player
-is within 150 units of a completed lab in the current realm. Bullets remain one
-shared ammunition stack for every firearm.
+tubing. Pressing `E` within 150 units opens the Crafting menu. Its ammunition,
+Catalyst, and Mineral Grower recipes are enabled while the player remains within
+150 units of a completed lab in the current realm. Bullets remain one shared
+ammunition stack for every firearm.
 
 Pressing `E` near a completed Mineral Grower opens a compact station menu. It
 runs one batch at a time. Starting a batch immediately consumes its listed seed

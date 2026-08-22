@@ -2929,7 +2929,13 @@ function feedAnimal(game: GameState) {
   );
 }
 
-function interact(game: GameState) {
+function buildingInteractionDistance(building: Building) {
+  if (building.kind === "chemicalLab") return 150;
+  if (building.kind === "mineralGrower") return 72;
+  return 58;
+}
+
+function interact(game: GameState): "openCrafting" | undefined {
   if (game.buildMode) {
     placeBuild(game, false, game.keys.has("shift"));
     return;
@@ -2968,8 +2974,8 @@ function interact(game: GameState) {
   }
   const nearbyBuilding = game.buildings.find((building) => {
     if (building.realm !== game.realm || building.construction < 1) return false;
-    if (building.kind !== "woodGate" && building.kind !== "stoneGate" && building.kind !== "door" && building.kind !== "crop" && building.kind !== "storageChest" && building.kind !== "bedroll" && building.kind !== "laboratory" && building.kind !== "mineralGrower") return false;
-    return distanceToBuilding(building, game.player.x, game.player.y) < (building.kind === "mineralGrower" ? 72 : 58);
+    if (building.kind !== "woodGate" && building.kind !== "stoneGate" && building.kind !== "door" && building.kind !== "crop" && building.kind !== "storageChest" && building.kind !== "bedroll" && building.kind !== "laboratory" && building.kind !== "chemicalLab" && building.kind !== "mineralGrower") return false;
+    return distanceToBuilding(building, game.player.x, game.player.y) <= buildingInteractionDistance(building);
   });
   if (nearbyBuilding) {
     if (nearbyBuilding.kind === "storageChest") {
@@ -2982,6 +2988,12 @@ function interact(game: GameState) {
       game.openGrowerId = null;
       game.openLaboratoryId = nearbyBuilding.id;
       notify(game, "Laboratory online. Spend Alien Biomass to research new blueprints.");
+    } else if (nearbyBuilding.kind === "chemicalLab") {
+      game.openChestId = null;
+      game.openLaboratoryId = null;
+      game.openGrowerId = null;
+      notify(game, "Chemical Lab online. Bullets, Catalyst, and the Mineral Grower are available in Crafting.");
+      return "openCrafting";
     } else if (nearbyBuilding.kind === "mineralGrower") {
       game.openChestId = null;
       game.openLaboratoryId = null;
@@ -8400,25 +8412,18 @@ function nearbyPrompt(game: GameState) {
     (item) =>
       item.realm === game.realm &&
       item.construction >= 1 &&
-      ["woodGate", "stoneGate", "door", "crop", "storageChest", "bedroll", "laboratory", "mineralGrower"].includes(item.kind) &&
-      distanceToBuilding(item, game.player.x, game.player.y) < (item.kind === "mineralGrower" ? 72 : 58),
+      ["woodGate", "stoneGate", "door", "crop", "storageChest", "bedroll", "laboratory", "chemicalLab", "mineralGrower"].includes(item.kind) &&
+      distanceToBuilding(item, game.player.x, game.player.y) <= buildingInteractionDistance(item),
   );
   if (building) {
     if (building.kind === "storageChest") return "E · Open Storage Chest";
     if (building.kind === "laboratory") return "E · Use Laboratory";
+    if (building.kind === "chemicalLab") return "E · Use Chemical Lab";
     if (building.kind === "mineralGrower") return "E · Open Mineral Grower";
     if (building.kind === "bedroll") return "E · Rest at Bedroll";
     if (building.kind === "crop") return "E · " + (building.growth >= 1 ? "Harvest crop" : "Check crop");
     return "E · " + (building.open ? "Close" : "Open") + " " + BUILD_DATA[building.kind].name;
   }
-  const lab = game.buildings.find(
-    (item) =>
-      item.kind === "chemicalLab" &&
-      item.realm === game.realm &&
-      item.construction >= 1 &&
-      distanceToBuilding(item, game.player.x, game.player.y) < 100,
-  );
-  if (lab) return "C · Chemical Lab ready · craft bullets and Catalyst";
   const creature = nearestFeedableAnimal(game);
   if (creature && isAnimal(creature.kind)) {
     if (isPermanentlyWaryPrey(creature.kind) && creature.waryOfPlayer) {
@@ -9049,8 +9054,9 @@ export default function Game() {
       if (key === "shift") game.keys.add(key);
       if (event.repeat) return;
       if (key === "e") {
-        interact(game);
-        if (game.openChestId !== null || game.openLaboratoryId !== null || game.openGrowerId !== null) setPanel(null);
+        const interaction = interact(game);
+        if (interaction === "openCrafting") setPanel("craft");
+        else if (game.openChestId !== null || game.openLaboratoryId !== null || game.openGrowerId !== null) setPanel(null);
       }
       if (key === " ") {
         event.preventDefault();
@@ -9607,7 +9613,7 @@ export default function Game() {
             aria-label="Move down"
           >↓</button>
         </div>
-        <button className="touch-e" onClick={() => { interact(game); if (game.openLaboratoryId !== null || game.openGrowerId !== null || game.openChestId !== null) setPanel(null); refresh(); }}>E<small>Interact</small></button>
+        <button className="touch-e" onClick={() => { const interaction = interact(game); if (interaction === "openCrafting") setPanel("craft"); else if (game.openLaboratoryId !== null || game.openGrowerId !== null || game.openChestId !== null) setPanel(null); refresh(); }}>E<small>Interact</small></button>
         <button className="touch-feed" onClick={() => { feedAnimal(game); refresh(); }}>F<small>Feed</small></button>
         <button
           className="touch-build"
