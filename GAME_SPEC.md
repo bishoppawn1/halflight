@@ -89,6 +89,11 @@ distinct at gameplay scale.
 The Stone Spear has a long wooden shaft and small triangular stone point. The
 Iron Sword instead has a short wrapped grip, pommel, crossguard, and broad
 double-edged iron blade in both its held and inventory illustrations.
+The Tendril Blade is a continuous living greatblade rather than a spear or a
+metal sword with an organic point attached. Its long, hooked purple body grows
+directly from a ribbed symbiote grip, with visible luminous veins, backward
+barbs, and two curling guard tendrils. Its held silhouette reaches nearly twice
+as far as the Iron Sword and visibly flexes outward during its wide swing.
 
 Every world object and creature is presented from directly overhead. Wildlife
 uses a clean silhouette made from a torso and head. Airborne crows and owls have
@@ -496,7 +501,7 @@ can be stored in chests and are consumed by the organic equipment recipes.
 | Aetherium Axe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 22 combat damage, and 180 durability |
 | Aetherium Pickaxe | 4 wood, 7 Aetherium, 3 iron | 5 node damage per swing, 18 combat damage, and 180 durability |
 | Carapace Axe | 4 wood, 2 iron, 3 Carapace Plate | 6 node damage per swing, 30 combat damage, and 240 durability; requires Carapace Tooling |
-| Tendril Blade | 4 iron, 3 Neural Gel, 2 Living Weave | 36 damage, 112 reach, and 240 durability; requires Tendril Weaponry |
+| Tendril Blade | 4 iron, 3 Neural Gel, 2 Living Weave | 92 damage, 188 reach, and 240 durability; requires Tendril Weaponry |
 | Symbiote Armor | 4 iron, 4 hide, 2 Carapace Plate, 4 Living Weave | Living helmet; 68% damage reduction; requires Symbiote Weave |
 | Field Bandage | 5 fiber, 1 berry | Immediately restores up to 35 health |
 
@@ -640,7 +645,7 @@ and the player switches away from it.
 | Aetherium pickaxe | 18 | 78 | 700 ms | 180 |
 | Stone spear | 17 | 102 | 620 ms | 72 |
 | Iron sword | 25 | 102 | 480 ms | 120 |
-| Tendril Blade | 36 | 112 | 520 ms | 240 |
+| Tendril Blade | 92 | 188 | 560 ms | 240 |
 | Hunting bow | 18 | 520 | 780 ms | 360 |
 | Iron bow | 28 | 600 | 780 ms | 540 |
 | Scrap pistol | 54 | 660 | 520 ms | 720 |
@@ -681,13 +686,21 @@ the fully drawn Iron Bow's 49 damage. The Compact SMG trades per-shot damage and
 range for the fastest fire rate. The Scattergun spends one bullet to launch five
 separately visible pellets across a short spread, so its full damage requires a
 close target. The guardian-tier Assault Rifle combines strong damage with fast
-automatic fire. The Sniper Rifle is its precision successor, using a long cyan
-tracer, the greatest range, and 145 damage in exchange for the slowest firearm
-cooldown. The laboratory-built Chimera Cannon fires a large cyan-and-purple
-alien pulse. Its impact deals 120 damage and then deals 52 more damage to every
-living creature within 90 units, including the impact target if it survives the
-initial hit; a missed shot still detonates at maximum range. Each class has a
-distinct held silhouette and inventory illustration.
+automatic fire. The Sniper Rifle is its precision successor, using the greatest
+range and 145 damage in exchange for the slowest firearm cooldown. While it is
+equipped, a bright blue-cyan laser runs from its muzzle through the complete
+1,250-unit aim line. The beam ends on the first creature in its path and
+surrounds that target with a blue reticle; firing also leaves a long, luminous
+cyan tracer behind the bullet. Both the laser and tracer remain readable over
+cave and night darkness. The laboratory-built Chimera Cannon fires a large
+cyan-and-purple alien pulse. Its impact deals 120 damage and then deals 52 more
+damage to every living creature within 90 units, including the impact target if
+it survives the initial hit; a missed shot still detonates at maximum range.
+Every detonation produces a bright 1.2-second layered explosion with a white-hot
+core, expanding cyan and purple energy, two shock rings, and outward sparks
+reaching roughly 160 visible units. The larger visual blast does not increase
+the 90-unit damage radius. Each class has a distinct held silhouette and
+inventory illustration.
 
 Wildlife leaves visible, illustrated piles of its species-specific meat and hide
 at the death position; birds provide meat but no hide. Monsters always leave

@@ -210,6 +210,16 @@ interface Projectile {
   bulletStyle?: "standard" | "pellet" | "sniper" | "chimera";
 }
 
+interface WeaponEffect {
+  id: number;
+  kind: "chimeraExplosion";
+  realm: Realm;
+  x: number;
+  y: number;
+  startedAt: number;
+  duration: number;
+}
+
 interface BroodWeb {
   id: number;
   realm: CaveRealm;
@@ -302,6 +312,7 @@ interface GameState {
   creatures: Creature[];
   buildings: Building[];
   projectiles: Projectile[];
+  weaponEffects: WeaponEffect[];
   broodWebs: BroodWeb[];
   broodWebDamageAt: number;
   attackFlash: AttackFlash | null;
@@ -769,6 +780,10 @@ const BOW_MAX_CHARGE_MS = 1200;
 const BOW_MAX_DAMAGE_BONUS = 0.75;
 const CHIMERA_BURST_RADIUS = 90;
 const CHIMERA_BURST_DAMAGE = 52;
+const CHIMERA_EXPLOSION_DURATION_MS = 1200;
+const CHIMERA_EXPLOSION_VISUAL_RADIUS = 160;
+const CHIMERA_EXPLOSION_TEXTURE_PADDING = 40;
+const CHIMERA_EXPLOSION_TEXTURE_SCALE = 2;
 const WARY_ESCAPE_DISTANCE = 520;
 const WARY_NOTICE_BONUS = 120;
 const MEAT_EATING_ANIMALS: AnimalKind[] = ["bear", "fox", "wolf"];
@@ -900,7 +915,7 @@ const DURABLE_TOOL_DATA: Record<
   aetheriumPickaxe: { family: "pickaxe", tier: "aetherium", maxDurability: 180, damage: 18 },
   spear: { family: "spear", tier: "stone", maxDurability: 72, damage: 17 },
   sword: { family: "sword", tier: "iron", maxDurability: 120, damage: 25 },
-  tendrilBlade: { family: "sword", tier: "biomass", maxDurability: 240, damage: 36 },
+  tendrilBlade: { family: "sword", tier: "biomass", maxDurability: 240, damage: 92 },
   bow: { family: "bow", tier: "wood", maxDurability: 360, damage: 18 },
   ironBow: { family: "bow", tier: "iron", maxDurability: 540, damage: 28 },
   pistol: { family: "pistol", tier: "iron", maxDurability: 720, damage: 54 },
@@ -942,7 +957,7 @@ const ATTACK_PROFILES: Partial<Record<Tool, AttackProfile>> = {
   hammer: { damage: 3, range: 78, cooldown: 750, animationSeconds: 0.4, arc: 0.9, style: "slash" },
   spear: { damage: 17, range: 102, cooldown: 620, animationSeconds: 0.34, arc: 0.38, style: "thrust" },
   sword: { damage: 25, range: 102, cooldown: 480, animationSeconds: 0.3, arc: 1.15, style: "slash" },
-  tendrilBlade: { damage: 36, range: 112, cooldown: 520, animationSeconds: 0.32, arc: 1.18, style: "slash" },
+  tendrilBlade: { damage: 92, range: 188, cooldown: 560, animationSeconds: 0.4, arc: 1.5, style: "slash" },
   bow: { damage: 18, range: 520, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
   ironBow: { damage: 28, range: 600, cooldown: 780, animationSeconds: 0.38, arc: 0, style: "shot" },
   pistol: { damage: 54, range: 660, cooldown: 520, animationSeconds: 0.24, arc: 0, style: "shot" },
@@ -1699,6 +1714,7 @@ function makeGame(): GameState {
     creatures,
     buildings: [startingCampfire],
     projectiles: [],
+    weaponEffects: [],
     broodWebs,
     broodWebDamageAt: 0,
     attackFlash: null,
@@ -2736,6 +2752,9 @@ function setGamePaused(game: GameState, paused: boolean, now = performance.now()
   game.broodWebs.forEach((web) => {
     web.expiresAt = shiftDeadline(web.expiresAt);
   });
+  game.weaponEffects.forEach((effect) => {
+    effect.startedAt = shiftTimestamp(effect.startedAt);
+  });
   if (game.attackFlash) game.attackFlash.startedAt = shiftTimestamp(game.attackFlash.startedAt);
   game.paused = false;
   game.pausedAt = 0;
@@ -3537,6 +3556,15 @@ function createBroodWeb(game: GameState, x: number, y: number) {
 }
 
 function detonateChimeraShot(game: GameState, projectile: Projectile) {
+  game.weaponEffects.push({
+    id: game.lastId++,
+    kind: "chimeraExplosion",
+    realm: projectile.realm,
+    x: projectile.x,
+    y: projectile.y,
+    startedAt: performance.now(),
+    duration: CHIMERA_EXPLOSION_DURATION_MS,
+  });
   for (const creature of game.creatures) {
     if (
       creature.realm !== projectile.realm ||
@@ -3648,6 +3676,12 @@ function updateProjectiles(game: GameState, dt: number) {
     if (projectile.x < 0 || projectile.y < 0 || projectile.x > WORLD_W || projectile.y > WORLD_H) projectile.life = 0;
   }
   game.projectiles = game.projectiles.filter((projectile) => projectile.life > 0);
+}
+
+function updateWeaponEffects(game: GameState, now: number) {
+  game.weaponEffects = game.weaponEffects.filter(
+    (effect) => now - effect.startedAt < effect.duration,
+  );
 }
 
 function updateBroodWebs(game: GameState) {
@@ -4429,6 +4463,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
     if (building.kind === "crop" && building.construction >= 1) building.growth = Math.min(1, building.growth + dt / 300);
   }
   updateProjectiles(game, dt);
+  updateWeaponEffects(game, now);
   updateBroodWebs(game);
   updateCreatures(game, dt);
   reviveNodes(game);
@@ -5023,7 +5058,7 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ? Math.max(0, Math.min(1, 1 - swing / profile.animationSeconds))
     : 0;
   const motion = swing > 0 ? Math.sin(progress * Math.PI) : 0;
-  const angle = profile.style === "slash" ? -motion * 0.68 : 0;
+  const angle = profile.style === "slash" ? -motion * (tool === "tendrilBlade" ? 0.92 : 0.68) : 0;
   const firearmRecoil = tool === "chimera" ? 16 : tool === "shotgun" ? 14 : tool === "sniper" ? 12 : tool === "rifle" ? 10 : tool === "smg" ? 6 : 7;
   const forwardMotion = tool === "spear" ? motion * 30 : isFirearm(tool) ? -motion * firearmRecoil : 0;
   ctx.save();
@@ -5419,12 +5454,121 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.restore();
     return;
   }
+  if (tool === "tendrilBlade") {
+    const extension = 1 + motion * 0.12;
+    ctx.scale(extension, 1 + motion * 0.06);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    ctx.shadowColor = "rgba(208,91,239,.72)";
+    ctx.shadowBlur = 16;
+    const bladeGradient = ctx.createLinearGradient(18, -18, 145, 18);
+    bladeGradient.addColorStop(0, "#3b2148");
+    bladeGradient.addColorStop(0.32, "#7a3396");
+    bladeGradient.addColorStop(0.68, "#a94bc5");
+    bladeGradient.addColorStop(1, "#d77beb");
+    ctx.fillStyle = bladeGradient;
+    ctx.strokeStyle = "#27172f";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(20, -8);
+    ctx.bezierCurveTo(44, -22, 78, -21, 108, -8);
+    ctx.bezierCurveTo(123, -2, 134, -7, 143, -17);
+    ctx.bezierCurveTo(148, -7, 148, 4, 136, 15);
+    ctx.bezierCurveTo(115, 34, 79, 23, 50, 14);
+    ctx.bezierCurveTo(35, 10, 26, 10, 20, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#c76ddd";
+    ctx.strokeStyle = "#321b3b";
+    ctx.lineWidth = 3;
+    for (const [x, y, tipX, tipY] of [
+      [52, -16, 45, -29],
+      [76, -17, 72, -32],
+      [101, -10, 102, -25],
+    ] as const) {
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y + 4);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(x + 6, y + 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    ctx.shadowColor = "#f1a7fa";
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = "#f2b0fa";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(27, 0);
+    ctx.bezierCurveTo(57, -6, 82, 7, 111, 2);
+    ctx.bezierCurveTo(124, 0, 135, -7, 141, -13);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,221,255,.84)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(31, -4);
+    ctx.bezierCurveTo(60, -13, 85, -8, 112, 0);
+    ctx.stroke();
+
+    ctx.fillStyle = "#e89af4";
+    for (const [x, y, radius] of [[52, 1, 3], [81, 4, 3.5], [109, 1, 3]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = "#301a39";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(23, -5);
+    ctx.bezierCurveTo(16, -21, 7, -23, 4, -14);
+    ctx.moveTo(23, 5);
+    ctx.bezierCurveTo(16, 21, 7, 23, 4, 14);
+    ctx.stroke();
+    ctx.strokeStyle = "#bb5ed0";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(21, -5);
+    ctx.bezierCurveTo(15, -17, 9, -19, 6, -13);
+    ctx.moveTo(21, 5);
+    ctx.bezierCurveTo(15, 17, 9, 19, 6, 13);
+    ctx.stroke();
+
+    ctx.fillStyle = "#2b1b32";
+    ctx.strokeStyle = "#160f1a";
+    ctx.lineWidth = 3;
+    roundedRect(ctx, -2, -7, 27, 14, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#9e4cb6";
+    ctx.lineWidth = 2;
+    for (const gripX of [4, 10, 16]) {
+      ctx.beginPath();
+      ctx.moveTo(gripX, -6);
+      ctx.lineTo(gripX + 4, 6);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#d780e7";
+    ctx.beginPath();
+    ctx.ellipse(23, 0, 5, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#321b3b";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
   ctx.strokeStyle = "#432f2b";
-  ctx.lineWidth = tool === "spear" || tool === "tendrilBlade" ? 5 : 7;
+  ctx.lineWidth = tool === "spear" ? 5 : 7;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(4, 0);
-  ctx.lineTo(tool === "spear" || tool === "tendrilBlade" ? 49 : 39, 0);
+  ctx.lineTo(tool === "spear" ? 49 : 39, 0);
   ctx.stroke();
   if (durableTool?.family === "axe") {
     const tier = durableTool.tier;
@@ -5640,31 +5784,6 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.lineTo(44, 8);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
-  } else if (tool === "tendrilBlade") {
-    ctx.fillStyle = "#9f52bd";
-    ctx.strokeStyle = "#3e2549";
-    ctx.lineWidth = 3;
-    ctx.shadowColor = "#d57de9";
-    ctx.shadowBlur = 9;
-    ctx.beginPath();
-    ctx.moveTo(60, 0);
-    ctx.quadraticCurveTo(48, -12, 37, -5);
-    ctx.quadraticCurveTo(47, 1, 37, 8);
-    ctx.quadraticCurveTo(50, 11, 60, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#e7b0f2";
-    ctx.beginPath();
-    ctx.arc(48, -1, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#705032";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(9, -9);
-    ctx.lineTo(9, 9);
     ctx.stroke();
   } else {
     ctx.fillStyle = "#d89b47";
@@ -8463,12 +8582,16 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, n
         ctx.stroke();
       }
     } else {
-      const trailLength = sniper ? 48 : pellet ? 18 : 28;
+      const trailLength = sniper ? 190 : pellet ? 18 : 28;
       const trail = ctx.createLinearGradient(-trailLength, 0, 10, 0);
       trail.addColorStop(0, sniper ? "rgba(99,222,235,0)" : "rgba(255,211,91,0)");
       trail.addColorStop(1, sniper ? "rgba(172,251,255,.98)" : "rgba(255,239,169,.95)");
       ctx.strokeStyle = trail;
       ctx.lineWidth = sniper ? 7 : pellet ? 3 : 5;
+      if (sniper) {
+        ctx.shadowColor = "#51c9ff";
+        ctx.shadowBlur = 14;
+      }
       ctx.beginPath();
       ctx.moveTo(-trailLength - 2, 0);
       ctx.lineTo(6, 0);
@@ -8478,6 +8601,180 @@ function drawProjectile(ctx: CanvasRenderingContext2D, projectile: Projectile, n
       ctx.arc(8, 0, sniper ? 5 : pellet ? 2.5 : 4, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+  ctx.restore();
+}
+
+function drawSniperAim(ctx: CanvasRenderingContext2D, game: GameState, now: number) {
+  if (!game.started || game.dead || activeTool(game) !== "sniper") return;
+  const directionX = Math.cos(game.player.dir);
+  const directionY = Math.sin(game.player.dir);
+  const startX = game.player.x + directionX * 76;
+  const startY = game.player.y + directionY * 76;
+  const maximum = attackProfile("sniper").range;
+  let beamDistance = maximum;
+  let targetEntry = maximum;
+  let target: Creature | null = null;
+
+  for (const creature of game.creatures) {
+    if (creature.realm !== game.realm || creature.hp <= 0) continue;
+    const entry = rayCircleDistance(
+      startX,
+      startY,
+      directionX,
+      directionY,
+      { shape: "circle", x: creature.x, y: creature.y, radius: creatureRadius(creature) + 11 },
+      maximum,
+    );
+    if (entry === null || entry >= targetEntry) continue;
+    targetEntry = entry;
+    beamDistance = Math.min(
+      maximum,
+      Math.max(entry, (creature.x - startX) * directionX + (creature.y - startY) * directionY),
+    );
+    target = creature;
+  }
+
+  const endX = startX + directionX * beamDistance;
+  const endY = startY + directionY * beamDistance;
+  const pulse = 0.82 + Math.sin(now / 105) * 0.12;
+  const beam = ctx.createLinearGradient(startX, startY, endX, endY);
+  beam.addColorStop(0, "rgba(83,198,255,.35)");
+  beam.addColorStop(0.1, "rgba(83,198,255,.92)");
+  beam.addColorStop(1, target ? "rgba(176,249,255,.98)" : "rgba(83,198,255,.72)");
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = pulse;
+  ctx.strokeStyle = beam;
+  ctx.shadowColor = "#48c6ff";
+  ctx.shadowBlur = 13;
+  ctx.lineCap = "round";
+  ctx.lineWidth = 4.5;
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+  ctx.shadowBlur = 4;
+  ctx.strokeStyle = "rgba(229,254,255,.95)";
+  ctx.lineWidth = 1.25;
+  ctx.stroke();
+
+  ctx.translate(endX, endY);
+  if (target) {
+    const radius = creatureRadius(target) + 8;
+    ctx.strokeStyle = "rgba(125,226,255,.96)";
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([7, 5]);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * (radius + 4), Math.sin(angle) * (radius + 4));
+      ctx.lineTo(Math.cos(angle) * (radius + 14), Math.sin(angle) * (radius + 14));
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = "#d8fbff";
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+let chimeraExplosionTexture: HTMLCanvasElement | null = null;
+
+function getChimeraExplosionTexture() {
+  if (chimeraExplosionTexture) return chimeraExplosionTexture;
+  const textureRadius = CHIMERA_EXPLOSION_VISUAL_RADIUS + CHIMERA_EXPLOSION_TEXTURE_PADDING;
+  const textureSize = textureRadius * 2;
+  const texture = document.createElement("canvas");
+  texture.width = textureSize * CHIMERA_EXPLOSION_TEXTURE_SCALE;
+  texture.height = textureSize * CHIMERA_EXPLOSION_TEXTURE_SCALE;
+  const textureContext = texture.getContext("2d");
+  if (!textureContext) return null;
+  textureContext.setTransform(
+    CHIMERA_EXPLOSION_TEXTURE_SCALE,
+    0,
+    0,
+    CHIMERA_EXPLOSION_TEXTURE_SCALE,
+    0,
+    0,
+  );
+  textureContext.translate(textureRadius, textureRadius);
+  textureContext.shadowColor = "#8bf7ef";
+  textureContext.shadowBlur = 30;
+  const blast = textureContext.createRadialGradient(
+    0,
+    0,
+    0,
+    0,
+    0,
+    CHIMERA_EXPLOSION_VISUAL_RADIUS,
+  );
+  blast.addColorStop(0, "rgba(255,255,241,.98)");
+  blast.addColorStop(0.16, "rgba(116,247,238,.92)");
+  blast.addColorStop(0.48, "rgba(210,91,238,.58)");
+  blast.addColorStop(0.78, "rgba(112,44,173,.24)");
+  blast.addColorStop(1, "rgba(80,25,126,0)");
+  textureContext.fillStyle = blast;
+  textureContext.beginPath();
+  textureContext.arc(0, 0, CHIMERA_EXPLOSION_VISUAL_RADIUS, 0, Math.PI * 2);
+  textureContext.fill();
+  chimeraExplosionTexture = texture;
+  return texture;
+}
+
+function drawChimeraExplosion(ctx: CanvasRenderingContext2D, effect: WeaponEffect, now: number) {
+  const progress = Math.max(0, Math.min(1, (now - effect.startedAt) / effect.duration));
+  const expansion = 1 - Math.pow(1 - progress, 3);
+  const fade = Math.pow(1 - progress, 1.35);
+  const radius = 36 + expansion * (CHIMERA_EXPLOSION_VISUAL_RADIUS - 36);
+  const coreRadius = 26 * (1 - progress * 0.7);
+
+  ctx.save();
+  ctx.translate(effect.x, effect.y);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = fade;
+  const blastTexture = getChimeraExplosionTexture();
+  if (blastTexture) {
+    const textureRadius = CHIMERA_EXPLOSION_VISUAL_RADIUS + CHIMERA_EXPLOSION_TEXTURE_PADDING;
+    const textureScale = radius / CHIMERA_EXPLOSION_VISUAL_RADIUS;
+    const drawRadius = textureRadius * textureScale;
+    ctx.drawImage(blastTexture, -drawRadius, -drawRadius, drawRadius * 2, drawRadius * 2);
+  }
+
+  ctx.fillStyle = "rgba(239,255,246,.92)";
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(4, coreRadius), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(154,253,246,.95)";
+  ctx.lineWidth = 8 * (1 - progress) + 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.92, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(231,138,248,.82)";
+  ctx.lineWidth = 4 * (1 - progress) + 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.68, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.lineCap = "round";
+  for (let spark = 0; spark < 18; spark++) {
+    const angle = (spark / 18) * Math.PI * 2 + effect.id * 0.37;
+    const variation = 0.62 + seeded(effect.id + spark, 944) * 0.36;
+    const distance = radius * variation;
+    const length = 14 + seeded(effect.id + spark, 945) * 28;
+    ctx.strokeStyle = spark % 2 === 0 ? "rgba(148,250,240,.88)" : "rgba(229,118,246,.8)";
+    ctx.lineWidth = 2 + seeded(effect.id + spark, 946) * 3;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle) * Math.max(6, distance - length), Math.sin(angle) * Math.max(6, distance - length));
+    ctx.lineTo(Math.cos(angle) * distance, Math.sin(angle) * distance);
+    ctx.stroke();
   }
   ctx.restore();
 }
@@ -8974,6 +9271,16 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
     ctx.fillStyle = "rgba(210,126,68," + ((game.clock - 0.4) * 0.9) + ")";
     ctx.fillRect(0, 0, width, height);
   }
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+  game.weaponEffects.forEach((effect) => {
+    if (effect.realm === game.realm && onScreen(effect.x, effect.y)) {
+      drawChimeraExplosion(ctx, effect, now);
+    }
+  });
+  drawSniperAim(ctx, game, now);
+  ctx.restore();
   ctx.strokeStyle = "rgba(255,255,255,.07)";
   ctx.lineWidth = 1;
   ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
@@ -9225,6 +9532,7 @@ const CRAFT_RECIPES: Recipe[] = [
     requiresBench: true,
     requiresResearch: "xenoBallistics",
     action: (game) => {
+      getChimeraExplosionTexture();
       game.gear.chimera = true;
       game.weapon = "chimera";
       addDurableTool(game, "chimera");
@@ -9327,7 +9635,7 @@ const CRAFT_RECIPES: Recipe[] = [
   {
     id: "tendrilBlade",
     name: "Tendril Blade",
-    detail: "Living weapon · 36 damage · 112 reach · 240 durability",
+    detail: "Living greatblade · 92 damage · 188 reach · 240 durability",
     cost: { iron: 4, neuralGel: 3, livingWeave: 2 },
     requiresBench: true,
     requiresResearch: "tendrilBlade",
@@ -9434,12 +9742,14 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
         <svg className="tool-svg" viewBox="0 0 52 52" focusable="false">
           {tier === "biomass" ? (
             <g transform="rotate(40 26 26)">
-              <path d="M26 1 Q38 9 31 31 L21 31 Q14 10 26 1 Z" fill="#9f52bd" stroke="#3e2549" strokeWidth="2.5" strokeLinejoin="round" />
-              <path d="M26 5 Q30 17 25 28" fill="none" stroke="#efb9f8" strokeWidth="1.8" strokeLinecap="round" />
-              <circle cx="29" cy="13" r="2.2" fill="#edb5fa" />
-              <rect x="13" y="29" width="26" height="6" rx="3" fill="#795338" stroke="#412f25" strokeWidth="2" />
-              <rect x="22" y="34" width="8" height="13" rx="3" fill="#583929" stroke="#35261f" strokeWidth="2" />
-              <circle cx="26" cy="48" r="4" fill="#9850b7" stroke="#43264d" strokeWidth="2" />
+              <path d="M24 3 C32 4 42 8 47 14 C42 13 39 17 35 22 C31 28 26 33 21 34 C17 28 17 19 20 11 C21 8 22 5 24 3 Z" fill="#8f3eaa" stroke="#2d1736" strokeWidth="2.5" strokeLinejoin="round" />
+              <path d="M24 5 C31 10 34 16 34 23 C37 17 41 14 46 14" fill="none" stroke="#f0a3f4" strokeWidth="2" strokeLinecap="round" />
+              <path d="M27 7 L31 1 L33 10 M36 12 L42 7 L40 16" fill="#b95ece" stroke="#32193b" strokeWidth="2" strokeLinejoin="round" />
+              <circle cx="28" cy="15" r="2.2" fill="#f0a3f4" />
+              <path d="M16 31 C12 24 8 26 8 31 M32 31 C36 24 41 25 41 30" fill="none" stroke="#7f3796" strokeWidth="3" strokeLinecap="round" />
+              <rect x="18" y="29" width="12" height="19" rx="5" fill="#2b1a31" stroke="#160e19" strokeWidth="2" />
+              <path d="M19 34 L29 38 M19 40 L29 44" stroke="#a94dbe" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="24" cy="49" r="3.5" fill="#c86fda" stroke="#382040" strokeWidth="2" />
             </g>
           ) : (
             <g transform="rotate(40 26 26)">
