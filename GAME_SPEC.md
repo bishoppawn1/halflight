@@ -69,7 +69,12 @@ dark-ringed tail. These defining features remain prominent at gameplay zoom.
 Animals are never represented as a front-facing or side-profile face, and
 creatures turn their whole overhead body in their direction of travel.
 
-The player moves at 190 world units per second. Trees and mineable deposits use
+The player moves at 190 world units per second with empty hands. Holding any
+tool, weapon, food, or building piece reduces movement to 82% of that speed
+(about 156 units per second). Drawing either bow reduces movement further to
+35% of empty-hand speed (about 67 units per second) until the arrow is released
+or the draw is canceled. These equipment penalties combine with terrain speed
+changes. Trees and mineable deposits use
 their full visible top-down footprint as solid hitboxes for the player, ground
 wildlife, their babies, and monsters. Movement slides along their edges
 so the dense forest remains navigable. The player does not collide with forage
@@ -432,9 +437,10 @@ thrust animation; axes, pickaxes, swords, and improvised attacks use arcs.
 Holding the left mouse button with either bow starts a draw that reaches full
 strength after 1.2 seconds. The bowstring and nocked arrow visibly pull farther
 back while held, and an on-character meter and equipped-item label show charge.
-Releasing fires one arrow. Damage scales continuously from the listed base
-damage at a quick release to 175% at full draw; arrow speed also rises slightly.
-The `Space` alternate attack remains an immediate base-damage shot.
+While drawing, movement is limited to 35% of empty-hand speed. Releasing fires
+one arrow. Damage scales continuously from the listed base damage at a quick
+release to 175% at full draw; arrow speed also rises slightly. The `Space`
+alternate attack remains an immediate base-damage shot.
 
 | Item | Damage | Range | Cooldown |
 | --- | ---: | ---: | ---: |
@@ -457,8 +463,10 @@ The `Space` alternate attack remains an immediate base-damage shot.
 Night monsters and the cave guardian can land attacks from their listed reach
 only with an unobstructed line to the player. Their attacks, along with contact
 attacks from aggressive wildlife, can deal damage at most once every 1.25
-seconds. Monsters can damage a blocking structure at most once every 1.2
-seconds.
+seconds. A wraith, maw, or cave guardian close attack draws a bright directional
+swipe across its actual melee reach when the hit lands; the guardian's separate
+orb volley retains its charge warning and visible projectiles. Monsters can
+damage a blocking structure at most once every 1.2 seconds.
 
 The fast Meadow crawler fights with two exceptionally long forward arms. Its
 142-unit lash is a true ranged melee attack, and the arms visibly extend when it

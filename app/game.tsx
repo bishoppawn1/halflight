@@ -126,6 +126,7 @@ interface Creature {
   breedReadyAt: number;
   angry: boolean;
   hitAt: number;
+  attackAt: number;
   phase: number;
   slowUntil: number;
   rewarded: boolean;
@@ -286,6 +287,9 @@ const WORLD_W = 7200;
 const WORLD_H = 5200;
 const GRID = 48;
 const DAY_SECONDS = 480;
+const PLAYER_BASE_SPEED = 190;
+const HELD_ITEM_SPEED_FACTOR = 0.82;
+const BOW_DRAW_SPEED_FACTOR = 0.35;
 const RESOURCE_RESPAWN_DAYS: Record<ResourceKind, readonly [number, number]> = {
   oak: [10, 15],
   pine: [5, 10],
@@ -1156,7 +1160,7 @@ function makeGame(): GameState {
   const creatures: Creature[] = [];
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = ANIMAL_DATA[kind];
-    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, maturesAt: 0, breedReadyAt: 0, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false, abilityReadyAt: 0, abilityStartedAt: 0, abilityTargetX: x, abilityTargetY: y });
+    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, maturesAt: 0, breedReadyAt: 0, angry: false, hitAt: 0, attackAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false, abilityReadyAt: 0, abilityStartedAt: 0, abilityTargetX: x, abilityTargetY: y });
   };
   const wildlifeRoster = ANIMAL_KINDS.flatMap((kind) =>
     Array.from({ length: ANIMAL_DATA[kind].startingCount }, () => kind),
@@ -1225,6 +1229,7 @@ function makeGame(): GameState {
     breedReadyAt: 0,
     angry: false,
     hitAt: 0,
+    attackAt: 0,
     phase: 19.7,
     slowUntil: 0,
     rewarded: false,
@@ -1451,6 +1456,7 @@ function spawnMonstersInRealm(game: GameState, realm: Realm, count: number) {
       breedReadyAt: 0,
       angry: false,
       hitAt: 0,
+      attackAt: 0,
       phase: i,
       slowUntil: 0,
       rewarded: false,
@@ -1520,6 +1526,15 @@ function activeTool(game: GameState): Tool {
     !movementInput(game)
   ) return "build";
   return game.selected;
+}
+
+function playerMovementSpeed(game: GameState) {
+  const heldItemFactor = game.bowChargeStartedAt !== null
+    ? BOW_DRAW_SPEED_FACTOR
+    : activeTool(game) === "hands"
+      ? 1
+      : HELD_ITEM_SPEED_FACTOR;
+  return PLAYER_BASE_SPEED * heldItemFactor * groundSpeedFactor(game.realm, game.player.x, game.player.y);
 }
 
 function nearCraftingBench(game: GameState) {
@@ -2162,6 +2177,7 @@ function setGamePaused(game: GameState, paused: boolean, now = performance.now()
   });
   game.creatures.forEach((creature) => {
     creature.hitAt = shiftTimestamp(creature.hitAt);
+    creature.attackAt = shiftTimestamp(creature.attackAt);
     creature.structureHitAt = shiftTimestamp(creature.structureHitAt);
     creature.rangedAt = shiftTimestamp(creature.rangedAt);
     creature.rangedChargeUntil = shiftDeadline(creature.rangedChargeUntil);
@@ -2386,6 +2402,7 @@ function spawnBabyAnimal(game: GameState, parent: Creature, mate: Creature, now:
     breedReadyAt: now + ANIMAL_BABY_DURATION_MS,
     angry: false,
     hitAt: 0,
+    attackAt: 0,
     phase: babyId * 0.73,
     slowUntil: 0,
     rewarded: false,
@@ -3087,6 +3104,7 @@ function updateBruteLeap(game: GameState, creature: Creature, dt: number, now: n
   ) {
     damagePlayer(game, creature.damage * 1.5, "Brute impact dealt");
     creature.hitAt = now;
+    creature.attackAt = now;
   }
   return true;
 }
@@ -3117,6 +3135,7 @@ function updateCreatures(game: GameState, dt: number) {
       creature.respawnAt = 0;
       creature.rewarded = false;
       creature.dir = creature.phase;
+      creature.attackAt = 0;
       creature.rangedAt = 0;
       creature.rangedChargeUntil = 0;
       creature.rangedAim = creature.phase;
@@ -3297,6 +3316,7 @@ function updateCreatures(game: GameState, dt: number) {
     if (attackingPlayer && attackPathClear && playerDistance < attackReach && now - creature.hitAt > CREATURE_ATTACK_COOLDOWN_MS) {
       damagePlayer(game, creature.damage, creature.boss ? "Cave guardian hit" : "");
       creature.hitAt = now;
+      creature.attackAt = now;
     }
     for (const building of game.buildings) {
       if (building.realm !== game.realm || building.hp <= 0 || building.construction < 1) continue;
@@ -3404,7 +3424,7 @@ function movePlayerToward(game: GameState, targetX: number, targetY: number, dt:
   const dx = targetX - game.player.x;
   const dy = targetY - game.player.y;
   const distance = Math.max(1, Math.hypot(dx, dy));
-  const step = Math.min(distance, 155 * groundSpeedFactor(game.realm, game.player.x, game.player.y) * dt);
+  const step = Math.min(distance, playerMovementSpeed(game) * dt);
   const nextX = Math.max(32, Math.min(WORLD_W - 32, game.player.x + (dx / distance) * step));
   const nextY = Math.max(32, Math.min(WORLD_H - 32, game.player.y + (dy / distance) * step));
   if (canStand(game, nextX, game.player.y)) game.player.x = nextX;
@@ -3543,7 +3563,7 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
   if (game.keys.has("d") || game.keys.has("arrowright")) dx += 1;
   if (dx || dy) {
     const length = Math.hypot(dx, dy);
-    const speed = 190 * groundSpeedFactor(game.realm, game.player.x, game.player.y);
+    const speed = playerMovementSpeed(game);
     const nextX = Math.max(32, Math.min(WORLD_W - 32, game.player.x + (dx / length) * speed * dt));
     const nextY = Math.max(32, Math.min(WORLD_H - 32, game.player.y + (dy / length) * speed * dt));
     if (canStand(game, nextX, game.player.y)) game.player.x = nextX;
@@ -5259,7 +5279,7 @@ function drawMonsterCreature(ctx: CanvasRenderingContext2D, creature: Creature, 
   }
 
   if (creature.kind === "crawler") {
-    const attackAge = now - creature.hitAt;
+    const attackAge = now - creature.attackAt;
     const lash = attackAge >= 0 && attackAge < 260
       ? Math.sin((attackAge / 260) * Math.PI) * 24
       : 0;
@@ -5449,6 +5469,57 @@ function drawMonsterCreature(ctx: CanvasRenderingContext2D, creature: Creature, 
   }
 }
 
+function drawCaveMonsterAttack(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
+  if (creature.realm !== "caveSystem" || !isMonster(creature.kind) || creature.attackAt <= 0) return;
+  const duration = 280;
+  const age = now - creature.attackAt;
+  if (age < 0 || age >= duration) return;
+
+  const progress = age / duration;
+  const intensity = Math.sin(progress * Math.PI);
+  const sweepAngle = -0.78 + progress * 1.56;
+  const outerRadius = creatureAttackReach(creature) - 8;
+  const innerRadius = creatureRadius(creature) + 7;
+  const flashColor = creature.boss
+    ? "#ffd08a"
+    : creature.kind === "wraith"
+      ? "#d8cbff"
+      : "#ff9c86";
+
+  ctx.save();
+  ctx.translate(creature.x, creature.y);
+  ctx.rotate(creature.dir);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = 0.2 + intensity * 0.8;
+  ctx.lineCap = "round";
+  ctx.shadowColor = flashColor;
+  ctx.shadowBlur = 12 + intensity * 10;
+
+  for (const radiusOffset of [0, -13]) {
+    ctx.strokeStyle = flashColor;
+    ctx.lineWidth = creature.boss ? 7 : 5.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, outerRadius + radiusOffset, sweepAngle - 0.42, sweepAngle + 0.18);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "#fff8e9";
+  ctx.lineWidth = creature.boss ? 3.5 : 2.5;
+  ctx.beginPath();
+  ctx.moveTo(
+    Math.cos(sweepAngle - 0.18) * innerRadius,
+    Math.sin(sweepAngle - 0.18) * innerRadius,
+  );
+  ctx.quadraticCurveTo(
+    Math.cos(sweepAngle) * outerRadius * 0.72,
+    Math.sin(sweepAngle) * outerRadius * 0.72,
+    Math.cos(sweepAngle + 0.08) * outerRadius,
+    Math.sin(sweepAngle + 0.08) * outerRadius,
+  );
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
   const speciesScale = creature.boss
     ? 1.82
@@ -5563,6 +5634,7 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     ctx.fill();
   }
   ctx.restore();
+  drawCaveMonsterAttack(ctx, creature, now);
 }
 
 function drawTreasure(ctx: CanvasRenderingContext2D, treasure: CaveTreasure, now: number) {
