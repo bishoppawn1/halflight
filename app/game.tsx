@@ -4556,12 +4556,67 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.restore();
     return;
   }
+  if (tool === "sword") {
+    const bladeGradient = ctx.createLinearGradient(19, -7, 19, 7);
+    bladeGradient.addColorStop(0, "#f5faf8");
+    bladeGradient.addColorStop(0.48, "#aebdb9");
+    bladeGradient.addColorStop(0.52, "#7f918d");
+    bladeGradient.addColorStop(1, "#e1e9e6");
+    ctx.fillStyle = bladeGradient;
+    ctx.strokeStyle = "#2f403c";
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(19, -7);
+    ctx.lineTo(47, -5);
+    ctx.lineTo(60, 0);
+    ctx.lineTo(47, 5);
+    ctx.lineTo(19, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(247,252,250,.85)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(23, -3.5);
+    ctx.lineTo(50, -2.5);
+    ctx.lineTo(56, 0);
+    ctx.stroke();
+    ctx.fillStyle = "#d6a94b";
+    ctx.strokeStyle = "#5b4525";
+    ctx.lineWidth = 2.5;
+    roundedRect(ctx, 15, -13, 6, 26, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#68432e";
+    ctx.strokeStyle = "#35261f";
+    roundedRect(ctx, 3, -4.5, 13, 9, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#d6a94b";
+    ctx.lineWidth = 1.5;
+    for (const wrapX of [7, 11]) {
+      ctx.beginPath();
+      ctx.moveTo(wrapX, -4);
+      ctx.lineTo(wrapX, 4);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#d6a94b";
+    ctx.strokeStyle = "#5b4525";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(2, 0, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
   ctx.strokeStyle = "#432f2b";
-  ctx.lineWidth = tool === "spear" || tool === "sword" ? 5 : 7;
+  ctx.lineWidth = tool === "spear" ? 5 : 7;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(4, 0);
-  ctx.lineTo(tool === "spear" || tool === "sword" ? 49 : 39, 0);
+  ctx.lineTo(tool === "spear" ? 49 : 39, 0);
   ctx.stroke();
   if (durableTool?.family === "axe") {
     const tier = durableTool.tier;
@@ -4764,21 +4819,6 @@ function drawTool(ctx: CanvasRenderingContext2D, game: GameState, swing: number)
     ctx.lineTo(44, 8);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
-  } else if (tool === "sword") {
-    ctx.fillStyle = "#e4ece8";
-    ctx.strokeStyle = "#35463f";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(58, 0);
-    ctx.lineTo(43, -6);
-    ctx.lineTo(43, 6);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(10, -9);
-    ctx.lineTo(10, 9);
     ctx.stroke();
   } else {
     ctx.fillStyle = "#d89b47";
@@ -7634,6 +7674,22 @@ function ToolGlyph({ type, tier }: { type: ToolGlyphKind; tier?: ToolTier }) {
               {material === "wood" && <path d="M25 16 L34 24 M22 18 L31 26" fill="none" stroke="#e0bb6b" strokeWidth="2" strokeLinecap="round" />}
             </>
           )}
+        </svg>
+      </span>
+    );
+  }
+  if (type === "sword") {
+    return (
+      <span className="tool-glyph tool-sword" aria-hidden="true">
+        <svg className="tool-svg" viewBox="0 0 52 52" focusable="false">
+          <g transform="rotate(40 26 26)">
+            <path d="M26 1 L33 9 L31 31 L21 31 L19 9 Z" fill="#dce6e3" stroke="#33443f" strokeWidth="2.5" strokeLinejoin="round" />
+            <path d="M26 5 L26 28 L31 11" fill="none" stroke="#f6faf8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="13" y="29" width="26" height="6" rx="3" fill="#d6a94b" stroke="#5b4525" strokeWidth="2" />
+            <rect x="22" y="34" width="8" height="13" rx="3" fill="#68432e" stroke="#35261f" strokeWidth="2" />
+            <path d="M22 38 L30 38 M22 42 L30 42" stroke="#d6a94b" strokeWidth="1.5" />
+            <circle cx="26" cy="48" r="4" fill="#d6a94b" stroke="#5b4525" strokeWidth="2" />
+          </g>
         </svg>
       </span>
     );

@@ -944,8 +944,7 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   transform: rotate(-10deg);
 }
 
-.tool-spear i,
-.tool-sword i { left: 17px; top: 2px; height: 34px; transform: rotate(38deg); }
+.tool-spear i { left: 17px; top: 2px; height: 34px; transform: rotate(38deg); }
 .tool-spear b {
   left: 27px;
   top: 0;
@@ -954,17 +953,6 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
   border-bottom: 14px solid #c6d0ca;
-  transform: rotate(38deg);
-}
-
-.tool-sword i { width: 7px; background: #d4ddd9; border-color: #3a4843; }
-.tool-sword b {
-  left: 10px;
-  top: 22px;
-  width: 23px;
-  height: 5px;
-  border-radius: 4px;
-  background: #dfaf49;
   transform: rotate(38deg);
 }
 

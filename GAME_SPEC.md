@@ -58,6 +58,9 @@ abbreviations.
 Axes always use one broad, offset chopping blade mounted perpendicular to the
 handle. Pickaxes use a narrow, double-ended head so the two tool families remain
 distinct at gameplay scale.
+The Stone Spear has a long wooden shaft and small triangular stone point. The
+Iron Sword instead has a short wrapped grip, pommel, crossguard, and broad
+double-edged iron blade in both its held and inventory illustrations.
 
 Every world object and creature is presented from directly overhead. Wildlife
 uses a clean silhouette made from a torso and head. Airborne crows and owls have
