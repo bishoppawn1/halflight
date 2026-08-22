@@ -4,7 +4,7 @@
 
 **Halflight** is an endless, single-player, real-time browser survival game.
 The player gathers by day, explores a large meadow, forest, and several caves, crafts
-equipment and firearms, builds defenses, tames wildlife, and survives night
+equipment and firearms, builds defenses, feeds and breeds wildlife, and survives night
 waves that become larger and stronger forever.
 
 There is no third- or fourth-night ending, day cap, or final victory state.
@@ -19,7 +19,7 @@ complete run.
    mushrooms, and rare Aetherium.
 4. Craft tools, armor, melee weapons, bows, guns, ammunition, and healing.
 5. Build a shelter, crops, barriers, automated defenses, and multiple traps.
-6. Lure wildlife with its preferred bait and make chance-based taming attempts.
+6. Lure and feed adult wildlife, then breed two well-fed animals of the same species.
 7. Survive an increasingly large night wave, recover at dawn, and continue.
 
 ## 3. New-run state
@@ -71,7 +71,7 @@ creatures turn their whole overhead body in their direction of travel.
 
 The player moves at 190 world units per second. Trees and mineable deposits use
 their full visible top-down footprint as solid hitboxes for the player, ground
-wildlife, monsters, and grounded companions. Movement slides along their edges
+wildlife, their babies, and monsters. Movement slides along their edges
 so the dense forest remains navigable. The player does not collide with forage
 nodes or creatures. Completed walls, fences, gates, doors, benches, chests, and
 other solid structures block the player and creatures; an open gate or door can
@@ -89,8 +89,9 @@ to 48%. Flying crows and owls ignore resource, structure, and water collision.
 | Left click in build mode | Place one ready building piece |
 | Hold `Shift` and left-drag | Place ready pieces across each valid grid cell crossed |
 | Right click in build mode | Cancel placement without using a ready piece |
-| `E` | Context action: eat, feed, harvest, open treasure, operate, enter/exit, or place once |
-| `Space` or `F` | Attack once |
+| `E` | Context action: eat, harvest, open treasure, operate, enter/exit, or place once |
+| `F` or the **Feed animal** button | Feed the nearest reachable adult its preferred selected food |
+| `Space` | Attack once |
 | `1`–`9`, `0` | Select hotbar slots 1 through 10 |
 | `Q` | Open or close ready building pieces |
 | `C` | Open or close crafting |
@@ -118,8 +119,8 @@ When a material reaches zero, its hotbar or backpack slot becomes empty
 immediately. If that material was selected food, the player switches to hands
 and the stale eating prompt disappears.
 
-Touch players receive a directional pad, an **Interact** button, a **Build**
-button, and a holdable **Tool** button. Holding the touch tool also supports continuous building.
+Touch players receive a directional pad, an **Interact** button, a **Feed**
+button, a **Build** button, and a holdable **Tool** button. Holding the touch tool also supports continuous building.
 Inventory and hotbar moves use the two-tap flow.
 
 ## 5. World and time
@@ -419,7 +420,7 @@ the stored contents; if monsters destroy the chest, those contents are lost.
 
 ## 10. Combat
 
-Melee attacks damage every non-tamed creature in the attack arc and apply
+Melee attacks damage every creature in the attack arc and apply
 knockback. An axe swing can simultaneously apply its gathering damage to one
 intersected tree or forage node without suppressing any creature hit. Ranged
 weapons spend ammunition even on misses and fire a physical
@@ -433,7 +434,7 @@ strength after 1.2 seconds. The bowstring and nocked arrow visibly pull farther
 back while held, and an on-character meter and equipped-item label show charge.
 Releasing fires one arrow. Damage scales continuously from the listed base
 damage at a quick release to 175% at full draw; arrow speed also rises slightly.
-The `Space`/`F` alternate attack remains an immediate base-damage shot.
+The `Space` alternate attack remains an immediate base-damage shot.
 
 | Item | Damage | Range | Cooldown |
 | --- | ---: | ---: | ---: |
@@ -457,7 +458,7 @@ Night monsters and the cave guardian can land attacks from their listed reach
 only with an unobstructed line to the player. Their attacks, along with contact
 attacks from aggressive wildlife, can deal damage at most once every 1.25
 seconds. Monsters can damage a blocking structure at most once every 1.2
-seconds. Tamed companions can attack a nearby horror once every 1.1 seconds.
+seconds.
 
 The fast Meadow crawler fights with two exceptionally long forward arms. Its
 142-unit lash is a true ranged melee attack, and the arms visibly extend when it
@@ -467,10 +468,12 @@ telegraph the attack before the brute spends 560 ms airborne. Landing in the
 circle deals 150% of its normal damage. A brute waits 4.2 seconds before it can
 leap again, and a solid structure stops the leap and takes the impact instead.
 
-Wildlife drops species-specific amounts of meat and hide; birds provide meat
-but no hide. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2
-sulfur. Every creature defeated by the player, a tame, or a trap increases the
-threat count.
+Wildlife leaves visible, illustrated piles of its species-specific meat and hide
+at the death position; birds provide meat but no hide. The piles become
+collectible after 650 ms, then enter the inventory when the player comes within
+36 units. Brutes drop iron, wraiths drop sulfur, and maws drop 2 iron and 2
+sulfur. Every creature defeated by the player or a trap increases the threat
+count.
 
 The cave guardian is an oversized maw with 240 health, 78 speed, 22 melee
 damage, a 114-unit melee reach, and a 540-unit sense radius. From 220 to 520
@@ -485,7 +488,7 @@ its faster melee pursuit. Defeating it awards the maw's normal drop plus 5 iron,
 5 sulfur, and 3 Aetherium, for a total of 7 iron, 7 sulfur, and 3 Aetherium. Any
 remaining guardian orbs disappear when it dies.
 
-## 11. Wildlife and taming
+## 11. Wildlife feeding and breeding
 
 Forty-three animals are distributed between the Blackwood and open Meadow at
 the start. Common prey and birds greatly outnumber larger predators.
@@ -494,18 +497,18 @@ Each species is drawn as a full overhead animal rather than an animal face.
 Body and head proportions, color, markings, wings, beaks, and tails distinguish
 the species without relying on visible legs.
 
-| Animal | Population | Habitat | Health | Speed | Contact damage | Wild behavior | Tame chance | Companion hit | Drops |
-| --- | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | --- |
-| Rabbit | 10 | Blackwood | 18 | 84 | 0 | Flees within 170 | 60% | 7 | 1 meat, 1 hide |
-| Crow | 7 | Meadow | 14 | 102 | 0 | Flies; flees within 85 | 68% | 5 | 1 meat |
-| Deer | 7 | Blackwood | 36 | 74 | 0 | Flees within 220 | 42% | 9 | 2 meat, 2 hide |
-| Raccoon | 5 | Blackwood | 28 | 72 | 0 | Flees within 115 | 35% | 7 | 1 meat, 1 hide |
-| Wild turkey | 4 | Meadow | 34 | 62 | 0 | Flees within 130 | 28% | 8 | 3 meat |
-| Fox | 3 | Blackwood | 30 | 78 | 6 | Attacks within 135 | 32% | 7 | 2 meat, 1 hide |
-| Owl | 3 | Blackwood | 24 | 82 | 0 | Flies; flees within 105 | 38% | 8 | 1 meat |
-| Boar | 2 | Blackwood | 44 | 55 | 6 | Attacks within 90 | 24% | 10 | 2 meat, 1 hide |
-| Wolf | 1 | Blackwood | 50 | 70 | 8 | Attacks within 120 | 16% | 14 | 2 meat, 1 hide |
-| Bear | 1 | Blackwood | 70 | 48 | 9 | Attacks within 135 | 10% | 16 | 4 meat, 2 hide |
+| Animal | Population | Habitat | Health | Speed | Contact damage | Wild behavior | Drops |
+| --- | ---: | --- | ---: | ---: | ---: | --- | --- |
+| Rabbit | 10 | Blackwood | 18 | 84 | 0 | Flees within 170 | 1 meat, 1 hide |
+| Crow | 7 | Meadow | 14 | 102 | 0 | Flies; flees within 85 | 1 meat |
+| Deer | 7 | Blackwood | 36 | 74 | 0 | Flees within 220 | 2 meat, 2 hide |
+| Raccoon | 5 | Blackwood | 28 | 72 | 0 | Flees within 115 | 1 meat, 1 hide |
+| Wild turkey | 4 | Meadow | 34 | 62 | 0 | Flees within 130 | 3 meat |
+| Fox | 3 | Blackwood | 30 | 78 | 6 | Attacks within 135 | 2 meat, 1 hide |
+| Owl | 3 | Blackwood | 24 | 82 | 0 | Flies; flees within 105 | 1 meat |
+| Boar | 2 | Blackwood | 44 | 55 | 6 | Attacks within 90 | 2 meat, 1 hide |
+| Wolf | 1 | Blackwood | 50 | 70 | 8 | Attacks within 120 | 2 meat, 1 hide |
+| Bear | 1 | Blackwood | 70 | 48 | 9 | Attacks within 135 | 4 meat, 2 hide |
 
 Crows and owls fly over trees, mineable outcrops, water, and player-built
 structures while roaming, fleeing, following, or attacking. Their wings remain
@@ -531,7 +534,7 @@ up beyond 340 units. Boars remain berry-lured but aggressive when unbaited. All
 other wildlife follows selected berries. Deer and rabbits approach their berries
 slowly and, without bait, flee at the enlarged 220- and 170-unit notice ranges.
 An animal following bait stops about 135 units from the player instead of
-walking into melee range. It can still be fed with `E` from up to 162 units
+walking into melee range. It can still be fed with `F` or the Feed animal button from up to 162 units
 while the correct food remains selected. Switching away from the bait restores
 the animal's ordinary flee or aggressive behavior, and the stand-off position
 keeps it beyond a spear's 102-unit reach at the moment of the switch.
@@ -544,18 +547,21 @@ so within 290 units. Other skittish wildlife remains frightened for five seconds
 after a hit and returns to its original territory once safe. Other disengaged
 wildlife also returns to its original territory.
 
-Pressing `E` near a lured animal consumes one unit of its preferred food and
-makes one independent taming roll. Failed attempts leave the animal wild, so
-lower success rates make larger and stronger companions require more bait on
-average. The player can have at most five tamed companions. Tamed animals follow
-the player, cannot be hit by the player, seek night monsters within 230 units,
-and attack at close range. When the player enters or exits a cave, every living
-tamed companion transfers to the destination realm and reforms behind the
-player at an open position.
+There is no taming or companion system. Pressing `F` or choosing the Feed animal
+button near a lured adult consumes one unit of its preferred food and increases
+that animal's feeding progress, from `1/3` through `3/3`. When two living adults
+of the same species are both fully fed and within 260 units of each other, they
+produce one baby at a nearby open position. Both parents return to `0/3` and
+cannot be fed again for 480 seconds.
+
+A baby is rendered at 58% of its adult species scale, moves at 72% of adult
+speed, cannot be fed, and matures after 240 seconds. Maturity restores its full
+adult health and movement values. A birth does not occur if the game cannot find
+an open nearby position for the baby.
 
 Defeated wild animals leave their population slot empty for a randomly selected
-2–4 days, then respawn at their original territory with full health and no prior
-taming attempts, and no remembered wariness.
+2–4 days, then respawn at their original territory with full adult health, no
+feeding progress, and no remembered wariness.
 
 ## 12. Endless night progression
 

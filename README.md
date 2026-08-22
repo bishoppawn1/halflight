@@ -16,8 +16,9 @@ The GitHub Pages deployment is available at:
 - Hold left mouse — continuously chop, mine, attack, or fire
 - Left click — place one selected building piece
 - Shift + left-drag — place selected building pieces across multiple grid cells
-- E — pick up ground drops, interact, tame, eat, rest at bedrolls, enter caves, open gates, chests, and treasure caches, or confirm grid placement
-- Space or F — attack
+- E — interact, eat, rest at bedrolls, enter caves, open gates, chests, and treasure caches, or confirm grid placement
+- F — feed the nearest reachable adult animal its preferred selected food
+- Space — attack
 - 1–9 or 0 — select one of 10 hotbar slots
 - Q — ready building pieces
 - C — crafting menu
@@ -44,7 +45,8 @@ supplies unavailable to crafting until you retrieve them.
 
 A Wood Axe, 3 berries, and a lit campfire are available at spawn; no other
 carried resources are provided. Resource nodes release illustrated ground drops
-only when fully depleted, and nearby drops are collected with E. Bedrolls
+only when fully depleted, and killed animals leave illustrated meat and hide
+piles. Nearby drops are collected automatically after their brief appearance. Bedrolls
 provide one rest per day, while Standing Torches and Campfires create permanent
 pools of light. At night and underground, the world beyond those light pools is
 hidden. Damaged resources show a clear health bar without numeric durability,

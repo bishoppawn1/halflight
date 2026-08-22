@@ -99,6 +99,7 @@ interface GroundDrop {
   realm: Realm;
   x: number;
   y: number;
+  collectibleAt: number;
 }
 
 interface CaveTreasure {
@@ -121,7 +122,8 @@ interface Creature {
   speed: number;
   damage: number;
   fed: number;
-  tame: boolean;
+  maturesAt: number;
+  breedReadyAt: number;
   angry: boolean;
   hitAt: number;
   phase: number;
@@ -301,7 +303,6 @@ const RESOURCE_RESPAWN_DAYS: Record<ResourceKind, readonly [number, number]> = {
 const ANIMAL_RESPAWN_DAYS = [2, 4] as const;
 const LOW_HEALTH_THRESHOLD = 30;
 const LOW_HUNGER_THRESHOLD = 25;
-const COMPANION_ATTACK_COOLDOWN_MS = 1100;
 const CREATURE_ATTACK_COOLDOWN_MS = 1250;
 const CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS = 1200;
 const BRUTE_LEAP_COOLDOWN_MS = 4200;
@@ -570,10 +571,13 @@ const BOSS_RANGED_DAMAGE = 14;
 const BOSS_RANGED_COOLDOWN_MS = 2600;
 const BOSS_RANGED_WINDUP_MS = 650;
 const BOSS_PROJECTILE_SPEED = 315;
-const MAX_TAMED_ANIMALS = 5;
 const ANIMAL_LURE_DISTANCE = 360;
 const ANIMAL_LURE_STANDOFF_DISTANCE = 135;
 const ANIMAL_FEED_DISTANCE = 162;
+const ANIMAL_FEEDS_TO_BREED = 3;
+const ANIMAL_BREED_PAIR_DISTANCE = 260;
+const ANIMAL_BABY_DURATION_MS = 240_000;
+const ANIMAL_BREED_COOLDOWN_MS = 480_000;
 const BOW_MAX_CHARGE_MS = 1200;
 const BOW_MAX_DAMAGE_BONUS = 0.75;
 const WARY_ESCAPE_DISTANCE = 520;
@@ -589,25 +593,23 @@ const ANIMAL_DATA: Record<
     damage: number;
     temperament: "aggressive" | "skittish";
     noticeDistance: number;
-    tameChance: number;
     startingCount: number;
     habitat: "forest" | "meadow";
     flying: boolean;
     meatDrop: number;
     hideDrop: number;
-    companionDamage: number;
   }
 > = {
-  bear: { hp: 70, speed: 48, damage: 9, temperament: "aggressive", noticeDistance: 135, tameChance: 0.1, startingCount: 1, habitat: "forest", flying: false, meatDrop: 4, hideDrop: 2, companionDamage: 16 },
-  boar: { hp: 44, speed: 55, damage: 6, temperament: "aggressive", noticeDistance: 90, tameChance: 0.24, startingCount: 2, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 10 },
-  deer: { hp: 36, speed: 74, damage: 0, temperament: "skittish", noticeDistance: 220, tameChance: 0.42, startingCount: 7, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 2, companionDamage: 9 },
-  rabbit: { hp: 18, speed: 84, damage: 0, temperament: "skittish", noticeDistance: 170, tameChance: 0.6, startingCount: 10, habitat: "forest", flying: false, meatDrop: 1, hideDrop: 1, companionDamage: 7 },
-  fox: { hp: 30, speed: 78, damage: 6, temperament: "aggressive", noticeDistance: 135, tameChance: 0.32, startingCount: 3, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 7 },
-  wolf: { hp: 50, speed: 70, damage: 8, temperament: "aggressive", noticeDistance: 120, tameChance: 0.16, startingCount: 1, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1, companionDamage: 14 },
-  raccoon: { hp: 28, speed: 72, damage: 0, temperament: "skittish", noticeDistance: 115, tameChance: 0.35, startingCount: 5, habitat: "forest", flying: false, meatDrop: 1, hideDrop: 1, companionDamage: 7 },
-  crow: { hp: 14, speed: 102, damage: 0, temperament: "skittish", noticeDistance: 85, tameChance: 0.68, startingCount: 7, habitat: "meadow", flying: true, meatDrop: 1, hideDrop: 0, companionDamage: 5 },
-  owl: { hp: 24, speed: 82, damage: 0, temperament: "skittish", noticeDistance: 105, tameChance: 0.38, startingCount: 3, habitat: "forest", flying: true, meatDrop: 1, hideDrop: 0, companionDamage: 8 },
-  turkey: { hp: 34, speed: 62, damage: 0, temperament: "skittish", noticeDistance: 130, tameChance: 0.28, startingCount: 4, habitat: "meadow", flying: false, meatDrop: 3, hideDrop: 0, companionDamage: 8 },
+  bear: { hp: 70, speed: 48, damage: 9, temperament: "aggressive", noticeDistance: 135, startingCount: 1, habitat: "forest", flying: false, meatDrop: 4, hideDrop: 2 },
+  boar: { hp: 44, speed: 55, damage: 6, temperament: "aggressive", noticeDistance: 90, startingCount: 2, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1 },
+  deer: { hp: 36, speed: 74, damage: 0, temperament: "skittish", noticeDistance: 220, startingCount: 7, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 2 },
+  rabbit: { hp: 18, speed: 84, damage: 0, temperament: "skittish", noticeDistance: 170, startingCount: 10, habitat: "forest", flying: false, meatDrop: 1, hideDrop: 1 },
+  fox: { hp: 30, speed: 78, damage: 6, temperament: "aggressive", noticeDistance: 135, startingCount: 3, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1 },
+  wolf: { hp: 50, speed: 70, damage: 8, temperament: "aggressive", noticeDistance: 120, startingCount: 1, habitat: "forest", flying: false, meatDrop: 2, hideDrop: 1 },
+  raccoon: { hp: 28, speed: 72, damage: 0, temperament: "skittish", noticeDistance: 115, startingCount: 5, habitat: "forest", flying: false, meatDrop: 1, hideDrop: 1 },
+  crow: { hp: 14, speed: 102, damage: 0, temperament: "skittish", noticeDistance: 85, startingCount: 7, habitat: "meadow", flying: true, meatDrop: 1, hideDrop: 0 },
+  owl: { hp: 24, speed: 82, damage: 0, temperament: "skittish", noticeDistance: 105, startingCount: 3, habitat: "forest", flying: true, meatDrop: 1, hideDrop: 0 },
+  turkey: { hp: 34, speed: 62, damage: 0, temperament: "skittish", noticeDistance: 130, startingCount: 4, habitat: "meadow", flying: false, meatDrop: 3, hideDrop: 0 },
 };
 
 const ITEM_LABELS: Partial<Record<InventoryItem, string>> = {
@@ -1154,7 +1156,7 @@ function makeGame(): GameState {
   const creatures: Creature[] = [];
   const addAnimal = (kind: AnimalKind, x: number, y: number, phase: number) => {
     const stats = ANIMAL_DATA[kind];
-    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, tame: false, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false, abilityReadyAt: 0, abilityStartedAt: 0, abilityTargetX: x, abilityTargetY: y });
+    creatures.push({ id: id++, kind, realm: "meadow", x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, damage: stats.damage, fed: 0, maturesAt: 0, breedReadyAt: 0, angry: false, hitAt: 0, phase, slowUntil: 0, rewarded: false, dir: phase, structureHitAt: 0, rangedAt: 0, rangedChargeUntil: 0, rangedAim: phase, boss: false, homeX: x, homeY: y, provokedUntil: 0, waryOfPlayer: false, respawnAt: 0, fleeing: false, abilityReadyAt: 0, abilityStartedAt: 0, abilityTargetX: x, abilityTargetY: y });
   };
   const wildlifeRoster = ANIMAL_KINDS.flatMap((kind) =>
     Array.from({ length: ANIMAL_DATA[kind].startingCount }, () => kind),
@@ -1219,7 +1221,8 @@ function makeGame(): GameState {
     speed: BOSS_SPEED,
     damage: 22,
     fed: 0,
-    tame: false,
+    maturesAt: 0,
+    breedReadyAt: 0,
     angry: false,
     hitAt: 0,
     phase: 19.7,
@@ -1444,7 +1447,8 @@ function spawnMonstersInRealm(game: GameState, realm: Realm, count: number) {
       speed: stats.speed + game.day * 2,
       damage: stats.damage + game.day * 1.4,
       fed: 0,
-      tame: false,
+      maturesAt: 0,
+      breedReadyAt: 0,
       angry: false,
       hitAt: 0,
       phase: i,
@@ -1556,41 +1560,47 @@ function selectSlot(game: GameState, slot: number) {
   if (item === "spear" || item === "sword" || item === "bow" || item === "ironBow" || item === "pistol") game.weapon = item;
 }
 
-function nearestCreature(game: GameState, maxDistance: number) {
-  let found: Creature | null = null;
-  let best = maxDistance;
-  for (const creature of game.creatures) {
-    if (creature.realm !== game.realm || creature.hp <= 0) continue;
-    const distance = Math.hypot(creature.x - game.player.x, creature.y - game.player.y);
-    if (distance < best) {
-      best = distance;
-      found = creature;
-    }
-  }
-  return found;
+function isBabyAnimal(creature: Creature, now = performance.now()) {
+  return isAnimal(creature.kind) && creature.maturesAt > now;
 }
 
-function nearestLuredAnimal(game: GameState, maxDistance: number) {
+function nearestFeedableAnimal(game: GameState) {
+  const now = performance.now();
+  const feedPriority = (creature: Creature) => {
+    if (!isAnimal(creature.kind)) return 4;
+    if (isPermanentlyWaryPrey(creature.kind) && creature.waryOfPlayer) return 3;
+    if (creature.breedReadyAt > now) return 2;
+    return creature.fed < ANIMAL_FEEDS_TO_BREED ? 0 : 1;
+  };
   return game.creatures
     .filter(
       (creature) =>
         creature.realm === game.realm &&
         creature.hp > 0 &&
-        !creature.tame &&
         isAnimal(creature.kind) &&
-        isHoldingAnimalLure(game, creature.kind) &&
-        Math.hypot(creature.x - game.player.x, creature.y - game.player.y) <= maxDistance,
+        !isBabyAnimal(creature) &&
+        (
+          Math.hypot(creature.x - game.player.x, creature.y - game.player.y) <= 92 ||
+          (
+            isHoldingAnimalLure(game, creature.kind) &&
+            Math.hypot(creature.x - game.player.x, creature.y - game.player.y) <= ANIMAL_FEED_DISTANCE
+          )
+        ),
     )
     .sort(
-      (a, b) =>
-        Math.hypot(a.x - game.player.x, a.y - game.player.y) -
-        Math.hypot(b.x - game.player.x, b.y - game.player.y),
+      (a, b) => {
+        const priority = feedPriority(a) - feedPriority(b);
+        if (priority !== 0) return priority;
+        return Math.hypot(a.x - game.player.x, a.y - game.player.y) -
+          Math.hypot(b.x - game.player.x, b.y - game.player.y);
+      },
     )[0] || null;
 }
 
-function tamedAnimalCount(game: GameState) {
+function babyAnimalCount(game: GameState) {
+  const now = performance.now();
   return game.creatures.filter(
-    (creature) => creature.hp > 0 && creature.tame && isAnimal(creature.kind),
+    (creature) => creature.hp > 0 && isBabyAnimal(creature, now),
   ).length;
 }
 
@@ -1632,8 +1642,10 @@ function nearestNode(game: GameState, maxDistance: number) {
 }
 
 function collectGroundDrops(game: GameState) {
+  const now = performance.now();
   const collected = game.drops.filter(
     (drop) =>
+      now >= drop.collectibleAt &&
       drop.realm === game.realm &&
       Math.hypot(drop.x - game.player.x, drop.y - game.player.y) < 36,
   );
@@ -2071,12 +2083,18 @@ function reservedBuildingAt(game: GameState, realm: Realm, x: number, y: number,
 
 function creatureRadius(creature: Creature) {
   if (creature.boss) return 49;
-  if (creature.kind === "maw" || creature.kind === "bear" || creature.kind === "brute") return 27;
-  if (creature.kind === "rabbit") return 14;
-  if (creature.kind === "crow") return 13;
-  if (creature.kind === "owl") return 17;
-  if (creature.kind === "turkey") return 22;
-  return 20;
+  const radius = creature.kind === "maw" || creature.kind === "bear" || creature.kind === "brute"
+    ? 27
+    : creature.kind === "rabbit"
+      ? 14
+      : creature.kind === "crow"
+        ? 13
+        : creature.kind === "owl"
+          ? 17
+          : creature.kind === "turkey"
+            ? 22
+            : 20;
+  return isBabyAnimal(creature) ? radius * 0.58 : radius;
 }
 
 function creatureAttackReach(creature: Creature) {
@@ -2150,8 +2168,13 @@ function setGamePaused(game: GameState, paused: boolean, now = performance.now()
     creature.slowUntil = shiftDeadline(creature.slowUntil);
     creature.provokedUntil = shiftDeadline(creature.provokedUntil);
     creature.respawnAt = shiftDeadline(creature.respawnAt);
+    creature.maturesAt = shiftDeadline(creature.maturesAt);
+    creature.breedReadyAt = shiftDeadline(creature.breedReadyAt);
     creature.abilityReadyAt = shiftDeadline(creature.abilityReadyAt);
     creature.abilityStartedAt = shiftTimestamp(creature.abilityStartedAt);
+  });
+  game.drops.forEach((drop) => {
+    drop.collectibleAt = shiftDeadline(drop.collectibleAt);
   });
   game.buildings.forEach((building) => {
     building.triggerAt = shiftDeadline(building.triggerAt);
@@ -2338,29 +2361,149 @@ function startDeconstruction(game: GameState) {
   notify(game, "Deconstructing " + BUILD_DATA[building.kind].name + "…", 1200);
 }
 
-function bringTamedCompanionsToPlayer(game: GameState) {
-  const companions = game.creatures.filter(
-    (creature) => creature.hp > 0 && creature.tame && isAnimal(creature.kind),
-  );
-  companions.forEach((companion, index) => {
-    companion.realm = game.realm;
-    const centeredIndex = index - (companions.length - 1) / 2;
-    const baseAngle = game.player.dir + Math.PI + centeredIndex * 0.52;
-    let destination = { x: game.player.x, y: game.player.y };
-    for (const distance of [68, 92, 118]) {
-      const candidateX = Math.max(35, Math.min(WORLD_W - 35, game.player.x + Math.cos(baseAngle) * distance));
-      const candidateY = Math.max(35, Math.min(WORLD_H - 35, game.player.y + Math.sin(baseAngle) * distance));
-      if (!creaturePositionIsOpen(game, companion, game.realm, candidateX, candidateY)) continue;
-      destination = { x: candidateX, y: candidateY };
-      break;
+function animalName(kind: AnimalKind) {
+  return kind === "turkey" ? "wild turkey" : kind;
+}
+
+function spawnBabyAnimal(game: GameState, parent: Creature, mate: Creature, now: number) {
+  if (!isAnimal(parent.kind) || parent.kind !== mate.kind) return null;
+  const stats = ANIMAL_DATA[parent.kind];
+  const babyId = game.lastId;
+  const centerX = (parent.x + mate.x) / 2;
+  const centerY = (parent.y + mate.y) / 2;
+  const baby: Creature = {
+    id: babyId,
+    kind: parent.kind,
+    realm: parent.realm,
+    x: centerX,
+    y: centerY,
+    hp: Math.max(1, Math.ceil(stats.hp * 0.6)),
+    maxHp: Math.max(1, Math.ceil(stats.hp * 0.6)),
+    speed: stats.speed,
+    damage: stats.damage,
+    fed: 0,
+    maturesAt: now + ANIMAL_BABY_DURATION_MS,
+    breedReadyAt: now + ANIMAL_BABY_DURATION_MS,
+    angry: false,
+    hitAt: 0,
+    phase: babyId * 0.73,
+    slowUntil: 0,
+    rewarded: false,
+    dir: parent.dir,
+    structureHitAt: 0,
+    rangedAt: 0,
+    rangedChargeUntil: 0,
+    rangedAim: parent.dir,
+    boss: false,
+    homeX: centerX,
+    homeY: centerY,
+    provokedUntil: 0,
+    waryOfPlayer: false,
+    respawnAt: 0,
+    fleeing: false,
+    abilityReadyAt: 0,
+    abilityStartedAt: 0,
+    abilityTargetX: centerX,
+    abilityTargetY: centerY,
+  };
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const angle = parent.phase + attempt * (Math.PI * 2 / 12);
+    const distance = attempt === 0 ? 0 : 28 + (attempt % 3) * 16;
+    const candidateX = Math.max(35, Math.min(WORLD_W - 35, centerX + Math.cos(angle) * distance));
+    const candidateY = Math.max(35, Math.min(WORLD_H - 35, centerY + Math.sin(angle) * distance));
+    if (!creaturePositionIsOpen(game, baby, baby.realm, candidateX, candidateY)) continue;
+    baby.x = candidateX;
+    baby.y = candidateY;
+    baby.homeX = candidateX;
+    baby.homeY = candidateY;
+    game.creatures.push(baby);
+    game.lastId += 1;
+    return baby;
+  }
+  return null;
+}
+
+function feedAnimal(game: GameState) {
+  if (game.paused || game.dead || !game.started) return;
+  const now = performance.now();
+  const creature = nearestFeedableAnimal(game);
+  if (!creature || !isAnimal(creature.kind)) {
+    const nearbyBaby = game.creatures.find(
+      (candidate) =>
+        candidate.realm === game.realm &&
+        candidate.hp > 0 &&
+        isBabyAnimal(candidate, now) &&
+        Math.hypot(candidate.x - game.player.x, candidate.y - game.player.y) <= ANIMAL_FEED_DISTANCE,
+    );
+    notify(game, nearbyBaby ? "That baby is too young to feed." : "No adult animal is close enough to feed.", 1400);
+    return;
+  }
+  if (isPermanentlyWaryPrey(creature.kind) && creature.waryOfPlayer) {
+    notify(game, "This " + animalName(creature.kind) + " no longer trusts you and refuses food.");
+    return;
+  }
+  if (creature.breedReadyAt > now) {
+    notify(game, "This " + animalName(creature.kind) + " needs more time before breeding again.", 1500);
+    return;
+  }
+  const food = animalLureFood(creature.kind);
+  if (!isHoldingAnimalLure(game, creature.kind)) {
+    notify(game, "Select " + food + ", then press F to feed this " + animalName(creature.kind) + ".");
+    return;
+  }
+  const alreadyFullyFed = creature.fed >= ANIMAL_FEEDS_TO_BREED;
+  if (!alreadyFullyFed) {
+    consumeSelectedFood(game);
+    creature.fed = Math.min(ANIMAL_FEEDS_TO_BREED, creature.fed + 1);
+  }
+  creature.angry = false;
+  creature.provokedUntil = 0;
+
+  const mate = creature.fed >= ANIMAL_FEEDS_TO_BREED
+    ? game.creatures
+      .filter(
+        (candidate) =>
+          candidate.id !== creature.id &&
+          candidate.kind === creature.kind &&
+          candidate.realm === creature.realm &&
+          candidate.hp > 0 &&
+          !isBabyAnimal(candidate, now) &&
+          candidate.fed >= ANIMAL_FEEDS_TO_BREED &&
+          candidate.breedReadyAt <= now &&
+          Math.hypot(candidate.x - creature.x, candidate.y - creature.y) <= ANIMAL_BREED_PAIR_DISTANCE,
+      )
+      .sort(
+        (a, b) =>
+          Math.hypot(a.x - creature.x, a.y - creature.y) -
+          Math.hypot(b.x - creature.x, b.y - creature.y),
+      )[0]
+    : null;
+
+  if (mate) {
+    const baby = spawnBabyAnimal(game, creature, mate, now);
+    if (!baby) {
+      notify(game, "The pair needs a little more open space for a baby.", 1800);
+      return;
     }
-    companion.x = destination.x;
-    companion.y = destination.y;
-    companion.homeX = destination.x;
-    companion.homeY = destination.y;
-    companion.angry = false;
-    companion.provokedUntil = 0;
-  });
+    creature.fed = 0;
+    mate.fed = 0;
+    creature.breedReadyAt = now + ANIMAL_BREED_COOLDOWN_MS;
+    mate.breedReadyAt = now + ANIMAL_BREED_COOLDOWN_MS;
+    notify(game, "A baby " + animalName(creature.kind) + " was born!", 3200);
+    return;
+  }
+
+  if (alreadyFullyFed) {
+    notify(game, "This " + animalName(creature.kind) + " is fully fed and waiting for a nearby partner.", 1800);
+    return;
+  }
+
+  notify(
+    game,
+    "Fed the " + animalName(creature.kind) + " · " + creature.fed + "/" + ANIMAL_FEEDS_TO_BREED +
+      ". Feed two nearby adults three times each to breed.",
+    2400,
+  );
 }
 
 function interact(game: GameState) {
@@ -2383,7 +2526,6 @@ function interact(game: GameState) {
       game.player.y = caveExit.entranceY + 90;
       notify(game, "Back in the meadow.");
     }
-    bringTamedCompanionsToPlayer(game);
     game.camera.x = game.player.x;
     game.camera.y = game.player.y;
     return;
@@ -2434,47 +2576,6 @@ function interact(game: GameState) {
     } else {
       nearbyBuilding.open = !nearbyBuilding.open;
       notify(game, nearbyBuilding.open ? "Opened." : "Closed.");
-    }
-    return;
-  }
-  const nearbyCreature = nearestCreature(game, 92);
-  const creature = nearbyCreature && isAnimal(nearbyCreature.kind) && !nearbyCreature.tame
-    ? nearbyCreature
-    : nearestLuredAnimal(game, ANIMAL_FEED_DISTANCE);
-  if (creature && isAnimal(creature.kind) && !creature.tame) {
-    if (isPermanentlyWaryPrey(creature.kind) && creature.waryOfPlayer) {
-      notify(game, "This " + creature.kind + " no longer trusts you and refuses bait.");
-      return;
-    }
-    const lureFood = animalLureFood(creature.kind);
-    if (!isHoldingAnimalLure(game, creature.kind)) {
-      notify(game, "Equip " + lureFood + ", then press E to feed this " + creature.kind + ".");
-      return;
-    }
-    if (tamedAnimalCount(game) >= MAX_TAMED_ANIMALS) {
-      notify(game, "Your companion group is full (" + MAX_TAMED_ANIMALS + "/" + MAX_TAMED_ANIMALS + ").");
-      return;
-    }
-    consumeSelectedFood(game);
-    creature.fed += 1;
-    creature.angry = false;
-    creature.provokedUntil = 0;
-    const tameChance = ANIMAL_DATA[creature.kind].tameChance;
-    if (Math.random() < tameChance) {
-      creature.tame = true;
-      notify(
-        game,
-        "Tamed! Your " + creature.kind + " joined you (" + tamedAnimalCount(game) + "/" + MAX_TAMED_ANIMALS + " companions).",
-        3500,
-      );
-    } else {
-      notify(
-        game,
-        "The " + creature.kind + " ate the " + lureFood + " but stayed wild · " +
-          Math.round(tameChance * 100) + "% chance · " + creature.fed +
-          (creature.fed === 1 ? " attempt." : " attempts."),
-        2600,
-      );
     }
     return;
   }
@@ -2547,20 +2648,33 @@ function resourceNodeLoot(node: ResourceNode): [Material, number][] {
   return [["mushrooms", 2]];
 }
 
-function dropNodeLoot(game: GameState, node: ResourceNode) {
-  const loot = resourceNodeLoot(node).filter(([, amount]) => amount > 0);
+function scatterGroundDrops(
+  game: GameState,
+  realm: Realm,
+  x: number,
+  y: number,
+  loot: [Material, number][],
+  seed: number,
+) {
   loot.forEach(([material, amount], index) => {
-    const angle = seeded(node.id + index, 811) * Math.PI * 2;
+    if (amount <= 0) return;
+    const angle = seeded(seed + index, 811) * Math.PI * 2;
     const distance = 18 + index * 9;
     game.drops.push({
       id: game.lastId++,
       material,
       amount,
-      realm: node.realm,
-      x: Math.max(24, Math.min(WORLD_W - 24, node.x + Math.cos(angle) * distance)),
-      y: Math.max(24, Math.min(WORLD_H - 24, node.y + Math.sin(angle) * distance)),
+      realm,
+      x: Math.max(24, Math.min(WORLD_W - 24, x + Math.cos(angle) * distance)),
+      y: Math.max(24, Math.min(WORLD_H - 24, y + Math.sin(angle) * distance)),
+      collectibleAt: performance.now() + 650,
     });
   });
+}
+
+function dropNodeLoot(game: GameState, node: ResourceNode) {
+  const loot = resourceNodeLoot(node).filter(([, amount]) => amount > 0);
+  scatterGroundDrops(game, node.realm, node.x, node.y, loot, node.id);
   return loot.reduce((total, [, amount]) => total + amount, 0);
 }
 
@@ -2679,7 +2793,7 @@ function attack(game: GameState, bowCharge = 0) {
   };
   let hitCreature = false;
   for (const creature of game.creatures) {
-    if (creature.realm !== game.realm || creature.hp <= 0 || creature.tame) continue;
+    if (creature.realm !== game.realm || creature.hp <= 0) continue;
     const dx = creature.x - game.player.x;
     const dy = creature.y - game.player.y;
     const distance = Math.hypot(dx, dy);
@@ -2725,8 +2839,16 @@ function awardCreatureDrop(game: GameState, creature: Creature) {
   if (isAnimal(creature.kind)) {
     const animal = ANIMAL_DATA[creature.kind];
     creature.respawnAt = performance.now() + respawnDelayMs(ANIMAL_RESPAWN_DAYS);
-    if (animal.meatDrop > 0) addMaterial(game, "meat", animal.meatDrop);
-    if (animal.hideDrop > 0) addMaterial(game, "hide", animal.hideDrop);
+    const loot: [Material, number][] = [["meat", animal.meatDrop]];
+    if (animal.hideDrop > 0) loot.push(["hide", animal.hideDrop]);
+    scatterGroundDrops(game, creature.realm, creature.x, creature.y, loot, creature.id * 17);
+    notify(
+      game,
+      animalName(creature.kind) + " dropped " +
+        loot.map(([material, amount]) => amount + " " + material).join(" · ") +
+        ". Walk over the piles to collect them.",
+      2400,
+    );
   }
   if (creature.kind === "brute") addMaterial(game, "iron", 1);
   if (creature.kind === "wraith") addMaterial(game, "sulfur", 1);
@@ -2781,7 +2903,6 @@ function updateProjectiles(game: GameState, dt: number) {
       (creature) =>
         creature.realm === projectile.realm &&
         creature.hp > 0 &&
-        !creature.tame &&
         Math.hypot(creature.x - projectile.x, creature.y - projectile.y) < creatureRadius(creature) + 11,
     );
     if (target) {
@@ -2980,11 +3101,16 @@ function updateCreatures(game: GameState, dt: number) {
         creature.respawnAt = now + 1000;
         continue;
       }
-      creature.hp = creature.maxHp;
+      const animal = ANIMAL_DATA[creature.kind];
+      creature.maxHp = animal.hp;
+      creature.hp = animal.hp;
+      creature.speed = animal.speed;
+      creature.damage = animal.damage;
       creature.x = creature.homeX;
       creature.y = creature.homeY;
       creature.fed = 0;
-      creature.tame = false;
+      creature.maturesAt = 0;
+      creature.breedReadyAt = 0;
       creature.angry = false;
       creature.provokedUntil = 0;
       creature.waryOfPlayer = false;
@@ -2995,10 +3121,20 @@ function updateCreatures(game: GameState, dt: number) {
       creature.rangedChargeUntil = 0;
       creature.rangedAim = creature.phase;
     }
+    if (isAnimal(creature.kind) && creature.maturesAt > 0 && now >= creature.maturesAt) {
+      const animal = ANIMAL_DATA[creature.kind];
+      creature.maturesAt = 0;
+      creature.maxHp = animal.hp;
+      creature.hp = animal.hp;
+      creature.speed = animal.speed;
+      creature.damage = animal.damage;
+      creature.homeX = creature.x;
+      creature.homeY = creature.y;
+    }
     if (creature.realm !== game.realm) continue;
     let targetX = creature.x + Math.cos(now / 1400 + creature.phase) * 15;
     let targetY = creature.y + Math.sin(now / 1700 + creature.phase) * 15;
-    let movement: "idle" | "chase" | "flee" | "lure" | "follow" | "return" = "idle";
+    let movement: "idle" | "chase" | "flee" | "lure" | "return" = "idle";
     let attackingPlayer = false;
     const playerDistance = Math.hypot(game.player.x - creature.x, game.player.y - creature.y);
     const cautiousPrey = isAnimal(creature.kind) && isPermanentlyWaryPrey(creature.kind);
@@ -3028,29 +3164,7 @@ function updateCreatures(game: GameState, dt: number) {
         creature.abilityTargetY = game.player.y;
       }
     }
-    if (creature.tame) {
-      creature.angry = false;
-      const enemy = game.creatures
-        .filter((other) => other.realm === game.realm && !other.tame && isMonster(other.kind) && other.hp > 0)
-        .sort(
-          (a, b) =>
-            Math.hypot(a.x - creature.x, a.y - creature.y) - Math.hypot(b.x - creature.x, b.y - creature.y),
-        )[0];
-      if (enemy && Math.hypot(enemy.x - creature.x, enemy.y - creature.y) < 230) {
-        targetX = enemy.x;
-        targetY = enemy.y;
-        const enemyDistance = Math.hypot(enemy.x - creature.x, enemy.y - creature.y);
-        if (enemyDistance < 45 && now - creature.hitAt > COMPANION_ATTACK_COOLDOWN_MS) {
-          enemy.hp -= ANIMAL_DATA[creature.kind as AnimalKind].companionDamage;
-          creature.hitAt = now;
-          if (enemy.hp <= 0) awardCreatureDrop(game, enemy);
-        }
-      } else {
-        targetX = game.player.x - Math.cos(game.player.dir) * 65;
-        targetY = game.player.y - Math.sin(game.player.dir) * 65;
-      }
-      movement = "follow";
-    } else if (isAnimal(creature.kind)) {
+    if (isAnimal(creature.kind)) {
       const animal = ANIMAL_DATA[creature.kind];
       const homeDistance = Math.hypot(creature.homeX - creature.x, creature.homeY - creature.y);
       const roamAngle = now / 4300 + creature.phase;
@@ -3146,7 +3260,7 @@ function updateCreatures(game: GameState, dt: number) {
       : isMonster(creature.kind) && attackPathClear
         ? Math.max(30, attackReach - 12)
         : 30;
-    const stopDistance = movement === "follow" ? 58 : movement === "lure" ? 5 : movement === "chase" ? chaseStopDistance : 2;
+    const stopDistance = movement === "lure" ? 5 : movement === "chase" ? chaseStopDistance : 2;
     const shouldMove = distance > stopDistance && !chargingRangedAttack;
     if (shouldMove) {
       const slowFactor = now < creature.slowUntil ? 0.42 : 1;
@@ -3155,7 +3269,7 @@ function updateCreatures(game: GameState, dt: number) {
           ? permanentlyWary
             ? 1.7
             : 1.45
-          : movement === "chase" || movement === "follow"
+          : movement === "chase"
             ? 1
             : movement === "lure"
               ? cautiousPrey
@@ -3164,7 +3278,8 @@ function updateCreatures(game: GameState, dt: number) {
               : movement === "return"
                 ? 0.65
                 : 0.22;
-      const basePace = creature.speed * paceMultiplier * slowFactor;
+      const babyPace = isBabyAnimal(creature, now) ? 0.72 : 1;
+      const basePace = creature.speed * paceMultiplier * slowFactor * babyPace;
       const pace = movement === "idle" ? Math.min(basePace, distance * 1.6) : basePace;
       const desiredDirection = Math.atan2(dy, dx);
       const turnRate = movement === "idle" ? 3.2 : 7;
@@ -4452,12 +4567,10 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: GameState) {
 }
 
 function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind: BirdKind, now: number) {
-  const escaping = ANIMAL_DATA[kind].flying && creature.fleeing && !creature.tame;
+  const escaping = ANIMAL_DATA[kind].flying && creature.fleeing;
   const wingCycle = now / 105 + creature.phase;
   const flap = (Math.sin(wingCycle) + 1) / 2;
   const wingSweep = escaping ? Math.cos(wingCycle) * 12 : 0;
-  let collarX = 14;
-  let collarHalfWidth = 10;
 
   if (kind === "crow") {
     const outline = "#0d171b";
@@ -4568,8 +4681,6 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    collarX = 12;
-    collarHalfWidth = 10;
   } else if (kind === "owl") {
     const outline = "#3a3026";
     const wingReach = 44 + flap * 8;
@@ -4683,8 +4794,6 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    collarX = 10;
-    collarHalfWidth = 13;
   } else {
     const outline = "#38271f";
     ctx.lineJoin = "round";
@@ -4765,18 +4874,8 @@ function drawTopDownBird(ctx: CanvasRenderingContext2D, creature: Creature, kind
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    collarX = 14;
-    collarHalfWidth = 13;
   }
 
-  if (creature.tame) {
-    ctx.strokeStyle = "#f1bf4f";
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(collarX, -collarHalfWidth);
-    ctx.lineTo(collarX, collarHalfWidth);
-    ctx.stroke();
-  }
 }
 
 function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
@@ -5092,14 +5191,6 @@ function drawTopDownAnimal(ctx: CanvasRenderingContext2D, creature: Creature, no
     ctx.ellipse(headX + headLength * 0.92, 0, 3.4, 4.2, 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  if (creature.tame) {
-    ctx.strokeStyle = "#f1bf4f";
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(15, -width * 0.78);
-    ctx.lineTo(15, width * 0.78);
-    ctx.stroke();
-  }
 }
 
 function drawMonsterLimb(
@@ -5359,7 +5450,7 @@ function drawMonsterCreature(ctx: CanvasRenderingContext2D, creature: Creature, 
 }
 
 function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: number) {
-  const scale = creature.boss
+  const speciesScale = creature.boss
     ? 1.82
     : creature.kind === "brute"
       ? 1.28
@@ -5376,6 +5467,8 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
                 : creature.kind === "raccoon" || creature.kind === "boar"
                   ? 0.92
                   : 1;
+  const baby = isBabyAnimal(creature, now);
+  const scale = speciesScale * (baby ? 0.58 : 1);
   const flying = isAnimal(creature.kind) && ANIMAL_DATA[creature.kind].flying;
   const leapElapsed = creature.kind === "brute" && creature.abilityStartedAt > 0
     ? now - creature.abilityStartedAt
@@ -5449,16 +5542,16 @@ function drawCreature(ctx: CanvasRenderingContext2D, creature: Creature, now: nu
     ctx.fillText("CAVE GUARDIAN", 0, -51);
   }
   if (isAnimal(creature.kind)) {
-    if (creature.tame) {
-      ctx.fillStyle = "#ef6b67";
-      ctx.font = "bold 19px Arial";
+    if (baby) {
+      ctx.fillStyle = "#f4d788";
+      ctx.font = "900 11px Arial";
       ctx.textAlign = "center";
-      ctx.fillText("♥", 0, -42);
+      ctx.fillText("BABY", 0, -46);
     } else if (creature.fed > 0) {
       ctx.fillStyle = "#ef6b67";
       ctx.font = "bold 15px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(creature.fed + "/3", 0, -41);
+      ctx.fillText("♥ " + creature.fed + "/" + ANIMAL_FEEDS_TO_BREED, 0, -41);
     }
   }
   if (creature.hp < creature.maxHp) {
@@ -6588,16 +6681,19 @@ function nearbyPrompt(game: GameState) {
     if (building.kind === "crop") return "E · " + (building.growth >= 1 ? "Harvest crop" : "Check crop");
     return "E · " + (building.open ? "Close" : "Open") + " " + BUILD_DATA[building.kind].name;
   }
-  const nearbyCreature = nearestCreature(game, 92);
-  const creature = nearbyCreature && isAnimal(nearbyCreature.kind) && !nearbyCreature.tame
-    ? nearbyCreature
-    : nearestLuredAnimal(game, ANIMAL_FEED_DISTANCE);
-  if (creature && isAnimal(creature.kind) && !creature.tame) {
+  const creature = nearestFeedableAnimal(game);
+  if (creature && isAnimal(creature.kind)) {
     if (isPermanentlyWaryPrey(creature.kind) && creature.waryOfPlayer) {
-      return "This " + creature.kind + " is wary and refuses bait";
+      return "F · This " + animalName(creature.kind) + " is wary and refuses food";
     }
-    const chance = Math.round(ANIMAL_DATA[creature.kind].tameChance * 100);
-    return "E · Feed " + animalLureFood(creature.kind) + " to " + creature.kind + " · " + chance + "% tame chance";
+    if (creature.breedReadyAt > performance.now()) {
+      return "F · " + animalName(creature.kind) + " needs time before breeding again";
+    }
+    const food = animalLureFood(creature.kind);
+    if (!isHoldingAnimalLure(game, creature.kind)) {
+      return "F · Select " + food + " to feed this " + animalName(creature.kind);
+    }
+    return "F · Feed " + food + " to " + animalName(creature.kind) + " · " + creature.fed + "/" + ANIMAL_FEEDS_TO_BREED;
   }
   if (isFoodItem(game.selected) && game.resources[game.selected] > 0) return "E · Eat " + game.selected;
   const node = nearestNode(game, 92);
@@ -7059,9 +7155,13 @@ export default function Game() {
         interact(game);
         if (game.openChestId !== null) setPanel(null);
       }
-      if (key === " " || key === "f") {
+      if (key === " ") {
         event.preventDefault();
         attack(game);
+      }
+      if (key === "f") {
+        event.preventDefault();
+        feedAnimal(game);
       }
       if (["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].includes(key)) {
         selectSlot(game, key === "0" ? 9 : Number(key) - 1);
@@ -7300,13 +7400,19 @@ export default function Game() {
             : game.buildMode
               ? BUILD_DATA[game.buildMode].name
               : itemLabel(game.hotbar[game.selectedSlot], game);
+  const feedCandidate = nearestFeedableAnimal(game);
+  const feedLabel = feedCandidate && isAnimal(feedCandidate.kind)
+    ? "Feed " + animalName(feedCandidate.kind)
+    : "Feed animal";
   const prompt = nearbyPrompt(game);
   const promptKey = prompt.startsWith("TOOL")
     ? "HOLD LMB"
     : prompt.startsWith("BUILD")
       ? "LMB / SHIFT+LMB"
-      : "E";
-  const promptText = prompt.replace(/^(E|TOOL|BUILD) · /, "");
+      : prompt.startsWith("F")
+        ? "F"
+        : "E";
+  const promptText = prompt.replace(/^(E|F|TOOL|BUILD) · /, "");
   const messageVisible = game.messageUntil > 0;
   const phase = isNight(game) ? "NIGHT" : "DAY";
   const lowHealth = game.started && !game.dead && game.player.hp <= LOW_HEALTH_THRESHOLD;
@@ -7401,7 +7507,7 @@ export default function Game() {
       <section className="vitals" aria-label="Player status">
         <div className="vital-row"><span>HEALTH</span><b>{Math.ceil(game.player.hp)}</b><i><em style={{ width: game.player.hp + "%" }} /></i></div>
         <div className="vital-row hunger"><span>HUNGER</span><b>{Math.ceil(game.player.hunger)}</b><i><em style={{ width: game.player.hunger + "%" }} /></i></div>
-        <small>{game.kills} threats defeated · {tamedAnimalCount(game)}/{MAX_TAMED_ANIMALS} companions · wave {game.wave || "—"} · {game.gear.armor === "none" ? "no armor" : game.gear.armor + " armor"}</small>
+        <small>{game.kills} threats defeated · {babyAnimalCount(game)} babies · wave {game.wave || "—"} · {game.gear.armor === "none" ? "no armor" : game.gear.armor + " armor"}</small>
       </section>
 
       <div className="game-controls">
@@ -7410,6 +7516,23 @@ export default function Game() {
           <span>{Math.round(game.zoom * 100)}%</span>
           <button onClick={() => zoom(-0.12)} aria-label="Zoom out">−</button>
         </section>
+        {started && !game.dead && (
+          <button
+            className="feed-button"
+            type="button"
+            onClick={() => {
+              feedAnimal(game);
+              refresh();
+              canvasRef.current?.focus();
+            }}
+            disabled={game.paused}
+            aria-label={feedLabel}
+          >
+            <span aria-hidden="true">●</span>
+            <b>{feedLabel}</b>
+            <kbd>F</kbd>
+          </button>
+        )}
         {started && !game.dead && (
           <button
             className={"pause-button" + (game.paused ? " paused" : "")}
@@ -7453,6 +7576,8 @@ export default function Game() {
       <aside className="key-guide">
         <span><kbd>WASD</kbd> Move</span>
         <span><kbd>E</kbd> Interact</span>
+        <span><kbd>F</kbd> Feed animal</span>
+        <span><kbd>SPACE</kbd> Attack</span>
         <span><kbd>HOLD LMB</kbd> Use tool</span>
         <span><kbd>SHIFT+LMB</kbd> Keep building</span>
         <span><kbd>B</kbd> Auto-build nearby</span>
@@ -7496,6 +7621,7 @@ export default function Game() {
           >↓</button>
         </div>
         <button className="touch-e" onClick={() => { interact(game); refresh(); }}>E<small>Interact</small></button>
+        <button className="touch-feed" onClick={() => { feedAnimal(game); refresh(); }}>F<small>Feed</small></button>
         <button
           className="touch-build"
           aria-pressed={game.autoBuildActive}
@@ -7556,7 +7682,7 @@ export default function Game() {
                   <div className="free-inventory inventory-hotbar-row">
                     {game.hotbar.map((_, index) => inventorySlot("hotbar", index))}
                   </div>
-                  <div className="taming-tip"><span>♥</span><div><b>Taming wildlife · {tamedAnimalCount(game)}/{MAX_TAMED_ANIMALS}</b><p>Equip meat to lure bears, foxes, and wolves; berries lure all other wildlife. Press E nearby to try taming it. Deer and rabbits you injure become permanently wary and refuse bait.</p></div></div>
+                  <div className="breeding-tip"><span>♥</span><div><b>Breeding wildlife · {babyAnimalCount(game)} babies</b><p>Select meat for bears, foxes, and wolves, or berries for other adults. Press F to feed two nearby animals of the same species three times each. Their baby stays small while it grows.</p></div></div>
                 </>
               )}
               {panel === "craft" && (
@@ -7650,7 +7776,7 @@ export default function Game() {
           <h1>HALFLIGHT</h1>
           <p>Gather by day. Build on the grid. Survive creatures that grow stronger every night.</p>
           <button onClick={start}>Begin survival <span>→</span></button>
-          <div><span><kbd>WASD</kbd> Move</span><span><kbd>E</kbd> Interact</span><span><kbd>HOLD LMB</kbd> Use tool</span></div>
+          <div><span><kbd>WASD</kbd> Move</span><span><kbd>F</kbd> Feed</span><span><kbd>HOLD LMB</kbd> Use tool</span></div>
         </section>
       )}
 
