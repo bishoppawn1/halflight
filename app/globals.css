@@ -580,7 +580,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .zoom-panel span { color: #a8bcb2; text-align: center; font-size: 8px; font-weight: 900; }
 
 .pause-button,
-.feed-button {
+.feed-button,
+.relax-button {
   display: grid;
   grid-template-columns: 24px 1fr 19px;
   align-items: center;
@@ -597,7 +598,8 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 }
 
 .pause-button > span,
-.feed-button > span {
+.feed-button > span,
+.relax-button > span {
   display: grid;
   width: 24px;
   height: 24px;
@@ -610,15 +612,25 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 }
 
 .pause-button > b,
-.feed-button > b { font-size: 9px; text-align: left; }
+.feed-button > b,
+.relax-button > b { font-size: 9px; text-align: left; }
 .pause-button kbd,
-.feed-button kbd { color: var(--sun); font-size: 8px; font-weight: 950; }
+.feed-button kbd,
+.relax-button kbd { color: var(--sun); font-size: 8px; font-weight: 950; }
 .pause-button:hover,
-.feed-button:hover { border-color: rgba(240,185,71,.65); background: #263f35; transform: translateY(-1px); }
+.feed-button:hover,
+.relax-button:hover { border-color: rgba(240,185,71,.65); background: #263f35; transform: translateY(-1px); }
 .pause-button:focus-visible,
-.feed-button:focus-visible { outline: 3px solid #fff0b2; outline-offset: 3px; }
+.feed-button:focus-visible,
+.relax-button:focus-visible { outline: 3px solid #fff0b2; outline-offset: 3px; }
 .feed-button > span { color: #f5dfaf; background: #9a5d45; }
-.feed-button:disabled { opacity: .48; cursor: default; transform: none; }
+.feed-button:disabled,
+.relax-button:disabled { opacity: .48; cursor: default; transform: none; }
+.relax-button { width: 154px; grid-template-columns: 24px 1fr 25px; }
+.relax-button > span { color: #f5dfaf; background: #486a88; }
+.relax-button.active { color: #1d3031; border-color: #95d8e5; background: #8dcdd8; box-shadow: 0 5px 0 #3e7781, 0 11px 24px rgba(12,39,43,.28); }
+.relax-button.active > span { color: #d9f8ff; background: #284f58; }
+.relax-button.active kbd { color: #244b53; }
 .pause-button.paused { color: #26372f; border-color: #f5cf78; background: var(--sun); box-shadow: 0 5px 0 #8f6426, 0 11px 24px rgba(34,24,8,.28); }
 .pause-button.paused > span { color: var(--cream); background: #25372f; }
 .pause-button.paused kbd { color: #26372f; }

@@ -141,6 +141,7 @@ to 48%. Flying crows and owls ignore resource, structure, and water collision.
 | `I` | Open or close inventory |
 | `B` | Start or stop auto-building unfinished blueprints within three grid squares |
 | `P` or the **Pause** button | Pause or resume the game |
+| **Sit down and relax** button | Toggle a seated 5× day/night and hunger fast-forward |
 | `Escape` | Cancel build mode and close panels |
 | `+`, `-`, or mouse wheel | Zoom between 68% and 155% |
 
@@ -149,6 +150,14 @@ movement, attacks and projectiles, crop growth, construction, respawns,
 cooldowns, messages, and world animation. The pause screen remains until the
 player presses `P` or chooses **Resume game**. Camera zoom remains available
 while paused.
+
+Choosing **Sit down and relax** seats the player in place and advances only the
+day/night clock and hunger drain at five times their normal rates. Movement,
+aiming, attacks, gathering, feeding, interaction, construction work, and held
+tool actions stop until the player chooses **Stand up**. Creatures,
+projectiles, and other world threats continue at normal real-time speed, so
+relaxing is not a safe pause. Opening relax mode cancels held input and
+auto-building. The button itself remains available to stand up again.
 
 The backpack has 30 unrestricted slots and the hotbar has 10. Tools, weapons,
 individual foods, resource stacks, and ready building pieces can be moved by dragging or by
@@ -185,12 +194,13 @@ prompts, and the location display identify them only as caves.
   generate inside either water depth. Their smoothly irregular shorelines use
   layered shallow-to-deep color, scattered curved ripples, sparse reeds, and
   occasional lily pads instead of perfect concentric rings or dashed markings.
-- One chamber is rich in stone, with some coal and
-  mushrooms.
+- One chamber is rich in stone, with some coal, mushrooms, iron, and copper.
 - One chamber concentrates iron and copper, with some coal and stone.
-- One chamber concentrates sulfur and coal, with mushrooms and frequent copper.
-- Four secondary caverns contain sparse pockets of ordinary rock, coal, and
-  mushrooms between the three main resource chambers.
+- One chamber concentrates sulfur and coal, with mushrooms, frequent copper,
+  and some iron.
+- The central cavern and all four secondary caverns contain sparse pockets of
+  ordinary rock, coal, mushrooms, iron, and copper between the three main
+  resource chambers.
 
 The three vast, unnamed resource chambers share one underground realm with a
 large central cavern and four secondary caverns. Visible, solid rock walls
@@ -250,7 +260,8 @@ A full cycle lasts 480 seconds: 240 seconds of day and 240 seconds of night. The
 first run begins partway through daylight, leaving about 163 seconds before
 night 1. At dawn, the day counter increases and up to 12 health is restored.
 Ordinary Meadow horrors disappear at dawn. Cave horrors and the Brood Mother
-survive the day transition and remain underground until defeated.
+survive the day transition and remain underground until defeated. Relax mode
+advances the cycle at 5× speed while hunger also drains at 5× speed.
 
 ## 6. Hunger, food, and death
 
@@ -683,6 +694,7 @@ omits that material; hide and listed minerals are guaranteed.
 | Wraith | 1 | 18% for 1 | 58% for 1 | 1 sulfur |
 | Maw | 3 | 68% for 3 | 76% for 2 | 2 iron and 2 sulfur |
 | Aether Warden | 2 | 40% for 2 | 70% for 2 | — |
+| Dread Titan | 10 | 100% for 8 | 100% for 12 | 8 iron, 8 copper, and 4 Aetherium |
 
 The **Brood Mother** is a giant spider-like cave boss with twelve long jointed
 legs, five separate mouths, many visible teeth, 320 health, 118 speed, 22 melee
@@ -703,6 +715,24 @@ or Aetherium bundle. It instead gives exactly one Guardian Core directly to the
 inventory, removes any web projectiles still in flight, and unlocks the Assault
 Rifle recipe. Crafting that rifle at a bench consumes the core and requires an
 already-crafted Scrap Pistol.
+
+The **Dread Titan** is a massive, uniquely drawn top-down Meadow boss that
+appears once on night 10. It has 1,200 health, 45 speed, 30 contact damage, a
+162-unit melee reach, a 1,000-unit sense radius, and an approximately 104-unit
+collision radius. It persists through dawn until defeated and does not replace
+or remove the endless night system.
+
+The Titan has three signature attacks. At close range it telegraphs a
+235-unit stomp circle for 1.05 seconds, then deals 34 damage before armor and
+42 damage to structures inside it; it can begin a stomp at most once every 6.7
+seconds. From 155–840 units with clear line of sight, it charges for 780 ms and
+fires twelve radial void shards plus three aimed shards. Each shard travels at
+520 units per second, deals 12 damage before armor, and can strike completed
+structures; barrages begin at most once every 4.8 seconds. While actively
+hunting, the Titan also summons six real shades, crawlers, and stalkers around
+it every 9 seconds. Summoned creatures follow the ordinary sensing, combat,
+loot, and dawn-removal rules. Defeating the Titan removes its remaining shards
+and drops the rewards in the table above, but it does not end the game.
 
 ## 11. Wildlife feeding and breeding
 
@@ -804,6 +834,12 @@ them. Each day advances after dawn. Enemy health, speed, contact damage, attack
 reach, and sense radius never scale with the day. Progression comes only from
 larger populations and fixed-stat species unlocking on later nights.
 
+Night 10 additionally spawns the single Dread Titan near the player's Meadow
+location, or near the starting camp if the player is underground. It remains
+in the Meadow through later dawns until defeated and never respawns during the
+same run. Its summoned swarms add to, rather than replace, the uncapped nightly
+population. Defeating it is an endgame milestone, not a victory condition.
+
 Each monster's position is sampled independently from valid points across its
 realm, at least 360 units from the player's corresponding world coordinates.
 Waves do not form a ring or otherwise distribute themselves evenly around the
@@ -825,6 +861,7 @@ protection.
 | Wraith | Cave system | 1 | 42 | 96 | 10 | 108 | 440 |
 | Maw | Cave system | 3 | 92 | 56 | 17 | 96 | 260 |
 | Aether Warden | Guarded cave ore only | — | 118 | 70 | 14 | 104 | 380 |
+| Dread Titan | Meadow boss | 10 | 1,200 | 45 | 30 | 162 | 1,000 |
 
 Each monster family has a separate overhead silhouette instead of sharing one
 round tentacled base. Shades are compact pulsing cores with five short wisps.
@@ -837,6 +874,10 @@ Brood Mother has her own much larger spider silhouette with twelve long legs, a
 segmented body, five toothed mouths, many eyes, and web markings. Every organic
 family has pulsing red eye
 glints that remain aligned with its own overhead face and movement direction.
+A towering purple-and-teal Dread Titan has four huge paired arms, a broad
+plated body, luminous cracks, three forward eyes, a dedicated nameplate, and a
+wide boss health bar. Its stomp and shard-charge warnings remain visible around
+the full overhead silhouette.
 Aether Wardens are faceted teal constructs ringed with seven luminous crystal
 spikes, carry a visible label, and cast a small cyan warning glow; their central
 eye glows cyan. They never join random night waves and drop no bonus material;
