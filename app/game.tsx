@@ -264,6 +264,8 @@ interface GameState {
   message: string;
   messageUntil: number;
   wave: number;
+  cavePopulationInitialized: boolean;
+  nextCaveSpawnAt: number;
   kills: number;
   lastId: number;
 }
@@ -326,6 +328,10 @@ const LIGHT_BLOCKING_BUILDINGS = new Set<BuildKind>([
 const LIGHT_RAY_COUNT = 96;
 const LIGHT_ANGLE_EPSILON = 0.0008;
 const MONSTER_SPAWN_LIGHT_PADDING = 30;
+const CAVE_DAY_POPULATION = 6;
+const CAVE_DAY_REPLACEMENT_MS = 18000;
+const CAVE_NIGHT_BASE_REINFORCEMENTS = 4;
+const CAVE_NIGHT_REINFORCEMENTS_PER_DAY = 2;
 const CONSTRUCTION_SECONDS = 1.5;
 const DECONSTRUCTION_SECONDS = 2.25;
 const BUILDING_HALF_SIZE = 23;
@@ -1331,6 +1337,8 @@ function makeGame(): GameState {
     message: "Your Wood Axe is in slot 2 and a campfire is already lit. Gather before nightfall.",
     messageUntil: performance.now() + 6000,
     wave: 0,
+    cavePopulationInitialized: false,
+    nextCaveSpawnAt: 0,
     kills: 0,
     lastId: id,
   };
@@ -1383,20 +1391,21 @@ function pay(game: GameState, cost: Partial<Record<Material, number>>) {
   removeDepletedMaterialStacks(game);
 }
 
-function spawnNightWaveInRealm(game: GameState, realm: Realm, count: number) {
+function spawnMonstersInRealm(game: GameState, realm: Realm, count: number) {
   const roster = MONSTER_WAVE_ROSTERS[realm].filter(
     (kind) => MONSTER_DATA[kind].realm === realm && MONSTER_DATA[kind].earliestNight <= game.day,
   );
   if (roster.length === 0) return 0;
+  const spawnBatchId = game.lastId;
   let spawned = 0;
   for (let i = 0; i < count; i++) {
     const kind = roster[i % roster.length];
     let spawnPoint: { x: number; y: number } | null = null;
     for (let attempt = 0; attempt < 160; attempt++) {
-      const candidateIndex = i * 211 + attempt * 2;
+      const candidateIndex = spawnBatchId * 307 + i * 211 + attempt * 2;
       const candidateX = 70 + seeded(candidateIndex, game.day * 17 + 101) * (WORLD_W - 140);
       const candidateY = 70 + seeded(candidateIndex + 1, game.day * 19 + 103) * (WORLD_H - 140);
-      if (Math.hypot(candidateX - game.player.x, candidateY - game.player.y) < 360) continue;
+      if (realm === game.realm && Math.hypot(candidateX - game.player.x, candidateY - game.player.y) < 360) continue;
       if (realm === "caveSystem" && !isCaveFloor(candidateX, candidateY, 38)) continue;
       if (realm === "meadow" && inDeepWater(candidateX, candidateY, 30)) continue;
       if (pointIsLit(game, realm, candidateX, candidateY, MONSTER_SPAWN_LIGHT_PADDING)) continue;
@@ -1408,6 +1417,14 @@ function spawnNightWaveInRealm(game: GameState, realm: Realm, count: number) {
             node.hp > 0 &&
             (isTree(node.kind) || isMineable(node.kind)) &&
             distanceToNodeFootprint(node, candidateX, candidateY, 20) === 0,
+        )
+      ) continue;
+      if (
+        game.creatures.some(
+          (creature) =>
+            creature.realm === realm &&
+            creature.hp > 0 &&
+            Math.hypot(creature.x - candidateX, creature.y - candidateY) < 72,
         )
       ) continue;
       spawnPoint = { x: candidateX, y: candidateY };
@@ -1457,14 +1474,35 @@ function spawnNightWaveInRealm(game: GameState, realm: Realm, count: number) {
 
 function spawnNightWave(game: GameState) {
   game.wave = game.day;
-  const count = 6 + game.day * 3;
-  const meadowSpawned = spawnNightWaveInRealm(game, "meadow", count);
-  const caveSpawned = spawnNightWaveInRealm(game, "caveSystem", count);
+  const meadowCount = 6 + game.day * 3;
+  const caveCount = CAVE_NIGHT_BASE_REINFORCEMENTS + game.day * CAVE_NIGHT_REINFORCEMENTS_PER_DAY;
+  const meadowSpawned = spawnMonstersInRealm(game, "meadow", meadowCount);
+  const caveSpawned = spawnMonstersInRealm(game, "caveSystem", caveCount);
   notify(
     game,
     "NIGHT " + game.day + " — " + meadowSpawned + " horrors prowl the meadow and " + caveSpawned + " stalk the caves.",
     4300,
   );
+}
+
+function maintainCavePopulation(game: GameState, now: number) {
+  const cavePopulation = game.creatures.filter(
+    (creature) =>
+      creature.realm === "caveSystem" &&
+      creature.hp > 0 &&
+      isMonster(creature.kind) &&
+      !creature.boss,
+  ).length;
+  if (!game.cavePopulationInitialized) {
+    spawnMonstersInRealm(game, "caveSystem", Math.max(0, CAVE_DAY_POPULATION - cavePopulation));
+    game.cavePopulationInitialized = true;
+    game.nextCaveSpawnAt = now + CAVE_DAY_REPLACEMENT_MS;
+    return;
+  }
+  if (cavePopulation >= CAVE_DAY_POPULATION) return;
+  if (cavePopulation > 0 && now < game.nextCaveSpawnAt) return;
+  spawnMonstersInRealm(game, "caveSystem", 1);
+  game.nextCaveSpawnAt = now + CAVE_DAY_REPLACEMENT_MS;
 }
 
 function activeTool(game: GameState): Tool {
@@ -2100,6 +2138,7 @@ function setGamePaused(game: GameState, paused: boolean, now = performance.now()
   game.player.attackReady = shiftDeadline(game.player.attackReady);
   game.player.useReady = shiftDeadline(game.player.useReady);
   game.messageUntil = shiftDeadline(game.messageUntil);
+  game.nextCaveSpawnAt = shiftDeadline(game.nextCaveSpawnAt);
   game.nodes.forEach((node) => {
     node.respawnAt = shiftDeadline(node.respawnAt);
   });
@@ -3370,10 +3409,13 @@ function updateGame(game: GameState, dt: number, viewportWidth: number, viewport
   while (game.clock >= 1) {
     game.clock -= 1;
     game.day += 1;
-    game.creatures = game.creatures.filter((creature) => !isMonster(creature.kind) || creature.boss);
+    game.creatures = game.creatures.filter(
+      (creature) => !isMonster(creature.kind) || creature.realm === "caveSystem" || creature.boss,
+    );
     game.player.hp = Math.min(game.player.maxHp, game.player.hp + 12);
-    notify(game, "DAWN — Day " + game.day + ". The night creatures fade with the dark.", 4000);
+    notify(game, "DAWN — Day " + game.day + ". Meadow horrors fade; the caves stay hostile.", 4000);
   }
+  maintainCavePopulation(game, performance.now());
   const afterNight = isNight(game);
   if (afterNight && game.wave < game.day) spawnNightWave(game);
   game.wasNight = afterNight;

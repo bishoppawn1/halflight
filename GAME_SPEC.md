@@ -179,8 +179,9 @@ generation never chains separate deposits into a line.
 At night, the Meadow is almost completely opaque beyond light. The player has
 only 96 units of close night vision; Standing Torches, Campfires, and Fire Traps
 reveal 225, 410, and 115 units respectively. Caves remain dark at every time of
-day and give the player 112 units of close vision before placed lights extend
-it. Every light follows line of sight. Living tree crowns, completed wood,
+day, give the player 112 units of close vision before placed lights extend it,
+and remain hostile during both halves of the day/night cycle. Every light
+follows line of sight. Living tree crowns, completed wood,
 stone, and metal walls, closed gates and doors, and cave-rock boundaries stop
 light and leave darkness behind them. The first tree or completed structure hit
 by a light remains visibly illuminated so the source of each cast shadow is
@@ -190,8 +191,8 @@ one another's shadows.
 A full cycle lasts 480 seconds: 240 seconds of day and 240 seconds of night. The
 first run begins partway through daylight, leaving about 163 seconds before
 night 1. At dawn, the day counter increases and up to 12 health is restored.
-All ordinary night-wave monsters disappear at dawn. The cave guardian is a
-permanent cave encounter and is not removed by the day transition.
+Ordinary Meadow horrors disappear at dawn. Cave horrors and the cave guardian
+survive the day transition and remain underground until defeated.
 
 ## 6. Hunger, food, and death
 
@@ -558,16 +559,23 @@ taming attempts, and no remembered wariness.
 
 ## 12. Endless night progression
 
-Every night spawns `6 + 3 × day` new monsters in each realm, with no wave-size
-cap. Night 1 therefore spawns 9 in the meadow and 9 in the cave system; night
-10 spawns 36 in each. Monsters in the inactive realm remain there while the
+The cave system begins with six ordinary cave horrors in addition to its
+guardian. This is its low daytime population. If all six are defeated, one
+replacement appears immediately at a valid distant point; otherwise a missing
+member is replaced at most once every 18 seconds until the population returns
+to six. Surviving cave enemies above that floor are never removed automatically.
+
+Every night spawns `6 + 3 × day` new Meadow monsters and adds `4 + 2 × day`
+reinforcements to the persistent cave population, with no wave-size cap. Night
+1 therefore spawns 9 in the Meadow and adds 6 underground; night 10 spawns 36
+and adds 24 respectively. Monsters in the inactive realm remain there while the
 player travels, so leaving a cave never makes the outside night empty. Meadow
-waves use only shades, crawlers, and brutes. Cave-system waves use only wraiths
-and maws; surface horrors never spawn underground and cave horrors never spawn
-outside. The game checks throughout the night whether the current day's waves
-have spawned, so a missed transition frame cannot suppress them. Each day
-advances after dawn, and each monster gains 2 speed and 1.4 contact damage per
-day.
+waves use only shades, crawlers, and brutes. Cave-system populations use only
+wraiths and maws; surface horrors never spawn underground and cave horrors
+never spawn outside. The game checks throughout the night whether the current
+day's reinforcements have spawned, so a missed transition frame cannot suppress
+them. Each day advances after dawn, and each newly spawned monster gains 2 speed
+and 1.4 contact damage per day.
 
 Each monster's position is sampled independently from valid points across its
 realm, at least 360 units from the player's corresponding world coordinates.
@@ -600,8 +608,8 @@ Monsters initially prowl instead of knowing the player's location. They chase
 after sensing the player or being attacked, stop at their attack reach when the
 path is clear, and close the distance when terrain or a structure blocks the
 attack. They return to prowling after the player moves beyond 1.8 times that
-monster's sense radius. Any surviving ordinary night-wave monsters disappear at
-dawn before the next day begins.
+monster's sense radius. At dawn, surviving ordinary Meadow horrors disappear
+before the next day begins. Cave monsters remain underground through daylight.
 
 ## 13. Current scope
 
