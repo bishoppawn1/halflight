@@ -353,9 +353,8 @@ const RAW_MEAT_SICKNESS_CHANCE = 0.2;
 const RAW_MUSHROOM_HALLUCINATION_CHANCE = 0.12;
 const HALLUCINATION_DURATION_MS = 15_000;
 const CREATURE_DROP_COLLECTION_DELAY_MS = 650;
-const HALLUCINATION_PHANTOM_COUNT = 6;
+const HALLUCINATION_PHANTOM_COUNT = 2;
 const HALLUCINATION_FLICKER_PERIOD_MS = 2_600;
-let hallucinationFrameBuffer: HTMLCanvasElement | null = null;
 const CREATURE_ATTACK_COOLDOWN_MS = 1250;
 const CREATURE_STRUCTURE_ATTACK_COOLDOWN_MS = 1200;
 const BRUTE_LEAP_COOLDOWN_MS = 4200;
@@ -7925,7 +7924,7 @@ function drawDarkness(
 
 function hallucinationObjectAlpha(game: GameState, now: number, key: number) {
   if (game.hallucinatingUntil <= now) return 1;
-  const offset = seeded(key, 811) * HALLUCINATION_FLICKER_PERIOD_MS;
+  const offset = (Math.imul(key ^ 811, 2_654_435_761) >>> 0) % HALLUCINATION_FLICKER_PERIOD_MS;
   const phase = (now + offset) % HALLUCINATION_FLICKER_PERIOD_MS;
   if (phase < 820 || phase >= 1_940) return 1;
   if (phase < 1_040) return 1 - (phase - 820) / 220;
@@ -7942,12 +7941,12 @@ function drawHallucinatingObject(
 ) {
   const alpha = hallucinationObjectAlpha(game, now, key);
   if (alpha <= 0.01) return;
+  if (alpha >= 0.99) {
+    draw();
+    return;
+  }
   ctx.save();
   ctx.globalAlpha *= alpha;
-  if (alpha < 0.8) {
-    ctx.translate(Math.sin(now / 42 + key) * 3.5, Math.cos(now / 55 + key) * 2);
-    ctx.filter = "hue-rotate(95deg) saturate(1.8)";
-  }
   draw();
   ctx.restore();
 }
@@ -8028,52 +8027,9 @@ function drawHallucinationPhantom(
   const jitterX = Math.sin(now / 38 + phantom.creature.phase) * 6;
   const jitterY = Math.cos(now / 47 + phantom.creature.phase) * 4;
   ctx.save();
-  ctx.globalAlpha = phantom.alpha * opacity * 0.28;
-  ctx.translate(jitterX + 5, jitterY - 2);
-  ctx.filter = "hue-rotate(145deg) saturate(2.1)";
-  drawCreature(ctx, phantom.creature, now);
-  ctx.restore();
-  ctx.save();
   ctx.globalAlpha = phantom.alpha * opacity;
   ctx.translate(jitterX, jitterY);
   drawCreature(ctx, phantom.creature, now);
-  ctx.restore();
-}
-
-function applyHallucinationWave(
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
-  now: number,
-) {
-  if (!hallucinationFrameBuffer) hallucinationFrameBuffer = document.createElement("canvas");
-  if (hallucinationFrameBuffer.width !== canvas.width || hallucinationFrameBuffer.height !== canvas.height) {
-    hallucinationFrameBuffer.width = canvas.width;
-    hallucinationFrameBuffer.height = canvas.height;
-  }
-  const bufferContext = hallucinationFrameBuffer.getContext("2d");
-  if (!bufferContext) return;
-  bufferContext.setTransform(1, 0, 0, 1, 0, 0);
-  bufferContext.clearRect(0, 0, canvas.width, canvas.height);
-  bufferContext.drawImage(canvas, 0, 0);
-
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const sliceHeight = Math.max(10, Math.round(14 * dpr));
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (let y = 0; y < canvas.height; y += sliceHeight) {
-    const height = Math.min(sliceHeight, canvas.height - y);
-    const cssY = y / dpr;
-    const shift = Math.round(
-      (Math.sin(cssY / 43 + now / 225) * 8 + Math.sin(cssY / 91 - now / 360) * 5) * dpr,
-    );
-    ctx.drawImage(hallucinationFrameBuffer, 0, y, canvas.width, height, shift, y, canvas.width, height);
-    if (shift > 0) {
-      ctx.drawImage(hallucinationFrameBuffer, canvas.width - shift, y, shift, height, 0, y, shift, height);
-    } else if (shift < 0) {
-      ctx.drawImage(hallucinationFrameBuffer, 0, y, -shift, height, canvas.width + shift, y, -shift, height);
-    }
-  }
   ctx.restore();
 }
 
@@ -8204,7 +8160,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
     }
   });
   phantoms.forEach((phantom) => {
-    if (onScreen(phantom.creature.x, phantom.creature.y)) {
+    if (!isNight(game) && !inCave && onScreen(phantom.creature.x, phantom.creature.y)) {
       drawables.push({
         y: phantom.creature.y,
         draw: () => drawHallucinationPhantom(ctx, phantom, now),
@@ -8277,7 +8233,6 @@ function drawWorld(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, gam
   ctx.strokeStyle = "rgba(255,255,255,.07)";
   ctx.lineWidth = 1;
   ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
-  if (game.hallucinatingUntil > now) applyHallucinationWave(ctx, canvas, now);
 }
 
 function nearbyPrompt(game: GameState) {

@@ -38,40 +38,22 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 
 .hallucinating .world-canvas {
   transform-origin: center;
-  will-change: filter, transform;
-  animation: hallucination-world 1.05s ease-in-out infinite;
+  will-change: transform;
+  animation: hallucination-world 1.8s ease-in-out infinite;
 }
 
 .hallucination-overlay {
   position: absolute;
   z-index: 3;
-  inset: -12%;
+  inset: -4%;
   pointer-events: none;
-  opacity: .58;
-  mix-blend-mode: screen;
+  opacity: .38;
+  will-change: transform, opacity;
   background:
-    repeating-linear-gradient(104deg, transparent 0 46px, rgba(255,103,210,.1) 52px 55px, transparent 61px 92px),
-    repeating-radial-gradient(circle at 38% 43%, transparent 0 36px, rgba(103,243,201,.26) 41px 46px, transparent 51px 76px),
-    conic-gradient(from 45deg at 62% 58%, rgba(245,91,176,.23), transparent 18%, rgba(78,216,240,.2) 36%, transparent 57%, rgba(238,214,76,.19) 74%, transparent);
-  animation: hallucination-drift 2.4s linear infinite, hallucination-throb .7s steps(2, end) infinite alternate;
-}
-
-.hallucination-overlay::before,
-.hallucination-overlay::after {
-  content: "";
-  position: absolute;
-  inset: 5%;
-  border: 8px solid rgba(255,122,209,.16);
-  border-radius: 42% 58% 51% 49%;
-  filter: blur(3px);
-  animation: hallucination-ring 2.1s ease-in-out infinite alternate;
-}
-
-.hallucination-overlay::after {
-  inset: 20%;
-  border-color: rgba(94,247,209,.2);
-  border-radius: 57% 43% 38% 62%;
-  animation-delay: -.8s;
+    radial-gradient(ellipse at 35% 42%, rgba(97,239,201,.28), transparent 42%),
+    radial-gradient(ellipse at 72% 64%, rgba(241,91,181,.26), transparent 44%),
+    linear-gradient(115deg, rgba(86,203,232,.12), rgba(239,212,77,.1));
+  animation: hallucination-drift 2.3s ease-in-out infinite alternate;
 }
 
 .hallucination-status {
@@ -95,25 +77,13 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .hallucination-status span { color: #d8f8e7; font-size: 8px; font-weight: 800; line-height: 1.35; }
 
 @keyframes hallucination-world {
-  0% { filter: hue-rotate(-52deg) saturate(1.65) contrast(1.08); transform: scale(1.028) rotate(-.35deg) skewX(-.45deg) translate(-4px, 2px); }
-  25% { filter: hue-rotate(22deg) saturate(2) contrast(1.14); transform: scale(1.042) rotate(.25deg) skewX(.65deg) translate(5px, -3px); }
-  50% { filter: hue-rotate(76deg) saturate(1.72) contrast(1.1); transform: scale(1.034) rotate(.5deg) skewX(-.32deg) translate(1px, 4px); }
-  75% { filter: hue-rotate(8deg) saturate(2.1) contrast(1.17); transform: scale(1.045) rotate(-.22deg) skewX(.72deg) translate(-5px, -1px); }
-  100% { filter: hue-rotate(-52deg) saturate(1.65) contrast(1.08); transform: scale(1.028) rotate(-.35deg) skewX(-.45deg) translate(-4px, 2px); }
+  0%, 100% { transform: scale(1.018) rotate(-.2deg) skewX(-.28deg) translate3d(-3px, 1px, 0); }
+  50% { transform: scale(1.026) rotate(.22deg) skewX(.32deg) translate3d(3px, -2px, 0); }
 }
 
 @keyframes hallucination-drift {
-  to { transform: rotate(360deg) scale(1.08); }
-}
-
-@keyframes hallucination-throb {
-  from { opacity: .42; filter: blur(0); }
-  to { opacity: .72; filter: blur(1.4px); }
-}
-
-@keyframes hallucination-ring {
-  from { transform: rotate(-8deg) scale(.93); opacity: .45; }
-  to { transform: rotate(12deg) scale(1.08); opacity: .95; }
+  from { transform: translate3d(-1.5%, 1%, 0) scale(1.02); opacity: .28; }
+  to { transform: translate3d(1.5%, -1%, 0) scale(1.045); opacity: .48; }
 }
 
 .low-health-vignette {
@@ -680,8 +650,6 @@ kbd { font-family: Arial, Helvetica, sans-serif; }
 .game-paused .low-health-vignette,
 .game-paused .hunger-warning,
 .game-paused .hallucination-overlay,
-.game-paused .hallucination-overlay::before,
-.game-paused .hallucination-overlay::after,
 .game-paused.hallucinating .world-canvas { animation-play-state: paused; }
 
 .game-toast {

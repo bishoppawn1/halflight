@@ -259,12 +259,12 @@ selected automatically.
 Raw meat has a 20% chance to cause sickness after eating, removing 28 hunger
 after its ordinary restoration. Raw mushrooms have a 14% sickness chance that
 removes 20 hunger and, independently, a 12% chance to cause 15 seconds of
-hallucinations. Hallucinations heavily bend the whole rendered world into
-moving horizontal waves, rapidly shift its color and scale, and show an
-on-screen status warning. Real resources, drops, structures, treasures, and
-creatures enter staggered windows in which they flicker and disappear even
-though their actual state, collision, targeting, and behavior continue
-unchanged. Up to six fake enemy silhouettes independently appear around the
+hallucinations. Hallucinations make the whole rendered world sway, skew, and
+pulse with shifting color while showing an on-screen status warning. Real
+resources, drops, structures, treasures, and creatures enter staggered windows
+in which they flicker and disappear even though their actual state, collision,
+targeting, and behavior continue unchanged. Up to two fake enemy silhouettes
+independently appear around the
 player, rush inward, jitter, and dissolve. These phantoms are purely visual:
 they cannot collide, attack, take damage, or change the threat count. Every
 hallucination animation and timer freezes while the game is paused.
